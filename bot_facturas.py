@@ -30,8 +30,14 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
-TELEGRAM_TOKEN    = os.getenv("TELEGRAM_TOKEN", "TU_TOKEN_AQUI")
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "TU_KEY_AQUI")
+def _require_env(name):
+    value = os.getenv(name, "").strip()
+    if not value:
+        raise RuntimeError(f"Falta la variable de entorno {name}")
+    return value
+
+TELEGRAM_TOKEN    = _require_env("TELEGRAM_TOKEN")
+ANTHROPIC_API_KEY = _require_env("ANTHROPIC_API_KEY")
 
 EMPRESA        = "COVISIAN ESPANA"
 CODIGO_CAMPANA = "CAMP 3495"

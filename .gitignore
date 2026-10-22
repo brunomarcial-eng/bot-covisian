@@ -1,0 +1,6 @@
+.env
+.env.*
+usuarios.json
+liquidacion_*.xlsx
+__pycache__/
+*.pyc
