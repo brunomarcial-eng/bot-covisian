@@ -267,7 +267,8 @@ export const CTX = {
       'empanadas?', 'empanadillas?', 'hojaldres?', 'quiches?', 'garbanzos', 'alubias', 'judias(?! verdes)',
       'callos', 'al infierno', 'a la sidra', 'al vino', 'lasanas?', 'canelones', 'macarrones', 'espaguetis?',
       'tallarines', 'risotto', 'paellas?', 'flamenquin(?:es)?', 'cachopos?', 'san jacobos?', 'rellen[oa]s?',
-      'gratinad[oa]s?', 'en salsa', 'choripan', 'cocinad[oa]s? dentro',
+      'gratinad[oa]s?', 'en salsa', 'choripan', 'cocinad[oa]s? dentro', 'habas', 'guisantes', 'pochas',
+      'a la riojana', 'pote',
     ),
     '',
   ),
@@ -350,6 +351,16 @@ const RULE_DEFS = [
   block('carpaccios? de (?:calabacin|tomate|remolacha|pina|setas?|champinon(?:es)?|verduras?|calabaza|pepino|fresas?|mango|melon|sandia|higos?|naranja|alcachofas?|esparragos?|portobellos?|boletus|hongos)'),
   block('tortillas? (?:de )?(?:maiz|trigo|harina|mexicanas?)|tortillas? para (?:fajitas|burritos|tacos|wraps?)'),
   rule('fiambre-loncheado', 'cabeza de jabali'),
+  block('(?:estilo )?new york(?: cheese ?cake)?'),
+  rule(
+    'carne-bien-hecha',
+    '(?:chuleton(?:es)?|chuletas?|txuletas?|entrecots?|solomillos?|carnes?|filetes?|magret(?: de pato)?|steak|lomo (?:alto|bajo))(?: [a-z]+){0,2} (?:bien|muy) hech[oa]s?',
+  ),
+  rule(
+    'carne-bien-hecha',
+    'pechugas? de (?:pollo|pavo|pato) (?:a la (?:plancha|brasa|parrilla|crema|naranja)|al (?:horno|ajillo|curry|vino)|asad[oa]s?|frit[oa]s?|empanad[oa]s?|rellen[oa]s?|guisad[oa]s?|en salsa|en su jugo|estofad[oa]s?)',
+  ),
+  rule('huevo-bien-hecho', 'huevos? (?:frit[oa]s? )?(?:bien hech[oa]s?|bien cuajad[oa]s?|con la yema (?:hecha|cuajada))'),
   rule('pate', 'mousses? de (?:pato|foie|higado|oca|pate|cerdo|ave|campana|pollo)'),
 
   // 1. Mercurio alto
@@ -383,20 +394,21 @@ const RULE_DEFS = [
   ),
   rule(
     'huevo-poco-hecho',
-    '(?:huevos?|yemas?|claras?)(?: [a-z]+){0,2} (?:poco hech[oa]s?|crud[oa]s?|liquid[oa]s?|sin cuajar|poco cuajad[oa]s?|pasad[oa]s? por agua|a baja temperatura|a 6[0-9](?: grados)?|mollets?|poches?|pochad[oa]s?|escalfad[oa]s?)|huevos? (?:rotos|estrellados)|yemas? liquidas?|poches?|huevos? (?:a la )?benedict(?:ine|ina|inos)?|revueltos? (?:jugosos?|poco hechos?|cremosos?|babosos?)|huevos? revueltos? (?:jugosos?|cremosos?|poco hechos?)',
+    '(?:huevos?|yemas?|claras?)(?: [a-z]+){0,2} (?:poco hech[oa]s?|crud[oa]s?|liquid[oa]s?|sin cuajar|poco cuajad[oa]s?|pasad[oa]s? por agua|a baja temperatura|a 6[0-9](?: grados)?|mollets?|poches?|pochad[oa]s?|escalfad[oa]s?)|huevos? (?:rotos|estrellados|frit[oa]s?)|yemas? liquidas?|poches?|huevos? (?:a la )?benedict(?:ine|ina|inos)?|revueltos? (?:jugosos?|poco hechos?|cremosos?|babosos?)|huevos? revueltos? (?:jugosos?|cremosos?|poco hechos?)',
   ),
   // 6. Poco hecha / al punto / sangrante
-  rule('carne-poco-hecha', '(?:muy )?poco hech[oa]s?|al punto(?! de sal)|sangrante|vuelta y vuelta|a la sangre|poco cocinad[oa]s?|crud[oa] por dentro'),
+  rule('carne-poco-hecha', '(?:muy )?poco hech[oa]s?|al punto(?! de sal)|sangrante|vuelta y vuelta|a la sangre|poco cocinad[oa]s?|crud[oa] por dentro|chuleton(?:es)?|chuletas? de vaca|txuletas?|rosbif|roast beef|magret(?: de pato)?'),
   // 7. Mayonesa: de bote (supermercado o dicho expresamente) antes que casera.
   rule('mayonesa-bote', 'mayonesas?|mahonesas?|alioli|allioli|aioli|salsa alioli', { context: 'product' }),
   rule(
     'mayonesa-bote',
-    '(?:mayonesas?|mahonesas?|alioli|allioli)(?: [a-z]+)? (?:de bote|de tarro|industrial(?:es)?|envasad[oa]s?|comercial(?:es)?|pasteurizad[oa]s?|del super)',
+    '(?:mayonesas?|mahonesas?|alioli|allioli)(?: [a-z]+)? (?:de bote|de tarro|industrial(?:es)?|envasad[oa]s?|comercial(?:es)?|pasteurizad[oa]s?|del super|light)',
   ),
   rule('mayonesa-casera', 'mayonesas? caseras?|mahonesas? caseras?|alioli|allioli|ali oli|all i oli|aioli|ajoaceites?|mayonesa de la casa'),
   // 8. Tiramisú / mousse
   rule(any('tiramisu'), 'tiramisus?'),
-  rule(any('mousse', 'tiramisu'), 'mousses?|zabaglione|zabaione|sabayon'),
+  rule(any('mousse-casera', 'tiramisu'), 'mousses?(?: [a-z]+){0,3} (?:casera|de la casa)|semifrios?'),
+  rule(any('mousse-casera', 'tiramisu'), 'mousses?|zabaglione|zabaione|sabayon', { context: 'text' }),
   // 9. Paté / foie / micuit
   rule('pate', 'pates?|foie(?: gras)?|micuit|mi cuit|terrinas? de (?:foie|pato|higado|campana)|rillettes'),
   // 10. Hígado
@@ -437,9 +449,9 @@ const RULE_DEFS = [
   rule('sobrasada', 'sobrasadas?|sobrassada'),
   rule('chorizo', 'chorizos?(?! (?:de pavo|vegano|vegetal))|choricitos?'),
   rule('salchichon', 'salchichon(?:es)?(?! de pavo)|fuets?|espetec|salamis?|pepperoni|secallona'),
-  // Tabla o surtido de ibéricos / embutidos: los cuatro tipos.
+  // Tabla o surtido de ibéricos / embutidos (mezcla varios tipos).
   rule(
-    ['jamon-curado', 'chorizo', 'salchichon', 'lomo-embuchado'],
+    'tabla-embutidos',
     '(?:tablas?|surtido|platos?|tabla variada) de (?:ibericos|embutidos(?: ibericos)?)|ibericos|embutidos?(?: ibericos| curados| variados)?',
   ),
   // 16. Jamón curado, con lookahead para no pillar «jamón cocido» ni «jamón york».
@@ -523,6 +535,7 @@ const RULE_DEFS = [
     'atun(?:es)? (?:en (?:lata|conserva|aceite(?: de oliva| vegetal| de girasol)?|escabeche)|al natural|claro|blanco|enlatado|de lata|light)|latas? de atun|bonito del norte|bonito (?:en (?:aceite|conserva|escabeche|lata)|al natural)|ventrescas?(?: de (?:atun|bonito))?|melvas?(?: canutera)?',
   ),
   rule('atun-plancha', 'atun(?:es)?|bonito'),
+  rule('salmon-hecho', 'salmon(?:es)?|truchas?'),
 
   // --- Más general (después de la lista de la especificación) ---
   rule(any('bebida-vegetal'), 'bebidas? (?:vegetal(?:es)?|de (?:avena|soja|almendras?|arroz|coco|avellanas?))|leches? de (?:almendras?|avena|soja|soya|arroz|coco|avellanas?|anacardos?|espelta|chufa)|horchata'),
@@ -540,6 +553,7 @@ const RULE_DEFS = [
     'leches?(?: (?:entera|desnatada|semidesnatada|semi|uht|pasteurizada|esterilizada|en polvo|condensada|evaporada|fresca|sin lactosa|de vaca|de cabra|de oveja|con cacao|chocolatada|infantil|de crecimiento))*',
   ),
   rule('huevo-bien-hecho', 'huevos? (?:duros?|cocidos?|bien hech[oa]s?|bien cuajad[oa]s?)|huevo duro'),
+  rule('revuelto', 'huevos? revueltos?|revueltos?'),
   rule(
     'tortilla-patata',
     'pinchos? de tortilla|tortillas?(?: (?:de )?(?:patatas?|papas|espanola|de cebolla|francesa))?',
@@ -551,13 +565,13 @@ const RULE_DEFS = [
       'carnes?(?! (?:cruda|poco hecha|de caza))', 'filetes? de (?:ternera|vaca|cerdo|pollo|pavo|buey|lomo|cordero)',
       'pechugas? de (?:pollo|pavo|pato)', 'terneras?', 'vaca', 'buey(?! de mar)', 'novillo', 'pollos?', 'pavo',
       'gallina', 'pularda', 'capon', 'corderos?', 'lechazo', 'cabrito', 'cochinillo', 'cerdo', 'conejo', 'patos?',
-      'magret', 'codorniz', 'codornices', 'pichon', 'solomillos?', 'entrecots?', 'chuleton(?:es)?', 'chuletas?',
+      'codorniz', 'codornices', 'pichon', 'solomillos?', 'entrecots?', 'chuletas?',
       'chuletillas?', 'pechugas?', 'muslos?', 'contramuslos?', 'alitas?', 'costillas?', 'costillar', 'secreto',
       'presa', 'pluma', 'carrilladas?', 'carrilleras?', 'rabo de toro', 'albondigas?', 'escalopes?', 'escalopines?',
       'cachopos?', 'flamenquin(?:es)?', 'san jacobos?', 'codillos?', 'churrasco',
       'lomos?(?! (?:alto |bajo )?de (?:bacalao|atun|salmon|merluza|bonito|pez|rape|corvina|lubina|dorada|trucha))',
-      'morcillo', 'osobuco', 'rosbif', 'roast beef', 'tournedos?', 'kebab', 'shawarma', 'gyros', 'callos', 'torreznos?',
-      'panceta', 'bacon', 'beicon', 'parrillada de carne', 'pollo asado', 'cocido', 'lacon',
+      'morcillo', 'osobuco', 'tournedos?', 'kebab', 'shawarma', 'gyros', 'callos', 'torreznos?',
+      'panceta', 'bacon', 'beicon', 'parrillada de carne', 'pollo asado', 'cocido', 'lacon', 'rabo de toro',
     ),
   ),
   rule(
