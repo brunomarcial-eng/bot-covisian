@@ -13,6 +13,10 @@ export const TESSERACT = Object.freeze({
 const OEM_LSTM_ONLY = 1;
 const OCR_TIMEOUT_MS = 90_000;
 const MAX_ITEMS = { carta: 12, etiqueta: 1 };
+// El OCR recoge algo más de 12 líneas: la interfaz se queda con 12, priorizando las reconocibles.
+const OCR_COLLECT = 20;
+// Líneas que empiezan como un encabezado («Carta del mediodía», «Menú del día 14 €»).
+const HEADING_START = /^(?:nuestra |la )?(?:carta|menu)\b/;
 const MAX_NAME = 120;
 const MAX_INGREDIENTS = 40;
 const MAX_INGREDIENT = 80;
@@ -79,7 +83,7 @@ function plausible(line) {
   if (!visible || letters / visible < 0.6) return false; // ruido del OCR
   if (NOISE.test(line)) return false;
   const folded = fold(line).replace(/[:.]+$/, '');
-  return !HEADINGS.has(folded);
+  return !HEADINGS.has(folded) && !HEADING_START.test(folded);
 }
 
 // Parte una lista de ingredientes por comas o punto y coma, sin romper paréntesis ni decimales («8,7 %»).
@@ -144,7 +148,7 @@ export function parseOcrText(text, mode = 'carta') {
     if (seen.has(key)) continue;
     seen.add(key);
     items.push({ name: cut(clean, MAX_NAME), ingredients: [], uncertain: true });
-    if (items.length >= MAX_ITEMS.carta) break;
+    if (items.length >= OCR_COLLECT) break;
   }
   return items;
 }

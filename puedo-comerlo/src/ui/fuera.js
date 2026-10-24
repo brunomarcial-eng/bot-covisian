@@ -119,12 +119,23 @@ export function render(ctx) {
     }
     if (signal.aborted) return;
 
-    const items = res && res.readable ? cleanItems(res.items, 12) : [];
+    let items = res && res.readable ? cleanItems(res.items, 20) : [];
     if (!items.length) {
       failure();
       return;
     }
-    const verdicts = items.map((it) => classifyItem(it, profile));
+    let verdicts = items.map((it) => classifyItem(it, profile));
+    // Máximo 12 platos. Si sobran (lectura aproximada con títulos o el nombre del local),
+    // se quitan primero las líneas que la guía no reconoce, empezando por el final.
+    if (items.length > 12) {
+      const keep = new Set(items.map((_, i) => i));
+      for (let i = items.length - 1; i >= 0 && keep.size > 12; i--) {
+        if (!verdicts[i].foodId) keep.delete(i);
+      }
+      for (let i = items.length - 1; i >= 0 && keep.size > 12; i--) keep.delete(i);
+      items = items.filter((_, i) => keep.has(i));
+      verdicts = verdicts.filter((_, i) => keep.has(i));
+    }
     const payload = { kind: 'carta', items };
     setResult({
       title: 'La carta',

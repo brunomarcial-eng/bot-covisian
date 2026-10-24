@@ -582,9 +582,14 @@ describe('ocr.js parseOcrText', () => {
     assert.ok(items.every((i) => i.uncertain === true && Array.isArray(i.ingredients) && i.ingredients.length === 0));
   });
 
-  test('carta: como mucho 12 líneas', () => {
+  test('carta: recoge como mucho 20 líneas (la interfaz se queda con 12)', () => {
     const text = Array.from({ length: 30 }, (_, i) => `Plato número ${i}`).join('\n');
-    assert.equal(parseOcrText(text, 'carta').length, 12);
+    assert.equal(parseOcrText(text, 'carta').length, 20);
+  });
+
+  test('carta: «Carta del mediodía» y «Menú del día» son encabezados, no platos', () => {
+    const items = parseOcrText('Carta del mediodía\nMenú del día 14,00 €\nTortilla de patatas 7,00 €', 'carta');
+    assert.deepEqual(items.map((i) => i.name), ['Tortilla de patatas']);
   });
 
   test('etiqueta: trozos tras «Ingredientes:» separados por comas, sin romper paréntesis ni decimales', () => {
