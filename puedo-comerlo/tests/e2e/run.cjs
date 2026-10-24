@@ -225,7 +225,18 @@ async function tapNav(page, name) {
 
 async function seen(page, text, { timeout = 6000, exact = true } = {}) {
   const loc = text instanceof RegExp ? page.getByText(text) : page.getByText(text, { exact });
-  try { await loc.filter({ visible: true }).first().waitFor({ state: 'visible', timeout: Math.max(timeout, 60) }); return true; } catch { return false; }
+  const end = Date.now() + timeout;
+  for (;;) {
+    const v = loc.filter({ visible: true });
+    const n = await v.count().catch(() => 0);
+    for (let i = 0; i < n; i++) {
+      // descarta lo visualmente oculto (regiones aria-live de 1 px, .visually-hidden)
+      const box = await v.nth(i).boundingBox().catch(() => null);
+      if (box && box.width > 2 && box.height > 2) return true;
+    }
+    if (Date.now() > end) return false;
+    await page.waitForTimeout(200);
+  }
 }
 
 // Pastillas de semáforo visibles (fuera de nav/pie), con el texto de su ficha.
@@ -372,7 +383,7 @@ async function navState(page) {
       const r = n.getBoundingClientRect();
       return { top: Math.round(r.top), bottom: Math.round(r.bottom), position: getComputedStyle(n).position, items: [...n.querySelectorAll('a, button')].filter(visible).map((a) => a.innerText.replace(/\s+/g, ' ').trim()) };
     });
-    const burger = [...document.querySelectorAll('button, a, [role=button]')].filter(visible).filter((b) => /men[uú]|hamburg|☰|≡/i.test([b.getAttribute('aria-label') || '', b.innerText, typeof b.className === 'string' ? b.className : '', b.title || '', b.id].join(' '))).map((b) => (b.getAttribute('aria-label') || b.innerText || b.className).slice(0, 40));
+    const burger = [...document.querySelectorAll('button, a, [role=button]')].filter(visible).filter((b) => /men[uú]|hamburg|☰|≡/i.test([b.getAttribute('aria-label') || '', typeof b.className === 'string' ? b.className : '', b.title || '', b.id].join(' ')) || /^\s*(men[uú]|☰|≡)\s*$/i.test(b.innerText)).map((b) => (b.getAttribute('aria-label') || b.innerText || b.className).slice(0, 40));
     const name = [...document.querySelectorAll('body *')].filter((el) => el.children.length === 0 || el.tagName.match(/^H\d$/)).filter((el) => (el.innerText || '').trim() === '¿Puedo comerlo?' && visible(el)).map((el) => Math.round(el.getBoundingClientRect().top));
     const ajustes = [...document.querySelectorAll('a, button, [role=button]')].filter(visible).filter((b) => /ajustes/i.test([b.getAttribute('aria-label') || '', b.innerText, b.title || '', b.getAttribute('href') || ''].join(' '))).map((b) => ({ top: Math.round(b.getBoundingClientRect().top), text: (b.innerText || b.getAttribute('aria-label') || '').trim().slice(0, 30), h: Math.round(b.getBoundingClientRect().height) }));
     const historial = [...document.querySelectorAll('a, button')].filter(visible).some((b) => /historial/i.test((b.innerText || '') + ' ' + (b.getAttribute('href') || '') + ' ' + (b.getAttribute('aria-label') || '')));
@@ -753,7 +764,9 @@ async function s4(t, browser) {
   try {
     await tap(page, 'Quitar');
     await page.waitForTimeout(500);
-    await t.check(!(await seen(page, /tortilla/i, { timeout: 800 })), '«Quitar» elimina la tortilla de la lista');
+    const rest = (await pills(page)).filter((x) => /tortilla/i.test(x.card));
+    const pl = parseJSON((await storage(page))['pc.v1.list'], []);
+    await t.check(rest.length === 0 && !pl.some((e) => e.foodId === 'tortilla-patata'), '«Quitar» elimina la tortilla de la lista (pantalla y pc.v1.list)', rest.map((x) => short(x.card, 80)).join(' | ') + ' · list=' + JSON.stringify(pl.map((e) => e.title)));
     await t.check(await seen(page, TXT.listaVacia, { timeout: 2000 }), 'Lista vacía: texto literal «Todavía no hay nada…»');
     await snap(page, t, 'lista-vacia');
     await t.shot('lista-vacia');
@@ -823,8 +836,12 @@ async function s5(t, browser) {
       const prefixed = unsure.filter((x) => /No estoy segura de la lectura/i.test(x.card));
       t.info('Fichas «No estoy segura» con «No estoy segura de la lectura.»', `${prefixed.length}/${unsure.length}`);
     }
-    const noise = r.pills.filter((x) => /^(entrantes|principales|postres|bebidas|casa marisa|carta del mediodia)\b/.test(norm(x.card)) || /^[\d\s,.€]+$/.test(norm(x.card).slice(0, 10)));
-    if (noise.length) t.warn('Fichas de ruido (encabezados o precios leídos como platos)', noise.map((x) => short(x.card, 60)).join(' | '));
+    const title = (x) => norm(x.card).replace(/^(si|con cuidado|mejor no|no estoy segura)\s*/, '');
+    const noise = r.pills.filter((x) => /^(entrantes|principales|postres|bebidas|casa marisa|carta del mediodia)\b/.test(title(x)) || /^[\d\s,.€]+$/.test(title(x).slice(0, 10)));
+    if (noise.length) {
+      const lost = CARTA_EXPECT.filter(([, re]) => !r.pills.some((x) => re.test(norm(x.card)))).map(([n]) => n);
+      t.warn('Fichas de ruido: el nombre del restaurante / encabezados se leen como platos' + (lost.length ? ` y, con el tope de 12, se pierden platos reales (${lost.join(', ')})` : ''), noise.map((x) => short(x.card, 60)).join(' | '));
+    }
     if (r.pills.some((x) => /€|\d+,\d\d/.test(x.card.split(/(Sí|Con cuidado|Mejor no|No estoy segura)/)[0] || ''))) t.warn('Algún título de ficha conserva el precio («8,50 €»)');
     const hist = parseJSON((await storage(page))['pc.v1.history'], []);
     await t.check(hist.some((e) => e.via === 'foto'), 'La lectura de la carta queda en el historial (via foto)', JSON.stringify(hist.map((e) => [e.via, e.title])));

@@ -341,7 +341,7 @@ const RAW_SHELLFISH_FOR_CUT = alt(
 function rule(ids, src, opts = {}) {
   return { ids: Array.isArray(ids) ? ids : [ids], src, ...opts };
 }
-const any = (...ids) => ids;
+const any = (...ids) => [ids]; // un solo hueco con alternativas
 const block = (src, opts) => rule([], src, opts);
 
 const RULE_DEFS = [
@@ -405,6 +405,8 @@ const RULE_DEFS = [
     '(?:mayonesas?|mahonesas?|alioli|allioli)(?: [a-z]+)? (?:de bote|de tarro|industrial(?:es)?|envasad[oa]s?|comercial(?:es)?|pasteurizad[oa]s?|del super|light)',
   ),
   rule('mayonesa-casera', 'mayonesas? caseras?|mahonesas? caseras?|alioli|allioli|ali oli|all i oli|aioli|ajoaceites?|mayonesa de la casa'),
+  // En la carta, «mayonesa» a secas puede ser casera: se pregunta. En un producto envasado es de bote (arriba).
+  rule('mayonesa-casera', 'mayonesas?|mahonesas?', { context: 'text' }),
   // 8. Tiramisú / mousse
   rule(any('tiramisu'), 'tiramisus?'),
   rule(any('mousse-casera', 'tiramisu'), 'mousses?(?: [a-z]+){0,3} (?:casera|de la casa)|semifrios?'),

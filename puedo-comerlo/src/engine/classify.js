@@ -131,15 +131,13 @@ function segAt(doc, pos) {
 
 // Puntuación de un alias contra un segmento (ambos normalizados).
 // 100 = igualdad. Alias contenido como palabra(s) completas: 50–99 según la parte del texto que cubre.
-// Texto contenido en un alias más largo: 80 × proporción (≥ 50 si cubre ≥ 62,5 % del alias).
 export function aliasScore(alias, text) {
   if (!alias || !text) return { score: 0, at: -1, len: 0 };
   if (alias === text) return { score: 100, at: 0, len: text.length };
   const occ = wordOccurrences(text, alias);
   if (occ.length) return { score: 50 + Math.round((49 * alias.length) / text.length), at: occ[0], len: alias.length, occ };
-  if (wordOccurrences(alias, text).length) {
-    return { score: Math.round((80 * text.length) / alias.length), at: 0, len: text.length };
-  }
+  // Un texto contenido en un alias más largo NO cuenta: lo que falta puede ser lo decisivo
+  // («cerveza sin alcohol» dentro de «cerveza sin alcohol 0,0»).
   return { score: 0, at: -1, len: 0 };
 }
 
@@ -211,6 +209,13 @@ function findMatches(doc, context) {
       }
     }
   }
+  // Un alias corto dentro de otro más largo de otro alimento no cuenta
+  // («ostras» dentro de «ostras gratinadas»).
+  const aliasSpans = matches.filter((m) => m.via === 'alias').map((m) => ({ start: m.start, end: m.end, ids: [m.id] }));
+  for (let i = matches.length - 1; i >= 0; i--) {
+    const m = matches[i];
+    if (m.via === 'alias' && strictlyInside(aliasSpans, m.start, m.end, m.id)) matches.splice(i, 1);
+  }
   // 3) Escrito a medias (solo texto libre y solo si no hay nada más).
   if (!matches.length && context === 'text') {
     const seg = doc.segs.find((s) => s.kind === 'name');
@@ -277,6 +282,10 @@ function applyContext(matches, doc, context) {
   // Anulaciones.
   if (has('cerveza-00')) remove('alcohol', 'cerveza-sin');
   if (CTX.sinAlcohol.test(text)) remove('alcohol');
+  // «cerveza sin gluten» no es «cerveza sin» (alcohol): sigue llevando alcohol.
+  if (/(?<![a-z0-9])cervezas? sin (?:gluten|lactosa)(?![a-z0-9])/.test(text) && !CTX.sinAlcohol.test(text)) {
+    remove('cerveza-sin');
+  }
   if (has('descafeinado')) remove('cafe', 'te');
   if (has('mayonesa-bote')) remove('mayonesa-casera');
   if (has('pescado-mercurio')) remove('atun-plancha', 'atun-lata', 'pescado-blanco-plancha', 'pescado-azul-pequeno', 'salmon-hecho');
@@ -454,6 +463,17 @@ function dietNotes(profile, categories, lactosaNegated) {
   return notes;
 }
 
+// Si el nivel final ya no es el del alimento, su frase no puede empezar con el veredicto
+// antiguo («Con cuidado: …» en una ficha «Mejor no»): se quita esa entrada.
+const LEVEL_LEAD = /^(?:sí|con cuidado|mejor no|no estoy segura)(?=[\s,:;.—-]|$)\s*[,:;.—-]?\s*/iu;
+
+function phraseFor(basePhrase, baseLevel, level) {
+  const phrase = String(basePhrase || '');
+  if (level === baseLevel || !LEVEL_LEAD.test(phrase)) return phrase;
+  const rest = phrase.replace(LEVEL_LEAD, '').trim();
+  return rest ? rest[0].toUpperCase() + rest.slice(1) : '';
+}
+
 // Aplica alergias, «otra cosa», trazas y lectura incierta sobre el veredicto fusionado.
 function finish(base, { title, foodIds, profile, allergyFound, otraFound, traces = [], uncertain = false, notes, ingredients }) {
   let level = base.level;
@@ -480,7 +500,7 @@ function finish(base, { title, foodIds, profile, allergyFound, otraFound, traces
     title,
     level,
     label: LEVEL_LABEL[level],
-    phrase: [...prefixes, base.phrase].join(' '),
+    phrase: [...prefixes, phraseFor(base.phrase, base.level, level)].filter(Boolean).join(' '),
     detail: base.detail,
     question: base.question,
     alternative: base.alternative,

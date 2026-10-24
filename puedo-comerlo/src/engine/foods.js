@@ -402,7 +402,7 @@ export const FOODS = [
     id: 'tortilla-patata',
     name: 'Tortilla de patata',
     aliases: [
-      'tortilla', 'tortilla de patata', 'tortilla de patatas', 'tortilla española', 'tortilla con cebolla',
+      'tortilla', 'tortilla de patata', 'tortilla de patatas', 'tortilla española',
       'tortilla sin cebolla', 'tortilla paisana', 'pincho de tortilla', 'pintxo de tortilla', 'bocadillo de tortilla',
     ],
     groups: ['huevos', 'restaurante', 'supermercado'],
@@ -631,6 +631,7 @@ export const FOODS = [
     id: 'marisco-cocido',
     name: 'Marisco cocido',
     aliases: [
+      'ostras gratinadas', 'ostras a la parrilla', 'ostras a la brasa',
       'marisco', 'marisco cocido', 'marisco a la plancha', 'mariscada', 'salpicón de marisco', 'gambas cocidas',
       'gambas a la plancha', 'gambas al ajillo', 'langostinos', 'langostinos cocidos', 'mejillones',
       'mejillones al vapor', 'almejas', 'berberechos', 'navajas a la plancha', 'zamburiñas a la plancha', 'cigalas',
