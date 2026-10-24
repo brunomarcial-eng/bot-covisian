@@ -129,7 +129,7 @@ function step2(profile) {
         h(
           'p',
           null,
-          'El fiambre de bandeja (york, pavo, chopped) va aparte: sale como «Mejor no» aunque el jamón curado te dé igual.',
+          'El fiambre de bandeja (york, pavo, chopped) va aparte: en frío sale como «Mejor no», aunque el jamón curado te dé igual; cocinado dentro del plato (pizza, sándwich mixto, croqueta), sí.',
         ),
       ),
       h('h2', null, 'Alternativas'),

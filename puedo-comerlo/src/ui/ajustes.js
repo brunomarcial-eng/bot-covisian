@@ -34,7 +34,7 @@ export function render({ main }) {
     { novalidate: true, class: 'ajustes-form' },
     embutidoFieldset(profile.embutido, {
       legend: 'Embutido y jamón curado',
-      hint: 'Jamón, chorizo, salchichón, fuet o lomo embuchado, en crudo. El fiambre de bandeja sale siempre como «Mejor no».',
+      hint: 'Jamón, chorizo, salchichón, fuet o lomo embuchado, en crudo. El fiambre de bandeja en frío sale como «Mejor no»; cocinado dentro del plato, «Sí».',
     }),
     embutidosBox,
     alergiasFieldset(profile.alergias, { legend: 'Alergias', hint: 'Lo que las lleve saldrá como «Mejor no».' }),

@@ -794,7 +794,7 @@ const CARTA_EXPECT = [
   ['Cerveza 0,0', /cerveza/, ['Sí', 'No estoy segura']],
   ['Entrecot poco hecho', /entrecot/, ['Mejor no']],
   ['Ensaladilla', /ensaladilla/, ['Con cuidado']],
-  ['Croquetas de jamón', /croqueta/, ['Con cuidado']],
+  ['Croquetas de jamón', /croqueta/, ['Sí', 'No estoy segura']],
   ['Gazpacho', /gazpacho/, ['Con cuidado']],
   ['Lubina a la plancha', /lubina/, ['Sí', 'No estoy segura']],
   ['Tarta de queso', /tarta de queso/, ['Con cuidado']],

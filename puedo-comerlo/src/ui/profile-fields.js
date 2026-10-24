@@ -18,7 +18,7 @@ export const EMBUTIDO_OPTIONS = [
   {
     id: 'los_como',
     title: 'Los como, y quiero ver el riesgo',
-    desc: 'No pasan a «Sí»: verás una línea con el motivo. Si va crudo, sigue saliendo «Mejor no». La decisión, en la mesa, es tuya.',
+    desc: 'En crudo no pasan a «Sí»: verás una línea con el motivo y siguen saliendo «Mejor no». Cocinados dentro del plato, sí. La decisión, en la mesa, es tuya.',
   },
 ];
 

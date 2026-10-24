@@ -138,9 +138,10 @@ Reglas del perfil (las implementa el motor; la interfaz solo pinta):
 - Embutido curado (crudo o cocinado) con tipo K:
   - `embutido === 'no'` → «Mejor no», frase «Has decidido no comer embutidos.» (también en croqueta o pizza).
   - si `embutidos` no está vacío y K no está → «Mejor no», frase «No está entre los embutidos que has marcado.»
-  - `'cocinados'`: crudo → «Mejor no»; cocinado dentro del plato → «Con cuidado», solo si se cocina de verdad dentro.
+  - `'cocinados'`: crudo → «Mejor no»; cocinado dentro del plato → «Sí» (decisión de la clienta: lo cocinado dentro del plato, «Sí»).
   - `'los_como'`: crudo sigue «Mejor no» (nunca «Sí»), frase = una línea con el motivo; la decisión es suya.
-- Fiambre de bandeja: siempre «Mejor no», da igual el perfil.
+- Fiambre de bandeja: en frío «Mejor no»; cocinado dentro del plato (`fiambre-cocinado`) «Sí». El perfil de embutido no le afecta.
+- Queso, ahumado y brotes cocinados en caliente: «Sí» por esa parte (ver docs/DECISIONES.md).
 - Alergia marcada presente (nombre, ingredientes, etiquetas, alérgenos OFF) → «Mejor no» y antepone «Has marcado X.»
   «sin gluten» / «sin huevo» etc. no disparan la alergia (salvo «sin lactosa» con alergia a leche: sigue siendo leche).
 - Texto libre `otra` presente → «Mejor no» y antepone «Has marcado «X».»
