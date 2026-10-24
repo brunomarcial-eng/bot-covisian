@@ -72,7 +72,9 @@ export function cleanLine(line) {
 
 function plausible(line) {
   const letters = countLetters(line);
-  if (letters < 3) return false;
+  if (letters < 4) return false;
+  // Al menos una palabra de verdad (4+ letras seguidas): descarta ruido tipo «fe 15 r».
+  if (!/\p{L}{4,}/u.test(line)) return false;
   const visible = line.replace(/\s/g, '').length;
   if (!visible || letters / visible < 0.6) return false; // ruido del OCR
   if (NOISE.test(line)) return false;
@@ -147,6 +149,24 @@ export function parseOcrText(text, mode = 'carta') {
   return items;
 }
 
+// Líneas con confianza baja del OCR fuera: mejor no leer nada que inventar un plato.
+const MIN_LINE_CONFIDENCE = 60;
+
+function confidentText(data) {
+  if (!data) return '';
+  const lines = [];
+  for (const block of data.blocks ?? []) {
+    for (const para of block.paragraphs ?? []) {
+      for (const line of para.lines ?? []) lines.push(line);
+    }
+  }
+  if (!lines.length) return typeof data.confidence === 'number' && data.confidence < MIN_LINE_CONFIDENCE ? '' : data.text ?? '';
+  return lines
+    .filter((l) => (l.confidence ?? 0) >= MIN_LINE_CONFIDENCE)
+    .map((l) => l.text)
+    .join('\n');
+}
+
 let modulePromise = null;
 
 function loadTesseract() {
@@ -200,8 +220,8 @@ export async function ocrImage(blobOrFile, mode = 'carta', { onStatus } = {}) {
       return [];
     }
     worker = created;
-    const result = await worker.recognize(blobOrFile);
-    return parseOcrText(result?.data?.text ?? '', m);
+    const result = await worker.recognize(blobOrFile, {}, { text: true, blocks: true });
+    return parseOcrText(confidentText(result?.data), m);
   };
   try {
     return await withTimeout(run(), OCR_TIMEOUT_MS);

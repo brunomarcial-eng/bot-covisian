@@ -133,8 +133,13 @@ export function addHistory(entry) {
   const e = entryFrom(entry);
   const history = getHistory();
   const last = history[0];
+  // Las fotos nunca se funden: dos cartas seguidas son dos consultas distintas.
   const same =
-    last && last.via === e.via && last.title === e.title && (last.foodId || null) === (e.foodId || null);
+    last &&
+    e.via !== 'foto' &&
+    last.via === e.via &&
+    last.title === e.title &&
+    (last.foodId || null) === (e.foodId || null);
   if (same) history.shift();
   history.unshift(e);
   write(KEYS.history, history.slice(0, HISTORY_MAX));
