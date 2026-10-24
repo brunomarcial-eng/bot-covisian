@@ -211,7 +211,7 @@ export async function ocrImage(blobOrFile, mode = 'carta', { onStatus } = {}) {
         if (finished || typeof onStatus !== 'function') return;
         if (msg?.status === 'recognizing text' && msg.progress > 0.05 && msg.progress < 1) {
           try {
-            onStatus(`Leyendo sin conexión, puede tardar un poco… ${Math.round(msg.progress * 100)} %`);
+            onStatus(`Leyendo en el propio móvil, puede tardar un poco… ${Math.round(msg.progress * 100)} %`);
           } catch {
             /* nada */
           }

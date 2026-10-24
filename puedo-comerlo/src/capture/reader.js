@@ -20,7 +20,7 @@ export const STATUS = Object.freeze({
   preparing: 'Preparando la foto…',
   carta: 'Leyendo la carta…',
   etiqueta: 'Leyendo la etiqueta…',
-  offline: 'Leyendo sin conexión, puede tardar un poco…',
+  offline: 'Leyendo en el propio móvil, puede tardar un poco…',
 });
 
 function cleanText(value, max) {
