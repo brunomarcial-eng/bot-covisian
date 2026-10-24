@@ -13,7 +13,7 @@ export const EMBUTIDO_OPTIONS = [
   {
     id: 'cocinados',
     title: 'Solo si van cocinados',
-    desc: 'En crudo, mejor no. En croqueta, guiso o pizza, solo si se cocinan de verdad dentro del plato.',
+    desc: 'En crudo, mejor no. Cocinados dentro del plato (croqueta, guiso, pizza al horno), sí.',
   },
   {
     id: 'los_como',

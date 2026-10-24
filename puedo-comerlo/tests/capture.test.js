@@ -18,7 +18,13 @@ import leerDefault, {
   buildRequest,
   SCHEMA,
   MODEL,
+  MODELS,
+  MAX_TOKENS,
   MAX_IMAGE_BASE64,
+  RATE_LIMIT,
+  resolveModel,
+  clientIp,
+  createRateLimiter,
 } from '../api/leer.js';
 import { normalizeProduct, fetchProduct, OFF_FIELDS } from '../src/capture/off.js';
 import { isValidCode, cleanCode } from '../src/capture/barcode.js';
@@ -335,6 +341,112 @@ describe('api/leer', () => {
     assert.match(txt.text, /trazas/);
     assert.match(txt.text, /No inventes/);
     assert.ok(options?.signal, 'con señal de cancelación');
+  });
+
+  test('max_tokens 2048 en todas las peticiones', async () => {
+    assert.equal(MAX_TOKENS, 2048);
+    const client = fakeClient(() => okMessage({ readable: false, items: [] }));
+    await run(createHandler({ client, log: silent }), jsonReq(validBody()));
+    assert.equal(client.calls[0].params.max_tokens, 2048);
+    for (const model of MODELS) assert.equal(buildRequest({ model, image: JPEG_B64, mediaType: 'image/jpeg', mode: 'carta' }).max_tokens, 2048);
+  });
+
+  test('modelo por VISION_MODEL: los tres admitidos; vacío o desconocido → claude-opus-5-5', async () => {
+    const saved = process.env.VISION_MODEL;
+    try {
+      const cases = [
+        ['claude-sonnet-5-5', 'claude-sonnet-5-5'],
+        ['claude-haiku-5-5', 'claude-haiku-5-5'],
+        [' claude-opus-5-5 ', 'claude-opus-5-5'],
+        ['claude-opus-4-8', 'claude-opus-5-5'],
+        ['gpt-loquesea', 'claude-opus-5-5'],
+        ['', 'claude-opus-5-5'],
+        [undefined, 'claude-opus-5-5'],
+      ];
+      for (const [env, expected] of cases) {
+        if (env === undefined) delete process.env.VISION_MODEL;
+        else process.env.VISION_MODEL = env;
+        const client = fakeClient(() => okMessage({ readable: false, items: [] }));
+        const res = await run(createHandler({ client, log: silent }), jsonReq(validBody()));
+        assert.equal(res.statusCode, 200);
+        assert.equal(client.calls[0].params.model, expected, String(env));
+        assert.equal(client.calls[0].params.output_config.effort, 'low');
+      }
+      assert.equal(resolveModel(42), MODEL);
+    } finally {
+      if (saved === undefined) delete process.env.VISION_MODEL;
+      else process.env.VISION_MODEL = saved;
+    }
+  });
+
+  test('fallbacks solo con Opus 5.5 y Sonnet 5.5; con Haiku 5.5 ni fallbacks ni beta, y sin reintento', async () => {
+    for (const model of ['claude-opus-5-5', 'claude-sonnet-5-5']) {
+      const client = fakeClient(() => okMessage({ readable: false, items: [] }));
+      await run(createHandler({ client, model, log: silent }), jsonReq(validBody()));
+      assert.equal(client.calls[0].params.fallbacks, 'default', model);
+      assert.deepEqual(client.calls[0].params.betas, ['server-side-fallback-2026-07-01'], model);
+    }
+    const haiku = fakeClient(() => okMessage({ readable: false, items: [] }));
+    await run(createHandler({ client: haiku, model: 'claude-haiku-5-5', log: silent }), jsonReq(validBody()));
+    assert.equal(haiku.calls[0].params.model, 'claude-haiku-5-5');
+    assert.equal('fallbacks' in haiku.calls[0].params, false);
+    assert.equal('betas' in haiku.calls[0].params, false);
+    const forced = buildRequest({ model: 'claude-haiku-5-5', image: JPEG_B64, mediaType: 'image/jpeg', mode: 'carta', withFallbacks: true });
+    assert.equal('fallbacks' in forced, false, 'ni forzándolo');
+    // Un 400 que menciona «beta» con Haiku no provoca reintento (no se mandó ninguna beta).
+    const failing = fakeClient(() => {
+      const err = new Error('400 anthropic-beta: unknown beta');
+      err.status = 400;
+      throw err;
+    });
+    const res = await run(createHandler({ client: failing, model: 'claude-haiku-5-5', log: silent }), jsonReq(validBody()));
+    assert.equal(res.statusCode, 502);
+    assert.equal(failing.calls.length, 1);
+  });
+
+  test('límite: 429 { error: "limite" } con Retry-After tras 20 fotos de la misma IP en 10 minutos', async () => {
+    assert.equal(RATE_LIMIT.perIp, 20);
+    let t = 1_000_000;
+    const client = fakeClient(() => okMessage({ readable: false, items: [] }));
+    const h = createHandler({ client, log: silent, now: () => t });
+    const from = (ip) => jsonReq(validBody(), { headers: { 'x-forwarded-for': `${ip}, 10.0.0.1` } });
+    for (let i = 0; i < 20; i++) {
+      const ok = await run(h, from('203.0.113.7'));
+      assert.equal(ok.statusCode, 200, `petición ${i + 1}`);
+      t += 1000;
+    }
+    const res = await run(h, from('203.0.113.7'));
+    assert.equal(res.statusCode, 429);
+    assert.deepEqual(res.json(), { error: 'limite' });
+    const retry = Number(res.getHeader('retry-after'));
+    assert.ok(retry > 0 && retry <= 600, `Retry-After ${retry}`);
+    assert.equal(res.getHeader('cache-control'), 'no-store');
+    assert.equal(client.calls.length, 20, 'la 21.ª no llega a la API');
+    // Otra IP sigue pudiendo.
+    assert.equal((await run(h, from('198.51.100.2'))).statusCode, 200);
+    // Pasados 10 minutos desde la primera, vuelve a poder.
+    t += 10 * 60 * 1000;
+    assert.equal((await run(h, from('203.0.113.7'))).statusCode, 200);
+    // Las peticiones no válidas no gastan cupo.
+    const h2 = createHandler({ client, log: silent, now: () => t });
+    for (let i = 0; i < 25; i++) await run(h2, jsonReq(validBody({ mode: 'mal' }), { headers: { 'x-forwarded-for': '192.0.2.9' } }));
+    assert.equal((await run(h2, jsonReq(validBody(), { headers: { 'x-forwarded-for': '192.0.2.9' } }))).statusCode, 200);
+  });
+
+  test('límite global: 300 fotos al día por instancia; IP de x-forwarded-for o del socket', () => {
+    let t = 0;
+    const lim = createRateLimiter({ ...RATE_LIMIT, perDay: 3 }, () => t);
+    assert.equal(lim.take('a'), null);
+    assert.equal(lim.take('b'), null);
+    assert.equal(lim.take('c'), null);
+    const wait = lim.take('d');
+    assert.ok(wait > 0 && wait <= 24 * 3600);
+    t += 24 * 3600 * 1000;
+    assert.equal(lim.take('d'), null, 'al día siguiente se reinicia');
+    assert.equal(RATE_LIMIT.perDay, 300);
+    assert.equal(clientIp({ headers: { 'x-forwarded-for': ' 203.0.113.5 , 10.0.0.1' } }), '203.0.113.5');
+    assert.equal(clientIp({ headers: {}, socket: { remoteAddress: '127.0.0.1' } }), '127.0.0.1');
+    assert.equal(clientIp({ headers: {} }), 'desconocida');
   });
 
   test('con el SDK real (fetch simulado, sin red): cabecera beta, fallbacks en el cuerpo y reintento ante 400', async () => {

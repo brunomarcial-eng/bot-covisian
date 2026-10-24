@@ -7,12 +7,25 @@
 // Privacidad: la imagen se usa solo para esta petición. No se guarda en disco ni se registra; tampoco el
 // texto transcrito. Como mucho se registra un error sin contenido (código de estado).
 //
-// Función sin estado en formato Vercel (`export default handler(req, res)`); también la usa server.js.
+// Modelo: VISION_MODEL (claude-opus-5-5 por defecto; también claude-sonnet-5-5 o claude-haiku-5-5).
+// Límite de uso: 20 fotos por IP cada 10 minutos y 300 al día, contados en memoria (por instancia en
+// serverless, así que es aproximado). Al pasarse → 429 { error: 'limite' } con Retry-After; el navegador
+// pasa al OCR local.
+//
+// Función en formato Vercel (`export default handler(req, res)`); también la usa server.js.
 // Escribe con res.statusCode / res.setHeader / res.end para valer en ambos entornos.
 
 import Anthropic from '@anthropic-ai/sdk';
 
 export const MODEL = 'claude-opus-5-5';
+// Modelos que se pueden elegir con la variable de entorno VISION_MODEL. Cualquier otro valor → MODEL.
+export const MODELS = Object.freeze(['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5']);
+// Solo estos tienen respaldo del lado del servidor (fallbacks: 'default'); Haiku 5.5 no.
+const FALLBACK_MODELS = new Set(['claude-opus-5-5', 'claude-sonnet-5-5']);
+export const MAX_TOKENS = 2048; // 12 platos con sus ingredientes caben de sobra
+// Límite de uso (family and friends). Contadores en memoria: en Vercel cada instancia de la función
+// lleva los suyos, así que el límite es por instancia y aproximado (una instancia nueva empieza de cero).
+export const RATE_LIMIT = Object.freeze({ perIp: 20, windowMs: 10 * 60 * 1000, perDay: 300, dayMs: 24 * 60 * 60 * 1000 });
 export const MODES = Object.freeze(['carta', 'etiqueta']);
 export const MEDIA_TYPES = Object.freeze(['image/jpeg', 'image/png', 'image/webp']);
 export const MAX_ITEMS = Object.freeze({ carta: 12, etiqueta: 1 });
@@ -84,10 +97,19 @@ export function buildPrompt(mode) {
   return PROMPTS[mode] ?? PROMPTS.carta;
 }
 
-export function buildRequest({ model = MODEL, image, mediaType, mode, withFallbacks = true }) {
+export function resolveModel(value) {
+  const v = typeof value === 'string' ? value.trim() : '';
+  return MODELS.includes(v) ? v : MODEL;
+}
+
+export function supportsFallback(model) {
+  return FALLBACK_MODELS.has(model);
+}
+
+export function buildRequest({ model = MODEL, image, mediaType, mode, withFallbacks = supportsFallback(model) }) {
   const params = {
     model,
-    max_tokens: 4096,
+    max_tokens: MAX_TOKENS,
     // Esfuerzo bajo: es transcripción y la persona está esperando en la mesa. Sin temperature/top_p/top_k
     // ni thinking desactivado: en este modelo dan 400.
     output_config: { effort: 'low', format: { type: 'json_schema', schema: SCHEMA } },
@@ -101,7 +123,7 @@ export function buildRequest({ model = MODEL, image, mediaType, mode, withFallba
       },
     ],
   };
-  if (withFallbacks) {
+  if (withFallbacks && supportsFallback(model)) {
     // Respaldo del servidor si el modelo rechaza la petición. `betas` y `fallbacks: 'default'` están
     // tipados en @anthropic-ai/sdk 1.3.0 (BetaFallbacksParam = Array<…> | 'default').
     params.betas = [FALLBACK_BETA];
@@ -285,6 +307,59 @@ function isFallbackRejection(err) {
   return err?.status === 400 && /fallback|beta/i.test(String(err?.message ?? ''));
 }
 
+// ---------- Límite de uso (en memoria, por instancia) ----------
+
+export function clientIp(req) {
+  const xff = headerValue(req, 'x-forwarded-for');
+  const first = typeof xff === 'string' ? xff.split(',')[0].trim() : '';
+  return first || req.socket?.remoteAddress || 'desconocida';
+}
+
+export function createRateLimiter({ perIp, windowMs, perDay, dayMs } = RATE_LIMIT, now = Date.now) {
+  const hits = new Map(); // ip → marcas de tiempo (como mucho perIp) dentro de la ventana
+  let dayStart = now();
+  let dayCount = 0;
+
+  function recent(ip, t) {
+    const list = (hits.get(ip) ?? []).filter((x) => t - x < windowMs);
+    if (list.length) hits.set(ip, list);
+    else hits.delete(ip);
+    return list;
+  }
+
+  function sweep(t) {
+    if (hits.size < 1000) return;
+    for (const ip of hits.keys()) recent(ip, t);
+  }
+
+  // Devuelve null si se puede, o los segundos a esperar (Retry-After) si no.
+  function check(ip) {
+    const t = now();
+    if (t - dayStart >= dayMs) {
+      dayStart = t;
+      dayCount = 0;
+    }
+    if (dayCount >= perDay) return Math.max(1, Math.ceil((dayStart + dayMs - t) / 1000));
+    const list = recent(ip, t);
+    if (list.length >= perIp) return Math.max(1, Math.ceil((list[0] + windowMs - t) / 1000));
+    return null;
+  }
+
+  function take(ip) {
+    const wait = check(ip);
+    if (wait !== null) return wait;
+    const t = now();
+    sweep(t);
+    const list = hits.get(ip) ?? [];
+    list.push(t);
+    hits.set(ip, list);
+    dayCount += 1;
+    return null;
+  }
+
+  return { check, take };
+}
+
 // ---------- Handler ----------
 
 let cachedClient = null;
@@ -299,7 +374,9 @@ function clientFromEnv() {
   return cachedClient;
 }
 
-export function createHandler({ client, model = MODEL, log = defaultLog } = {}) {
+export function createHandler({ client, model, log = defaultLog, rateLimit = RATE_LIMIT, now = Date.now } = {}) {
+  const limiter = rateLimit ? createRateLimiter({ ...RATE_LIMIT, ...rateLimit }, now) : null;
+  const limited = (wait) => new HttpError(429, 'limite', { 'Retry-After': String(wait) });
   return async function handler(req, res) {
     try {
       if (req.method !== 'POST') throw new HttpError(405, 'metodo', { Allow: 'POST' });
@@ -310,7 +387,20 @@ export function createHandler({ client, model = MODEL, log = defaultLog } = {}) 
       const api = client ?? clientFromEnv();
       if (!api) throw new HttpError(503, 'sin_vision'); // el navegador pasa al OCR local
 
+      const ip = clientIp(req);
+      // Antes de leer el cuerpo: si ya se ha pasado, no se lee la foto.
+      const early = limiter?.check(ip) ?? null;
+      if (early !== null) throw limited(early);
+
       const input = validate(await readBody(req));
+
+      // Solo cuentan las fotos válidas, que son las que llegan a la API.
+      const wait = limiter?.take(ip) ?? null;
+      if (wait !== null) throw limited(wait);
+
+      // El modelo se elige en cada petición (VISION_MODEL puede cambiar sin tocar el código).
+      const chosen = resolveModel(model ?? process.env.VISION_MODEL);
+      const fallbacks = supportsFallback(chosen);
 
       const deadline = new AbortController();
       const timer = setTimeout(() => deadline.abort(), API_DEADLINE_MS);
@@ -318,11 +408,11 @@ export function createHandler({ client, model = MODEL, log = defaultLog } = {}) 
       try {
         const options = { signal: deadline.signal };
         try {
-          message = await api.beta.messages.create(buildRequest({ model, ...input }), options);
+          message = await api.beta.messages.create(buildRequest({ model: chosen, ...input, withFallbacks: fallbacks }), options);
         } catch (err) {
-          if (!isFallbackRejection(err)) throw err;
+          if (!fallbacks || !isFallbackRejection(err)) throw err;
           // El parámetro de respaldo o su beta no se aceptan: un único reintento sin ellos.
-          message = await api.beta.messages.create(buildRequest({ model, ...input, withFallbacks: false }), options);
+          message = await api.beta.messages.create(buildRequest({ model: chosen, ...input, withFallbacks: false }), options);
         }
       } catch (err) {
         log('[api/leer] fallo de la API de visión', err?.status ?? err?.name ?? 'desconocido');
