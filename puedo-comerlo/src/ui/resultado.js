@@ -36,7 +36,8 @@ export function render({ main, profile, setTab }) {
   if (kind === 'producto' && payload.product) {
     const p = payload.product;
     const bits = [];
-    if (p.brand) bits.push(String(p.brand));
+    const brand = String(p.brand || '').trim();
+    if (brand && brand.toLowerCase() !== String(result.title || '').trim().toLowerCase()) bits.push(brand);
     if (p.code) bits.push(`Código ${p.code}`);
     if (bits.length) main.append(h('p', { class: 'meta' }, bits.join(' · ')));
   } else if (kind === 'carta') {
@@ -78,7 +79,10 @@ export function render({ main, profile, setTab }) {
     list.append(
       verdictCard(v, {
         level: 2,
-        title: kind === 'producto' ? v.title || result.title : v.title,
+        title: kind === 'producto' ? result.title : v.title,
+        // Un producto ya tiene su nombre en el h1: la ficha no lo repite a la vista.
+        hideName: kind === 'producto',
+        hero: kind === 'producto',
         listEntry: kind ? entryFor(v, i) : null,
       }),
     );

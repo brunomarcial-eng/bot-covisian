@@ -94,14 +94,14 @@ export function verdictMore(v, opts = {}) {
 // Ficha mínima: pastilla, nombre, una frase. «Ver más» despliega el resto.
 // `aside` se pinta en la misma línea que «Ver más» (p. ej. «Quitar» en la lista).
 export function verdictCard(v, opts = {}) {
-  const { level = 2, title = v.title, hero = false, aside = null } = opts;
+  const { level = 2, title = v.title, hero = false, aside = null, hideName = false } = opts;
   const { button, panel } = verdictMore(v, opts);
   const nameId = uid('nombre');
   return h(
     'article',
     { class: `card${hero ? ' card--hero' : ''}`, 'aria-labelledby': nameId, dataset: { level: v.level } },
     pill(v.level),
-    h(`h${level}`, { class: 'card-name', id: nameId }, title || 'Sin nombre'),
+    h(`h${level}`, { class: hideName ? 'visually-hidden' : 'card-name', id: nameId }, title || 'Sin nombre'),
     h('p', { class: 'card-phrase' }, v.phrase || ''),
     h('div', { class: 'card-bar' }, button, aside),
     panel,

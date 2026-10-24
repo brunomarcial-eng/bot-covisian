@@ -26,6 +26,7 @@ export function cameraErrorText(code, fallback = 'Puedes elegir una foto de la g
   if (code === 'denied') {
     return `No tengo permiso para usar la cámara. Puedes darlo en los ajustes del navegador. ${fallback}`;
   }
+  if (code === 'error') return `No he podido usar la cámara. ${fallback}`;
   return `No encuentro la cámara. ${fallback}`;
 }
 
@@ -104,7 +105,12 @@ export function photoFlow(host, { signal, subject = 'la carta', onPhoto, onCance
       heading,
       h('div', { class: 'camera-frame' }, video),
       hint,
-      h('div', { class: 'actions actions--tight' }, shoot, h('button', { type: 'button', class: 'btn btn--secondary', onclick: cancel }, 'Cancelar')),
+      h(
+        'div',
+        { class: 'camera-actions' },
+        h('button', { type: 'button', class: 'btn btn--secondary', onclick: cancel }, 'Cancelar'),
+        shoot,
+      ),
     );
     heading.focus();
 
@@ -121,7 +127,6 @@ export function photoFlow(host, { signal, subject = 'la carta', onPhoto, onCance
       hint.textContent = `Cámara lista. Encuadra ${subject}, con buena luz.`;
     } catch (err) {
       if (destroyed || attempt !== opening) return;
-      console.warn('Cámara no disponible:', err);
       showNoCamera(err && err.code);
       return;
     }
@@ -159,10 +164,10 @@ export function photoFlow(host, { signal, subject = 'la carta', onPhoto, onCance
       h('p', { class: 'camera-hint' }, '¿Se lee bien? Si no, repítela más cerca.'),
       h(
         'div',
-        { class: 'actions actions--tight' },
+        { class: 'camera-actions camera-actions--3' },
         use,
         h('button', { type: 'button', class: 'btn btn--secondary', onclick: () => openLive() }, icon('repeat', 22), 'Repetir'),
-        h('button', { type: 'button', class: 'btn btn--quiet', onclick: cancel }, 'Cancelar'),
+        h('button', { type: 'button', class: 'btn btn--secondary', onclick: cancel }, 'Cancelar'),
       ),
     );
     use.focus();

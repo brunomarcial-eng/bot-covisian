@@ -733,8 +733,8 @@ legend { padding: 0; }
   position: relative;
   width: 100%;
   aspect-ratio: 3 / 4;
-  max-height: 54vh;
-  max-height: 54svh;
+  max-height: 46vh;
+  max-height: 46svh;
   border-radius: var(--r-sheet);
   overflow: hidden;
   background: #1d1915;
@@ -756,7 +756,18 @@ legend { padding: 0; }
   box-shadow: 0 0 0 100vmax rgba(29, 25, 21, 0.35);
   pointer-events: none;
 }
-.camera-hint { color: var(--muted); margin: 0.875rem 0 0; }
+.camera-hint { color: var(--muted); margin: 0.75rem 0 0; font-size: 1rem; }
+.camera-actions {
+  display: grid;
+  grid-template-columns: 1fr 1.6fr;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+.camera-actions--1 { grid-template-columns: 1fr; }
+.camera-actions--3 { grid-template-columns: 1fr 1fr; }
+.camera-actions--3 > :first-child { grid-column: 1 / -1; }
+.camera-actions .btn { padding-inline: 0.75rem; }
+.screen:has(.camera-frame:not(.camera-frame--thumb)) h1 { margin-top: 0.5rem; margin-bottom: 0.75rem; font-size: 2.125rem; }
 
 /* ---------- Arranque ---------- */
 
@@ -859,3 +870,4 @@ legend { padding: 0; }
 .mt-xl { margin-top: 2rem !important; }
 .card-bar--end { justify-content: flex-end; }
 .btn--tight { padding-inline: 0.25rem; }
+.card .visually-hidden + .card-phrase { margin-top: 0.875rem; }

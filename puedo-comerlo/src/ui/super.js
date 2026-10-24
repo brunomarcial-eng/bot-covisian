@@ -161,7 +161,7 @@ export function render(ctx) {
       hint,
       h(
         'div',
-        { class: 'actions actions--tight' },
+        { class: 'camera-actions camera-actions--1' },
         h('button', { type: 'button', class: 'btn btn--secondary', onclick: () => showHome() }, 'Cancelar'),
       ),
     );
@@ -189,7 +189,6 @@ export function render(ctx) {
       hint.textContent = 'Apunta al código de barras. Lo leo solo.';
     } catch (err) {
       if (signal.aborted) return;
-      console.warn('Lector de códigos no disponible:', err);
       const code = err && err.code;
       const text =
         code === 'denied'
