@@ -7,7 +7,7 @@
 // Privacidad: la imagen se usa solo para esta petición. No se guarda en disco ni se registra; tampoco el
 // texto transcrito. Como mucho se registra un error sin contenido (código de estado).
 //
-// Modelo: VISION_MODEL (claude-opus-5-5 por defecto; también claude-sonnet-5-5 o claude-haiku-5-5).
+// Modelo: VISION_MODEL (claude-sonnet-5-5 por defecto, elegido por la clienta; también claude-opus-5-5 o claude-haiku-5-5).
 // Límite de uso: 20 fotos por IP cada 10 minutos y 300 al día, contados en memoria (por instancia en
 // serverless, así que es aproximado). Al pasarse → 429 { error: 'limite' } con Retry-After; el navegador
 // pasa al OCR local.
@@ -17,7 +17,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 
-export const MODEL = 'claude-opus-5-5';
+export const MODEL = 'claude-sonnet-5-5';
 // Modelos que se pueden elegir con la variable de entorno VISION_MODEL. Cualquier otro valor → MODEL.
 export const MODELS = Object.freeze(['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5']);
 // Solo estos tienen respaldo del lado del servidor (fallbacks: 'default'); Haiku 5.5 no.

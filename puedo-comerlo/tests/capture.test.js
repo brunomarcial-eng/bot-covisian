@@ -318,13 +318,13 @@ describe('api/leer', () => {
     assert.equal(c2.calls.length, 2);
   });
 
-  test('la petición al modelo: claude-opus-5-5, imagen base64 + texto, salida json_schema, effort low, fallbacks', async () => {
+  test('la petición al modelo: claude-sonnet-5-5, imagen base64 + texto, salida json_schema, effort low, fallbacks', async () => {
     const client = fakeClient(() => okMessage({ readable: false, items: [] }));
     await run(createHandler({ client, log: silent }), jsonReq(validBody({ mediaType: 'image/png', image: PNG_B64, mode: 'etiqueta' })));
     assert.equal(client.calls.length, 1);
     const { params, options } = client.calls[0];
-    assert.equal(params.model, 'claude-opus-5-5');
-    assert.equal(MODEL, 'claude-opus-5-5');
+    assert.equal(params.model, 'claude-sonnet-5-5');
+    assert.equal(MODEL, 'claude-sonnet-5-5');
     assert.ok(params.max_tokens >= 2048 && params.max_tokens <= 8192);
     assert.deepEqual(params.betas, ['server-side-fallback-2026-07-01']);
     assert.equal(params.fallbacks, 'default');
@@ -351,17 +351,17 @@ describe('api/leer', () => {
     for (const model of MODELS) assert.equal(buildRequest({ model, image: JPEG_B64, mediaType: 'image/jpeg', mode: 'carta' }).max_tokens, 2048);
   });
 
-  test('modelo por VISION_MODEL: los tres admitidos; vacío o desconocido → claude-opus-5-5', async () => {
+  test('modelo por VISION_MODEL: los tres admitidos; vacío o desconocido → claude-sonnet-5-5', async () => {
     const saved = process.env.VISION_MODEL;
     try {
       const cases = [
         ['claude-sonnet-5-5', 'claude-sonnet-5-5'],
         ['claude-haiku-5-5', 'claude-haiku-5-5'],
         [' claude-opus-5-5 ', 'claude-opus-5-5'],
-        ['claude-opus-4-8', 'claude-opus-5-5'],
-        ['gpt-loquesea', 'claude-opus-5-5'],
-        ['', 'claude-opus-5-5'],
-        [undefined, 'claude-opus-5-5'],
+        ['claude-opus-4-8', 'claude-sonnet-5-5'],
+        ['gpt-loquesea', 'claude-sonnet-5-5'],
+        ['', 'claude-sonnet-5-5'],
+        [undefined, 'claude-sonnet-5-5'],
       ];
       for (const [env, expected] of cases) {
         if (env === undefined) delete process.env.VISION_MODEL;

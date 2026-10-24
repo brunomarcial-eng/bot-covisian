@@ -40,8 +40,8 @@ clave que pongas, la alojes donde la alojes.
 4. El modelo se cambia con una variable (`VISION_MODEL`) sin tocar el código: Sonnet 5.5 o Haiku 5.5
    bajan el coste por foto.
 
-Cuenta orientativa: con Opus 5.5, unos 2 céntimos por foto; 5 personas haciendo 3 fotos a la semana
-son unas 60 fotos al mes, **alrededor de 1 € al mes**.
+Cuenta orientativa: con Sonnet 5.5 (el elegido), menos de 1 céntimo por foto; 5 personas haciendo 3 fotos a la semana
+son unas 60 fotos al mes, **menos de 1 € al mes**.
 
 **Si un día se abre a más gente (con invitación):**
 1. **Códigos de invitación** y cuota por persona (por ejemplo, 30 fotos al mes), guardando solo un

@@ -89,25 +89,25 @@ Con 10 $ al mes, al precio del modelo por defecto, da para unas 600 fotos al mes
 
 ## 5. Cambiar el modelo y cuánto cuesta cada foto
 
-Por defecto la app usa **Claude Opus 5.5** (el que mejor lee). Se puede cambiar sin tocar nada más:
+Por defecto la app usa **Claude Sonnet 5.5** (lo elegiste tú: lee muy bien y cuesta la mitad que Opus). Se puede cambiar sin tocar nada más:
 
 1. **Settings → Environment Variables → Add**:
    - **Key**: `VISION_MODEL`
    - **Value**: uno de estos tres, escrito exactamente así:
-     - `claude-opus-5-5` (por defecto, el mejor)
-     - `claude-sonnet-5-5` (la mitad de precio, lee muy bien)
+     - `claude-sonnet-5-5` (por defecto, buen equilibrio)
+     - `claude-opus-5-5` (el que mejor lee, el doble de caro)
      - `claude-haiku-5-5` (muchísimo más barato, algo menos fino con cartas difíciles)
    - **Environments**: Production y Preview → **Save**.
 2. **Deployments → último → ⋯ → Redeploy**.
 
-Si se escribe mal o se pone otro nombre, la app usa Opus 5.5 sin dar error.
+Si se escribe mal o se pone otro nombre, la app usa Sonnet 5.5 sin dar error. No hace falta crear la variable si te vale Sonnet.
 
 **Coste orientativo** (una foto reducida a 1.280 px ≈ 1.600 «tokens» de entrada y ~500 de salida):
 
 | Modelo | Por foto | Por 1.000 fotos | Fotos con 10 $/mes |
 |---|---|---|---|
-| Opus 5.5 (por defecto) | ≈ 1,6 céntimos de $ | ≈ 16,40 $ | ≈ 600 |
-| Sonnet 5.5 | ≈ 0,8 céntimos de $ | ≈ 8,20 $ | ≈ 1.200 |
+| Opus 5.5 | ≈ 1,6 céntimos de $ | ≈ 16,40 $ | ≈ 600 |
+| Sonnet 5.5 (por defecto) | ≈ 0,8 céntimos de $ | ≈ 8,20 $ | ≈ 1.200 |
 | Haiku 5.5 | ≈ 0,04 céntimos de $ | ≈ 0,41 $ | ≈ 24.000 |
 
 (Cuentas: Opus 1.600 × 4 $ + 500 × 20 $ por millón = 0,0164 $; Sonnet 1.600 × 2 $ + 500 × 10 $ = 0,0082 $;
