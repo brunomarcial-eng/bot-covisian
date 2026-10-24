@@ -184,13 +184,13 @@ describe('criterio de hecho y lista de la especificación', () => {
 
 describe('perfil de embutido', () => {
   test('croquetas de jamón según el perfil', () => {
-    const v = expectLevel('croquetas de jamón', 'cuidado');
+    const v = expectLevel('croquetas de jamón', 'si');
     assert.equal(v.foodId, 'embutido-cocinado');
     const no = expectLevel('croquetas de jamón', 'no', { embutido: 'no' });
     assert.equal(no.phrase, 'Has decidido no comer embutidos.');
     const otro = expectLevel('croquetas de jamón', 'no', { embutidos: ['chorizo'] });
     assert.equal(otro.phrase, 'No está entre los embutidos que has marcado.');
-    expectLevel('croquetas de jamón', 'cuidado', { embutidos: ['jamon'] });
+    expectLevel('croquetas de jamón', 'si', { embutidos: ['jamon'] });
     expectLevel('pizza de chorizo', 'no', { embutido: 'no' });
   });
 
@@ -198,12 +198,12 @@ describe('perfil de embutido', () => {
     const v = expectLevel('jamón ibérico', 'no', { embutido: 'los_como' });
     assert.match(v.phrase, /toxoplasmosis/);
     assert.match(v.phrase, /La decisión es tuya/);
-    expectLevel('croquetas de jamón', 'cuidado', { embutido: 'los_como' });
+    expectLevel('croquetas de jamón', 'si', { embutido: 'los_como' });
   });
 
-  test('cocinados: crudo «Mejor no», cocinado «Con cuidado»', () => {
-    assert.equal(ct('fuet').phrase, 'En crudo, mejor no. Solo si va cocinado dentro del plato.');
-    expectLevel('lentejas con chorizo', 'cuidado');
+  test('cocinados: crudo «Mejor no», cocinado dentro del plato «Sí»', () => {
+    assert.equal(ct('fuet').phrase, 'En crudo, mejor no. Cocinado dentro del plato, sí.');
+    expectLevel('lentejas con chorizo', 'si');
     expectLevel('huevos rotos con jamón', 'no');
   });
 
@@ -213,7 +213,7 @@ describe('perfil de embutido', () => {
     assert.equal(v.phrase, FOOD_BY_ID['jamon-curado'].phrase);
   });
 
-  test('fiambre de bandeja: siempre «Mejor no», da igual el perfil', () => {
+  test('fiambre de bandeja en frío: «Mejor no», da igual el perfil', () => {
     for (const embutido of [null, 'no', 'cocinados', 'los_como']) {
       const v = ct('jamón york', { embutido });
       assert.equal(v.level, 'no');
@@ -222,14 +222,14 @@ describe('perfil de embutido', () => {
   });
 
   test('embutido cocinado sin tipo en el texto: sin filtro de «cuáles come»', () => {
-    expectLevel('fabada', 'cuidado', { embutidos: ['chorizo'] });
+    expectLevel('fabada', 'si', { embutidos: ['chorizo'] });
     expectLevel('fabada', 'no', { embutido: 'no' });
   });
 
   test('la frase sustituida solo gana si ese embutido es el peor', () => {
-    const v = ct('croquetas de jamón y queso azul', { embutido: 'cocinados' });
+    const v = ct('croquetas de jamón y copa de vino', { embutido: 'cocinados' });
     assert.equal(v.level, 'no');
-    assert.equal(v.foodId, 'queso-azul');
+    assert.equal(v.foodId, 'alcohol');
   });
 });
 
@@ -273,7 +273,7 @@ describe('forma de comer → notas', () => {
   test('sin cerdo y sin lactosa', () => {
     const v = ct('croquetas de jamón', { dieta: ['sin_cerdo'] });
     assert.ok(v.notes.includes('Lleva cerdo'));
-    assert.equal(v.level, 'cuidado');
+    assert.equal(v.level, 'si');
     assert.ok(ct('café con leche', { dieta: ['sin_lactosa'] }).notes.includes('Puede llevar lactosa'));
     assert.deepEqual(ct('leche sin lactosa', { dieta: ['sin_lactosa'] }).notes, []);
   });
@@ -437,4 +437,140 @@ test('«ostras gratinadas» es marisco hecho; «ostras» a secas, crudo', () => 
   const p = { embutido: 'cocinados', embutidos: [], alergias: [], otra: '', dieta: [] };
   assert.equal(classifyText('ostras gratinadas', {}, p).level, 'si');
   assert.equal(classifyText('ostras', {}, p).level, 'no');
+});
+
+// --- Decisión de la clienta: lo cocinado de verdad (bien caliente por dentro) ya se puede comer ---
+describe('cocinado dentro del plato (decisión de la clienta)', () => {
+  test('pizza: base «Sí», con la pregunta del jamón curado', () => {
+    const v = expectLevel('pizza barbacoa', 'si');
+    assert.equal(v.question, '¿El jamón curado va al horno o se pone al final, en frío?');
+    assert.match(v.detail, /después del horno/);
+    expectLevel('pizza', 'si');
+    expectLevel('pizza de chorizo', 'si');
+    expectLevel('pizza cuatro quesos', 'si');
+  });
+
+  test('pizza de jamón york → Sí (el perfil de embutido no le afecta)', () => {
+    for (const embutido of [null, 'no', 'cocinados', 'los_como']) {
+      const v = ct('pizza de jamón york', { embutido, embutidos: ['chorizo'] });
+      assert.equal(v.level, 'si', `${embutido}: ${v.phrase}`);
+      assert.ok(v.foodIds.includes('fiambre-cocinado'));
+      assert.ok(!v.foodIds.includes('fiambre-loncheado'));
+    }
+  });
+
+  test('embutido curado cocinado: «Sí», y el perfil sigue mandando', () => {
+    const v = expectLevel('croquetas de jamón', 'si');
+    assert.equal(v.phrase, 'Sí: cocinado dentro del plato, el calor elimina el riesgo. Que llegue bien caliente.');
+    assert.equal(expectLevel('croquetas de jamón', 'no', { embutido: 'no' }).phrase, 'Has decidido no comer embutidos.');
+    assert.equal(
+      expectLevel('croquetas de jamón', 'no', { embutidos: ['chorizo'] }).phrase,
+      'No está entre los embutidos que has marcado.',
+    );
+    expectLevel('croquetas de jamón', 'si', { embutido: 'los_como' });
+    expectLevel('lentejas con chorizo', 'si');
+    expectLevel('chorizo frito', 'si');
+    assert.equal(verdictForFood('embutido-cocinado', BASE).level, 'si');
+  });
+
+  test('embutido curado añadido al final, en crudo o después del horno → crudo', () => {
+    for (const t of [
+      'pizza con jamón ibérico al final',
+      'pizza con jamón serrano después del horno',
+      'pizza de jamón ibérico sin hornear',
+      'pizza con jamón ibérico en crudo',
+    ]) {
+      const v = expectLevel(t, 'no');
+      assert.ok(v.foodIds.includes('jamon-curado'), t);
+    }
+    // Un plato frío no cocina el embutido aunque otro ingrediente vaya gratinado.
+    expectLevel('ensalada con queso de cabra gratinado y jamón', 'no');
+  });
+
+  test('fiambre cocinado → Sí; en frío → Mejor no con la frase nueva', () => {
+    for (const t of ['sándwich mixto', 'bikini', 'sándwich mixto a la plancha', 'croquetas de jamón york', 'tosta de jamón york fundido']) {
+      expectLevel(t, 'si', { embutido: 'no' });
+    }
+    expectLevel('san jacobo', 'si');
+    for (const t of ['jamón york', 'bocadillo de jamón york', 'ensalada con jamón york', 'pechuga de pavo', 'mortadela', 'pizza de jamón york al final']) {
+      const v = expectLevel(t, 'no');
+      assert.equal(v.foodId, 'fiambre-loncheado', t);
+      assert.equal(v.phrase, 'En frío y de bandeja, mejor no por listeria; bien caliente dentro del plato, sí.');
+    }
+    // «Jamón cocido al horno» y «pavo braseado» son fiambres de bandeja, no platos calientes.
+    expectLevel('jamón cocido al horno', 'no');
+    expectLevel('pavo braseado', 'no');
+    assert.ok(!ct('bocadillo de jamón york').foodIds.includes('jamon-curado'));
+  });
+
+  test('queso cocinado → Sí por esa parte', () => {
+    for (const t of ['camembert al horno', 'brie al horno', 'provolone a la plancha', 'queso de cabra gratinado', 'fondue de queso', 'pizza con gorgonzola', 'macarrones con queso rallado gratinado']) {
+      assert.equal(expectLevel(t, 'si').foodId === 'queso-cocinado' || ct(t).foodIds.includes('queso-cocinado'), true, t);
+    }
+    const ens = ct('ensalada con queso de cabra gratinado');
+    assert.ok(['si', 'cuidado'].includes(ens.level), ens.level);
+    assert.notEqual(ens.level, 'no');
+    // Lo que no va cocinado no cambia.
+    expectLevel('queso azul', 'no');
+    expectLevel('queso rallado', 'no');
+    expectLevel('solomillo al roquefort', 'no');
+    expectLevel('queso con tomate frito', 'cuidado');
+    // La burrata en la pizza se suele poner al final.
+    expectLevel('pizza con burrata', 'cuidado');
+  });
+
+  test('tarta de queso sin alergias sigue su nivel base', () => {
+    assert.equal(ct('tarta de queso').level, FOOD_BY_ID['tarta-queso'].level);
+  });
+
+  test('pescado ahumado y germinados cocinados → Sí por esa parte', () => {
+    expectLevel('pasta con salmón ahumado', 'si');
+    expectLevel('quiche de salmón ahumado', 'si');
+    expectLevel('salmón ahumado', 'no');
+    expectLevel('ensalada de pasta con salmón ahumado', 'no');
+    expectLevel('pizza de salmón ahumado', 'no');
+    expectLevel('brotes de soja salteados', 'si');
+    expectLevel('wok de verduras con brotes de soja', 'si');
+    expectLevel('ensalada de brotes de soja', 'no');
+  });
+
+  test('el calor no arregla mercurio, alcohol, huevo crudo ni pescado o carne crudos', () => {
+    expectLevel('pez espada a la plancha', 'no');
+    expectLevel('pizza de pez espada', 'no');
+    expectLevel('tiramisú', 'no');
+    expectLevel('sushi', 'no');
+    expectLevel('tortilla', 'cuidado');
+    expectLevel('carpaccio de ternera', 'no');
+    expectLevel('croquetas de jamón y copa de vino', 'no');
+  });
+
+  test('gana el peor: pizza de jamón york con huevo poco hecho encima', () => {
+    const v = expectLevel('pizza de jamón york con huevo poco hecho encima', 'no');
+    assert.equal(v.foodId, 'huevo-poco-hecho');
+  });
+});
+
+describe('regresiones de la revisión con 293 platos', () => {
+  test('«miel» no es «mielga» a medio escribir', () => {
+    const v = ct('miel');
+    assert.notEqual(v.level, 'no');
+    assert.ok(!v.foodIds.includes('pescado-mercurio'));
+    // Palabras completas que la guía ya conoce no se leen como prefijo de otra.
+    for (const w of ['tarta', 'lengua', 'cabra', 'entre']) {
+      assert.equal(ct(w).level, 'duda', w);
+    }
+    // Lo que sí está a medio escribir sigue funcionando.
+    assert.equal(ct('sashim').foodId, 'pescado-crudo');
+  });
+
+  test('«clara» es cerveza con limón; «clara de huevo», no', () => {
+    for (const t of ['clara', 'clara de limón', 'clara con limón']) {
+      assert.equal(expectLevel(t, 'no').foodId, 'alcohol', t);
+    }
+    assert.equal(expectLevel('clara sin alcohol', 'cuidado').foodId, 'cerveza-sin');
+    assert.equal(expectLevel('clara 0,0', 'si').foodId, 'cerveza-00');
+    for (const t of ['clara de huevo', 'claras montadas', 'tortilla de claras']) {
+      assert.ok(!ct(t).foodIds.includes('alcohol'), t);
+    }
+  });
 });
