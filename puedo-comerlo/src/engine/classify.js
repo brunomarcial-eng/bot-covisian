@@ -37,14 +37,18 @@ export const UNKNOWN = Object.freeze({
 export const PHRASES = Object.freeze({
   embutidoNo: 'Has decidido no comer embutidos.',
   embutidoNoMarcado: 'No está entre los embutidos que has marcado.',
-  embutidoCrudoCocinados: 'En crudo, mejor no. Solo si va cocinado dentro del plato.',
+  embutidoCrudoCocinados: 'En crudo, mejor no. Cocinado dentro del plato, sí.',
   embutidoCrudoLosComo: 'Va sin cocinar: AESAN lo señala por toxoplasmosis y, loncheado, por listeria. La decisión es tuya.',
-  embutidoCocinado: 'Solo si se cocina de verdad dentro del plato, no apoyado al servir.',
+  embutidoCocinado: 'Sí: cocinado dentro del plato, el calor elimina el riesgo. Que llegue bien caliente.',
   quesoPasteurizado: 'Leche pasteurizada. Quita la corteza si la tiene.',
   lecturaIncierta: 'No estoy segura de la lectura.',
 });
 
 const PASTEURIZABLE_CHEESE = new Set(['queso-fresco', 'queso-curado', 'queso-blando-corteza']);
+// Quesos cuyo riesgo (listeria) anula el calor: cocinados pasan a «queso cocinado».
+const CHEESE_IDS = new Set(['queso-fresco', 'queso-curado', 'queso-blando-corteza', 'queso-azul', 'queso-loncheado-rallado']);
+// Lo que el calor NO arregla (mercurio, alcohol, cafeína, huevo o pescado crudos…) no se toca: solo se
+// convierten embutido curado, fiambre, queso, pescado ahumado y germinados.
 // En la lista de ingredientes estas coincidencias no dicen nada del producto («agua», «zumo de limón»).
 const NAME_ONLY_IDS = new Set(['agua', 'zumo']);
 
@@ -72,7 +76,7 @@ function resolveSlot(slot) {
 }
 
 function isCurado(food) {
-  if (!food || food.id === 'embutido-cocinado' || food.id === 'fiambre-loncheado') return false;
+  if (!food || ['embutido-cocinado', 'fiambre-loncheado', 'fiambre-cocinado'].includes(food.id)) return false;
   return !!food.embutido || (Array.isArray(food.tags) && food.tags.includes('embutido'));
 }
 
@@ -141,9 +145,10 @@ export function aliasScore(alias, text) {
   return { score: 0, at: -1, len: 0 };
 }
 
-// Texto escrito a medias: «sush» → «sushi». Solo una palabra de ≥ 4 letras y solo si nada más encaja.
+// Texto escrito a medias: «sushi» a medio escribir. Solo una palabra de ≥ 5 letras que no sea ya una
+// palabra completa conocida («miel» no es «mielga» a medias), y solo si nada más encaja.
 function prefixScore(alias, text) {
-  if (text.length < 4 || text.includes(' ')) return 0;
+  if (text.length < 5 || text.includes(' ')) return 0;
   const first = alias.split(' ')[0];
   if (first === text || !first.startsWith(text)) return 0;
   return 50 + Math.round((30 * text.length) / alias.length);
@@ -153,6 +158,29 @@ function strictlyInside(spans, start, end, id) {
   return spans.some(
     (c) => c.start <= start && end <= c.end && c.end - c.start > end - start && !c.ids.includes(id),
   );
+}
+
+// Un alias que corta por la mitad una palabra clave de otro alimento no cuenta: «bocadillo de jamón»
+// dentro de «bocadillo de jamón york» partiría «jamón york» (fiambre) y lo leería como jamón curado.
+function cutsSpan(spans, start, end, id) {
+  return spans.some(
+    (c) =>
+      c.start < end && start < c.end && // se solapan
+      !(start <= c.start && c.end <= end) && // el alias no la contiene entera
+      !(c.start <= start && end <= c.end) && // ni queda dentro
+      !c.ids.includes(id),
+  );
+}
+
+const PREFIX_EXCLUDED = new Set(['pescado-mercurio']);
+// Palabra completa que el léxico ya conoce (alérgenos, forma de comer, verduras…): no es algo a medio escribir.
+function isKnownWord(word) {
+  const all = [...Object.values(ALLERGEN_LEXICON), ...Object.values(DIET_LEXICON), CTX.vegetal, CTX.fish, CTX.marisco, CTX.carne];
+  return all.some((re) => {
+    re.lastIndex = 0;
+    const m = re.exec(word);
+    return !!m && m.index === 0 && m[0].length === word.length;
+  });
 }
 
 function findMatches(doc, context) {
@@ -191,7 +219,7 @@ function findMatches(doc, context) {
         for (const at of positions) {
           const start = seg.start + at;
           const end = start + r.len;
-          if (strictlyInside(consumed, start, end, entry.id)) continue;
+          if (strictlyInside(consumed, start, end, entry.id) || cutsSpan(consumed, start, end, entry.id)) continue;
           if (!found || r.score > found.score) found = { score: r.score, start, end };
           break;
         }
@@ -216,11 +244,13 @@ function findMatches(doc, context) {
     const m = matches[i];
     if (m.via === 'alias' && strictlyInside(aliasSpans, m.start, m.end, m.id)) matches.splice(i, 1);
   }
-  // 3) Escrito a medias (solo texto libre y solo si no hay nada más).
+  // 3) Escrito a medias (solo texto libre y solo si no hay nada más). Nunca hacia el pescado con mercurio:
+  // un «Mejor no» por una palabra a medias asusta sin motivo.
   if (!matches.length && context === 'text') {
     const seg = doc.segs.find((s) => s.kind === 'name');
-    if (seg) {
+    if (seg && !isKnownWord(seg.norm)) {
       for (const entry of ALIAS_INDEX) {
+        if (PREFIX_EXCLUDED.has(entry.id)) continue;
         if (entry.terms.some((t) => prefixScore(t, seg.norm) >= 50)) {
           matches.push({ id: entry.id, order: idOrder(entry.id), start: seg.start, end: seg.end, where: 'name', via: 'prefix' });
         }
@@ -298,8 +328,48 @@ function applyContext(matches, doc, context) {
   if (has('carne-poco-hecha') || has('tartar') || has('carpaccio')) remove('carne-bien-hecha');
   if (has('leche-cruda')) remove('leche-pasteurizada');
 
+  // --- Cocinado de verdad (decisión de la clienta): lo que se cocina hasta estar bien caliente por dentro
+  // ya no tiene el riesgo de listeria o toxoplasma. Lo que va «al final», «en crudo», «en frío»… no cuenta.
+  const raw = CTX.rawMarker.test(text);
+  const cold = CTX.coldDish.test(text);
+  const convert = (fromIds, toId) => {
+    if (!FOOD_BY_ID[toId]) return;
+    list = list.map((m) => (fromIds.includes(m.id) ? { ...m, id: toId, order: idOrder(toId), from: m.id } : m));
+  };
+
+  // Fiambre de bandeja cocinado dentro del plato (pizza, sándwich mixto, croqueta…) → fiambre cocinado.
+  if (raw) convert(['fiambre-cocinado'], 'fiambre-loncheado');
+  else if (has('fiambre-loncheado') && (has('fiambre-cocinado') || CTX.fiambreNext.test(text) || (CTX.fiambreHeat.test(text) && !cold))) {
+    convert(['fiambre-loncheado'], 'fiambre-cocinado');
+  }
+
+  // Queso cocinado (al horno, gratinado, fundido, frito, en pizza o croqueta…) → queso cocinado.
+  // En un plato (pizza) la burrata no cuenta: se suele poner al final, en frío. En un producto envasado solo
+  // cuenta el plato («pizza cuatro quesos»), no «queso fundido» (lonchas o porciones de nevera).
+  const cheeseNext = context === 'text' && CTX.cheeseCooked.test(text);
+  const cheeseDish = CTX.cheeseDish.test(text) && !raw && !cold;
+  if (cheeseNext || cheeseDish) {
+    const hasCheese = list.some((m) => CHEESE_IDS.has(m.id));
+    list = list.map((m) => {
+      const isCheese = CHEESE_IDS.has(m.id) || (m.id === 'leche-cruda' && (hasCheese || cheeseNext));
+      if (!isCheese) return m;
+      const burrata = m.start >= 0 && text.slice(m.start, m.end).includes('burrata');
+      if (!cheeseNext && burrata) return m;
+      return { ...m, id: 'queso-cocinado', order: idOrder('queso-cocinado'), from: m.id };
+    });
+  }
+
+  // Pescado ahumado cocinado en un plato caliente (pasta, quiche, revuelto, al horno).
+  if (has('pescado-ahumado') && CTX.smokedHeat.test(text) && !cold && !raw) convert(['pescado-ahumado'], 'ahumado-cocinado');
+  if (raw) convert(['ahumado-cocinado'], 'pescado-ahumado');
+  // Brotes y germinados cocinados (salteado, wok, sopa).
+  if (has('germinados') && CTX.sproutHeat.test(text) && !cold && !raw) convert(['germinados'], 'germinados-cocinados');
+  if (raw) convert(['germinados-cocinados'], 'germinados');
+
   // Embutido curado cocinado de verdad dentro del plato → embutido cocinado, conservando el tipo.
-  const cooked = CTX.cookedDish.test(text) || CTX.cookedNextToEmbutido.test(text) || has('embutido-cocinado');
+  // «Al final», «en crudo», «sin hornear», «después del horno»: ese embutido cuenta como crudo.
+  const cooked =
+    CTX.cookedNextToEmbutido.test(text) || (!raw && ((CTX.cookedDish.test(text) && !cold) || has('embutido-cocinado')));
   if (cooked && FOOD_BY_ID['embutido-cocinado']) {
     list = list.map((m) => {
       const food = FOOD_BY_ID[m.id];
@@ -373,10 +443,10 @@ function applyEmbutidoProfile(piece, food, profile) {
     out.level = 'no';
     out.phrase = PHRASES.embutidoNoMarcado;
   } else if (profile.embutido === 'cocinados') {
-    out.level = cocinado ? 'cuidado' : 'no';
+    out.level = cocinado ? 'si' : 'no';
     out.phrase = cocinado ? PHRASES.embutidoCocinado : PHRASES.embutidoCrudoCocinados;
   } else if (profile.embutido === 'los_como') {
-    out.level = cocinado ? 'cuidado' : 'no';
+    out.level = cocinado ? 'si' : 'no';
     out.phrase = cocinado ? PHRASES.embutidoCocinado : PHRASES.embutidoCrudoLosComo;
   }
   return out;

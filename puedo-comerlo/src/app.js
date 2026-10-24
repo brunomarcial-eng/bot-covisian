@@ -14,6 +14,7 @@ import * as ficha from './ui/ficha.js';
 import * as lista from './ui/lista.js';
 import * as historial from './ui/historial.js';
 import * as ajustes from './ui/ajustes.js';
+import * as instalar from './ui/instalar.js';
 
 const SCREENS = {
   '': home,
@@ -26,6 +27,7 @@ const SCREENS = {
   lista,
   historial,
   ajustes,
+  instalar,
 };
 
 // Pestaña de la navegación inferior que se marca en cada ruta.
@@ -142,6 +144,7 @@ function watchDock() {
   else window.addEventListener('resize', apply);
 }
 
+instalar.listenForInstall();
 window.addEventListener('hashchange', render);
 watchDock();
 render();

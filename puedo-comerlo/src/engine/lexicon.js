@@ -48,6 +48,10 @@ export const MARISCO_SRC = alt(
   'caracolillos?', 'krill',
 );
 
+// «Clara»: cerveza con limón o gaseosa. No la clara de huevo («claras montadas», «tortilla de claras»).
+export const CLARA_SRC =
+  '(?<!(?:de|las|con|sin) )claras?(?! (?:de (?:huevos?|gallina|pollo|pato|codorniz)|montadas?|a punto(?: de nieve)?|batidas?|pasteurizadas?|liquidas?|cocidas?|crudas?|duras?|y yemas?|de [0-9]+ huevos?))';
+
 // Embutidos y fiambres (cualquier tipo).
 export const EMBUTIDO_SRC = alt(
   'jamon(?:es)?', 'paletas? (?:iberica|serrana|curada|de bellota|de cebo)', 'paletillas? (?:iberica|serrana|curada)',
@@ -84,7 +88,7 @@ export const CERDO_SRC = alt(
   'costillas? ibericas?', 'costillas? de cochinillo', 'secreto(?: iberico)?', 'presa(?: iberica)?',
   'pluma(?: iberica)?', 'carrilladas? (?:ibericas?|de cerdo)', 'carrilleras? (?:ibericas?|de cerdo)', 'torreznos?',
   'chicharrones?', 'codillos?', 'orejas?', 'manitas(?: de cerdo)?', 'morro', 'mortadela', 'chopped', 'york', 'lacon',
-  'cabeza de jabali', 'salchichas?(?! de (?:pollo|pavo|ternera|tofu|soja))', 'pringa', 'zorza', 'raxo', 'cachopos?',
+  'sandwich(?:es)? mixtos?', 'bikinis?', 'croque monsieur', 'cabeza de jabali', 'salchichas?(?! de (?:pollo|pavo|ternera|tofu|soja))', 'pringa', 'zorza', 'raxo', 'cachopos?',
   'flamenquin(?:es)?', 'san jacobos?', 'embutidos?', 'ibericos', 'prosciutto', 'guanciale', 'cecina de cerdo',
 );
 
@@ -100,6 +104,7 @@ const HUEVO_SRC = alt(
 );
 
 const LECHE_SRC = alt(
+  'sandwich(?:es)? mixtos?', 'bikinis?', 'croque monsieur', 'san jacobos?', 'cachopos?', 'provoletas?', 'fondues? de quesos?',
   'leches?(?! de (?:almendras?|avena|soja|soya|arroz|coco|avellanas?|anacardos?|nueces|espelta|canamo|chufa|tigre|quinoa))',
   'lacteos?', 'lacteas?', 'quesos?', 'quesitos?', 'quesada', 'natas?', 'mantequilla(?! de (?:cacahuetes?|almendras?|anacardos?|cacao))',
   'bechamel', 'besamel', 'yogur(?:es|t|ts)?', 'yoghourt', 'yoghurt', 'kefir', 'cuajada', 'requeson', 'mascarpone',
@@ -125,7 +130,7 @@ const GLUTEN_SRC = alt(
   'napolitanas?', 'hojaldres?', 'churros?', 'porras', 'rosquillas?', 'torrijas', 'gofres?', 'masa', 'cervezas?',
   'birras?', 'salsa de soja', 'gyozas?', 'dumplings?', 'wraps?', 'burritos?', 'fajitas?', 'durum', 'pita', 'naan',
   'bagels?', 'brioche', 'donuts?', 'picos', 'colines', 'grisines', 'biscotes', 'muesli', 'crepes?', 'creps?',
-  'bollos?', 'bolleria', 'tiramisus?', 'calzone',
+  'bollos?', 'bolleria', 'tiramisus?', 'calzone', 'bikinis?', CLARA_SRC,
 );
 
 const FRUTOS_SECOS_SRC = alt(
@@ -234,6 +239,23 @@ export const NEGATION_EXTRA = [
 // Contextos para las reglas
 // ---------------------------------------------------------------------------
 
+// Tortilla de huevo (no las de trigo o maíz para wraps).
+const TORTILLA_HUEVO = 'tortillas?(?! (?:de )?(?:maiz|trigo|harina|mexicanas?|wrap)| para (?:fajitas|burritos|tacos|wraps?))';
+const EMBUTIDO_CURADO_WORDS = alt(
+  'jamon(?:es)?', 'paletas?', 'chorizos?', 'choricitos?', 'salchichon(?:es)?', 'fuets?', 'salamis?', 'pepperoni',
+  'lomos?(?: embuchados?)?', 'sobrasadas?', 'chistorra', 'cecina', 'embutidos?', 'ibericos', 'prosciutto',
+);
+const CHEESE_WORDS = alt(
+  'quesos?', 'brie', 'camembert', 'provolone', 'rulos?', 'mozzarella', 'mozarella', 'burrata', 'feta', 'halloumi',
+  'parmesano', 'emmental', 'gouda', 'cheddar', 'gruyere', 'roquefort', 'cabrales', 'gorgonzola', 'manchego',
+  'idiazabal', 'tetilla', 'scamorza', 'reblochon', 'coulommiers', 'torta del casar', 'torta de la serena',
+);
+const CHEESE_HEAT = alt(
+  'al horno', 'horneado', 'hornead[oa]s?', 'gratinad[oa]s?', 'fundid[oa]s?(?! (?:en|para) (?:lonchas|porciones|untar|sandwich))',
+  'derretid[oa]s?', 'a la plancha', 'a la parrilla', 'a la brasa', 'plancha', 'frit[oa]s?', 'rebozad[oa]s?',
+  'empanad[oa]s?', 'en tempura', 'asad[oa]s?',
+);
+
 export const CTX = {
   fish: wordRe(FISH_SRC, ''),
   marisco: wordRe(MARISCO_SRC, ''),
@@ -263,12 +285,85 @@ export const CTX = {
     alt(
       'croquetas?', 'croquetitas?', 'pizzas?', 'pizzetas?', 'calzone', 'guisos?', 'guisad[oa]s?', 'sofritos?',
       'al horno', 'horno', 'horneado', 'hornead[oa]s?', 'hervid[oa]s?', 'estofad[oa]s?', 'lentejas', 'fabada',
-      'fabes', '(?<!jamon )cocid[oa]s?', 'potajes?', 'migas', 'revueltos?', 'salteados?', 'salteadas?',
+      'fabes', '(?<!(?:jamon|pavo|paleta|pollo|fiambre|lacon|huevo|marisco|pulpo|langostino|arroz|maiz) )cocido(?! (?:extra|en lonchas|loncheado))',
+      'potajes?', 'hornazos?', 'bollos? prenaos?', TORTILLA_HUEVO, 'migas', 'revueltos?', 'salteados?', 'salteadas?',
       'empanadas?', 'empanadillas?', 'hojaldres?', 'quiches?', 'garbanzos', 'alubias', 'judias(?! verdes)',
       'callos', 'al infierno', 'a la sidra', 'al vino', 'lasanas?', 'canelones', 'macarrones', 'espaguetis?',
       'tallarines', 'risotto', 'paellas?', 'flamenquin(?:es)?', 'cachopos?', 'san jacobos?', 'rellen[oa]s?',
       'gratinad[oa]s?', 'en salsa', 'choripan', 'cocinad[oa]s? dentro', 'habas', 'guisantes', 'pochas',
       'a la riojana', 'pote',
+    ),
+    '',
+  ),
+  // Lo que se añade después del horno o en frío ya no cuenta como cocinado («pizza con jamón ibérico al final»).
+  rawMarker: wordRe(
+    alt(
+      'al final', 'en crudo', 'sin hornear', 'despues del horno', 'despues de hornear', 'tras el horno', 'tras hornear',
+      'a la salida del horno', 'al salir del horno', 'fuera del horno', 'al servir', 'en frio',
+      `(?:${EMBUTIDO_CURADO_WORDS})(?: [a-z]+){0,2} crud[oa]s?`,
+    ),
+    '',
+  ),
+  // Platos fríos: el horno o la sartén de otro ingrediente no calientan lo que va dentro
+  // («ensalada de pasta con york», «bocadillo de tortilla con york», «ensalada con queso gratinado y jamón»).
+  coldDish: wordRe(
+    alt(
+      'ensaladas?', 'ensaladillas?', 'fri[oa]s?', 'tablas?', 'carpaccios?', 'tartar(?:e|es)?', 'canapes?', 'bagels?',
+      'tostas?', 'tostadas?', 'montaditos?', 'bocadillos?', 'bocatas?', 'pulgas?', 'pintxos? frios?', 'wraps?',
+      'sandwich(?:es)?(?! (?:mixtos?|calientes?|a la plancha|tostados?))',
+    ),
+    '',
+  ),
+  // Fiambre de bandeja calentado de verdad: platos concretos (pizza, croqueta, sándwich mixto…) o pegado al fiambre
+  // («york a la plancha», «pavo fundido»). No «al horno» ni «asado» a secas: «jamón cocido al horno» y «pavo asado»
+  // son fiambres de bandeja.
+  fiambreHeat: wordRe(
+    alt(
+      'croquetas?', 'croquetitas?', 'pizzas?', 'pizzetas?', 'calzone', 'lasanas?', 'lasagna', 'canelones',
+      'quiches?', 'empanadas?', 'empanadillas?', 'hojaldres?', 'revueltos?', TORTILLA_HUEVO, 'gratinad[oa]s?',
+      'macarrones', 'sandwich(?:es)? (?:mixtos?|calientes?|a la plancha|tostados?)', 'mixtos? calientes?', 'bikinis?',
+      'croque monsieur', 'san jacobos?', 'sanjacobos?', 'cachopos?', 'flamenquin(?:es)?', 'pastel de carne',
+    ),
+    '',
+  ),
+  // …o pegado al fiambre (cuenta aunque el plato sea frío: «tosta de york fundido»).
+  fiambreNext: wordRe(
+    `(?:york|jamon (?:de )?(?:cocido|york|dulce)|pavo|chopped|mortadela|fiambres?)(?: [a-z]+){0,2} (?:${alt(
+      'a la plancha', 'plancha', 'calientes?', 'fundid[oa]s?', 'gratinad[oa]s?', 'frit[oa]s?', 'rebozad[oa]s?',
+    )})`,
+    '',
+  ),
+  // Queso cocinado de verdad: verbo pegado al queso («camembert al horno», «queso de cabra gratinado»,
+  // «gratinado de queso»). Entre medias no puede haber «con», «y»…: «queso con tomate frito» no es queso frito.
+  cheeseCooked: wordRe(
+    `(?:${CHEESE_WORDS})(?: (?!(?:con|y|e|sobre|sin|en|o)(?![a-z]))[a-z]+){0,2} (?:${CHEESE_HEAT})|(?:gratinad[oa]s?|gratin|fundid[oa]s?|horneado|al horno) (?:con|de|al) (?:${CHEESE_WORDS})|provoletas?|fondues?(?! de chocolate)|raclettes?`,
+    '',
+  ),
+  // Platos en los que el queso se hornea o se fríe dentro.
+  cheeseDish: wordRe(
+    alt(
+      'croquetas?', 'croquetitas?', 'pizzas?', 'pizzetas?', 'calzone', 'lasanas?', 'lasagna', 'canelones', 'quiches?',
+      'empanadas?', 'empanadillas?', 'sandwich(?:es)? mixtos?', 'bikinis?', 'croque monsieur', 'san jacobos?',
+      'sanjacobos?', 'cachopos?', 'flamenquin(?:es)?', 'provoletas?', 'fondues?(?! de chocolate)', 'raclettes?',
+    ),
+    '',
+  ),
+  // Pescado ahumado cocinado en un plato caliente (no en pizza: el ahumado se suele poner al final).
+  smokedHeat: wordRe(
+    alt(
+      'pastas?', 'espaguetis?', 'spaghetti', 'tallarines', 'macarrones', 'penne', 'tagliatelle', 'fettuccine',
+      'raviolis?', 'risotto', 'quiches?', 'revueltos?', TORTILLA_HUEVO, 'al horno', 'horneado', 'hornead[oa]s?',
+      'gratinad[oa]s?', 'lasanas?', 'canelones', 'croquetas?', 'empanadas?', 'empanadillas?', 'salteados?',
+      'cocinad[oa]s?', 'en caliente',
+    ),
+    '',
+  ),
+  // Brotes y germinados cocinados (salteado, wok, sopa…).
+  sproutHeat: wordRe(
+    alt(
+      'salteados?', 'salteadas?', 'wok', 'sopas?', 'caldos?', 'ramen', 'rollitos?(?: de primavera)?', 'revueltos?',
+      TORTILLA_HUEVO, 'al horno', 'frit[oa]s?', 'cocinad[oa]s?', 'hervid[oa]s?', 'a la plancha', 'en tempura',
+      'tempura', 'guisad[oa]s?', 'estofad[oa]s?', 'chop suey', 'yakisoba', 'tallarines salteados',
     ),
     '',
   ),
@@ -278,6 +373,7 @@ export const CTX = {
     `(?:jamon(?:es)?|chorizos?|choricitos?|salchichon(?:es)?|fuets?|salamis?|lomos?(?: embuchados?)?|sobrasadas?|chistorra|cecina|paletas?|embutidos?)(?: [a-z]+){0,2} (?:${alt(
       'frit[oa]s?', 'a la (?:plancha|brasa|parrilla)', 'plancha', 'asad[oa]s?', 'braseado', 'salteado', 'hervid[oa]s?',
       'cocid[oa]s?', 'guisad[oa]s?', 'estofad[oa]s?', 'a la sidra', 'al vino', 'al infierno', 'al horno',
+      'horneado', 'hornead[oa]s?', 'gratinad[oa]s?', 'fundid[oa]s?',
     )})`,
     '',
   ),
@@ -294,7 +390,7 @@ export const CTX = {
   ),
   // …salvo que haya bebida de verdad en la mesa.
   alcoholDrink: wordRe(
-    alt('copas?', 'vasos?', 'sangrias?', '(?<!a la )cervezas?', 'tinto de verano', 'mojitos?', 'cubatas?',
+    alt('copas?', 'vasos?', 'sangrias?', '(?<!a la )cervezas?', CLARA_SRC, 'tinto de verano', 'mojitos?', 'cubatas?',
       'chupitos?', 'jarras?', 'botellas?', 'botellin(?:es)?', 'cana(?! de (?:lomo|azucar))', 'canas(?! de (?:lomo|azucar))',
       'tercios?', 'gin tonic', 'gintonic', 'calimocho', 'rebujito', 'borrach[oa]s?'),
     '',
@@ -326,7 +422,7 @@ export const EMBUTIDO_TYPE_RES = {
 const BEER = alt(
   'cervezas?', 'birras?', 'canas?', 'tercios?', 'botellin(?:es)?', 'quintos?', 'mahou', 'estrella(?: galicia| damm)?',
   'heineken', 'san miguel', 'alhambra', 'cruzcampo', 'amstel', 'ambar', 'damm', 'free damm', 'voll damm', 'keler',
-  'moritz', 'carlsberg', 'coronita', 'corona', 'budweiser', 'radler', 'lager', 'tostada',
+  'moritz', 'carlsberg', 'coronita', 'corona', 'budweiser', 'radler', 'lager', 'tostada', CLARA_SRC,
 );
 
 const RAW_FISH_FOR_CUT = alt(
@@ -491,7 +587,7 @@ const RULE_DEFS = [
       'coctel(?:es)?', 'coctail', 'combinados?', 'alcohol(?:es)?', 'alcoholic[oa]s?', 'bebidas? alcoholicas?', 'sake',
       'soju', 'baileys', 'crema de orujo', 'limoncello', 'amaretto', 'cointreau', 'kirsch', 'calvados', 'absenta',
       'aperol', 'spritz', 'campari', 'martini', 'bellini', 'daiquiri', 'pina colada', 'caipirinha', 'caipiroska',
-      'cosmopolitan', 'clara de cerveza', 'clara con limon', 'queimada', 'mistela', 'sol y sombra', 'borrach[oa]s?',
+      'cosmopolitan', 'clara de cerveza', 'clara con limon', CLARA_SRC, 'queimada', 'mistela', 'sol y sombra', 'borrach[oa]s?',
     ),
   ),
   // 18. Bebida energética

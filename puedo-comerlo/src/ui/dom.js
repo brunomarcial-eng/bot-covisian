@@ -96,6 +96,15 @@ const PATHS = {
     '<path d="M7.5 3v5.5M5 3v5a2.5 2.5 0 0 0 5 0V3M7.5 10.5V21"/><path d="M18 21V3c-2.2 1.3-3.2 4.2-3.2 7.8V13H18"/>',
   basket:
     '<path d="M3.5 9h17l-1.7 9.3a1.6 1.6 0 0 1-1.6 1.2H6.8a1.6 1.6 0 0 1-1.6-1.2z"/><path d="M8.5 9 11 4.5M15.5 9 13 4.5M9.5 12.5v4M14.5 12.5v4"/>',
+  // Instalar en el móvil: dibujos genéricos de línea, no capturas ni logos de ningún sistema.
+  share:
+    '<path d="M8.5 9.5H7a1.5 1.5 0 0 0-1.5 1.5v8A1.5 1.5 0 0 0 7 20.5h10a1.5 1.5 0 0 0 1.5-1.5v-8A1.5 1.5 0 0 0 17 9.5h-1.5"/><path d="M12 14.5V3.5M8.75 6.75 12 3.5l3.25 3.25"/>',
+  'add-square':
+    '<rect x="4" y="4" width="16" height="16" rx="3.5"/><path d="M12 8.5v7M8.5 12h7"/>',
+  'dots-vertical':
+    '<circle cx="12" cy="5.5" r="1.1" fill="currentColor"/><circle cx="12" cy="12" r="1.1" fill="currentColor"/><circle cx="12" cy="18.5" r="1.1" fill="currentColor"/>',
+  install:
+    '<rect x="6.5" y="3" width="11" height="18" rx="2.5"/><path d="M12 7.5v6.5M9.5 11.5 12 14l2.5-2.5M11 18h2"/>',
 };
 
 export function icon(name, size = 24) {

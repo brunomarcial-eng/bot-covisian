@@ -4,6 +4,7 @@ import { getProfile, saveProfile, clearAll } from '../store.js';
 import { h, icon, announce, fill } from './dom.js';
 import { confirmBox } from './components.js';
 import { navigate } from './router.js';
+import { isStandalone } from './instalar.js';
 import {
   embutidoFieldset,
   embutidosFieldset,
@@ -99,6 +100,13 @@ export function render({ main }) {
     h('h2', { class: 'mt-0' }, 'Historial'),
     h('p', null, 'Tus últimas consultas, con su semáforo.'),
     h('a', { class: 'btn btn--secondary', href: '#/historial' }, icon('clock', 22), 'Ver el historial'),
+    h('h2', null, 'En la pantalla de inicio'),
+    isStandalone()
+      ? h('p', null, 'Ya la tienes instalada en este móvil.')
+      : h('p', null, 'Ponla junto a tus apps y ábrela sin pasar por el navegador.'),
+    ...(isStandalone()
+      ? []
+      : [h('a', { class: 'btn btn--secondary', href: '#/instalar' }, icon('install', 22), 'Instalar en el móvil')]),
     h('h2', null, 'Tus datos'),
     h('p', null, 'Todo está guardado solo en este móvil. No hay cuenta y no lo vemos.'),
     dangerArea,

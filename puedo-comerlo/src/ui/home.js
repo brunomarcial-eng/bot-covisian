@@ -6,6 +6,7 @@ import { rows } from './components.js';
 import { entryRow } from './entries.js';
 import { recordSearch } from './buscar.js';
 import { buildHash, navigate } from './router.js';
+import { installHint } from './instalar.js';
 
 function tile(href, iconName, title, sub) {
   return h(
@@ -76,4 +77,8 @@ export function render({ main, profile }) {
       ),
     );
   }
+
+  // Una línea discreta, solo si no está instalada y no la ha cerrado.
+  const hint = installHint();
+  if (hint) main.append(hint);
 }
