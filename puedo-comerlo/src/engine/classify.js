@@ -173,8 +173,18 @@ function cutsSpan(spans, start, end, id) {
 }
 
 const PREFIX_EXCLUDED = new Set(['pescado-mercurio']);
-// Palabra completa que el léxico ya conoce (alérgenos, forma de comer, verduras…): no es algo a medio escribir.
+// Vocabulario de la propia guía (nombres, alias y textos) y algunas palabras de carta que no están en ella.
+const KNOWN_WORDS = new Set([
+  ...FOODS.flatMap((f) =>
+    [f.name, ...(f.aliases || []), f.phrase, f.detail, f.question || '', f.alternative || '']
+      .flatMap((t) => normalize(t).split(' ')),
+  ),
+  'lengua', 'lenguas', 'cabra', 'cabras', 'tarta', 'tartas', 'entre', 'cocina', 'parrilla', 'menu', 'plato', 'platos',
+  'postre', 'postres', 'entrante', 'entrantes', 'racion', 'media', 'tapa', 'tapas',
+]);
+// Palabra completa que la app ya conoce (guía o léxico): no es algo a medio escribir.
 function isKnownWord(word) {
+  if (KNOWN_WORDS.has(word)) return true;
   const all = [...Object.values(ALLERGEN_LEXICON), ...Object.values(DIET_LEXICON), CTX.vegetal, CTX.fish, CTX.marisco, CTX.carne];
   return all.some((re) => {
     re.lastIndex = 0;
