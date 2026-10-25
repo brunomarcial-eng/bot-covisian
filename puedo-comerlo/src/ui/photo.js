@@ -1,7 +1,7 @@
 // Vista de cámara para fotografiar la carta o una etiqueta, con galería de respaldo.
 // La captura se carga de forma perezosa. La cámara se para al salir de la pantalla.
 
-import { h, icon, uid, fill } from './dom.js';
+import { h, uid, fill } from './dom.js';
 import { notice } from './components.js';
 
 // <input type="file"> oculto, sin «capture», para que abra la galería.
@@ -77,7 +77,7 @@ export function photoFlow(host, { signal, subject = 'la carta', onPhoto, onCance
       h(
         'div',
         { class: 'actions' },
-        h('button', { type: 'button', class: 'btn btn--primary', onclick: () => openGallery?.() }, icon('image', 22), 'Elegir una foto de la galería'),
+        h('button', { type: 'button', class: 'btn btn--primary', onclick: () => openGallery?.() }, 'Elegir una foto de la galería'),
         h('button', { type: 'button', class: 'btn btn--secondary', onclick: cancel }, 'Cancelar'),
       ),
     );
@@ -98,7 +98,6 @@ export function photoFlow(host, { signal, subject = 'la carta', onPhoto, onCance
     const shoot = h(
       'button',
       { type: 'button', class: 'btn btn--primary', disabled: true },
-      icon('camera', 22),
       'Hacer la foto',
     );
     fill(host, 
@@ -152,7 +151,7 @@ export function photoFlow(host, { signal, subject = 'la carta', onPhoto, onCance
 
   function showFrozen() {
     url = URL.createObjectURL(blob);
-    const use = h('button', { type: 'button', class: 'btn btn--primary' }, icon('check', 22), 'Usar esta foto');
+    const use = h('button', { type: 'button', class: 'btn btn--primary' }, 'Usar esta foto');
     use.addEventListener('click', () => {
       const b = blob;
       destroy();
@@ -166,7 +165,7 @@ export function photoFlow(host, { signal, subject = 'la carta', onPhoto, onCance
         'div',
         { class: 'camera-actions camera-actions--3' },
         use,
-        h('button', { type: 'button', class: 'btn btn--secondary', onclick: () => openLive() }, icon('repeat', 22), 'Repetir'),
+        h('button', { type: 'button', class: 'btn btn--secondary', onclick: () => openLive() }, 'Repetir'),
         h('button', { type: 'button', class: 'btn btn--secondary', onclick: cancel }, 'Cancelar'),
       ),
     );

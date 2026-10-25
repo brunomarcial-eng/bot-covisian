@@ -99,12 +99,11 @@ export function installHint() {
   const close = h(
     'button',
     { type: 'button', class: 'install-hint-close', 'aria-label': 'Cerrar este aviso' },
-    icon('close', 20),
+    icon('close', 18, 1.5),
   );
   const box = h(
     'aside',
     { class: 'install-hint', 'aria-label': 'Instalar en el móvil' },
-    h('span', { class: 'install-hint-icon' }, icon('install', 22)),
     h(
       'p',
       { class: 'install-hint-text' },
@@ -176,14 +175,14 @@ function guideSection(key, { mine = false, warn = null } = {}) {
   const headId = `guia-${key}`;
   return h(
     'section',
-    { class: 'sheet install-guide', 'aria-labelledby': headId, dataset: { os: key } },
+    { class: 'install-guide', 'aria-labelledby': headId, dataset: { os: key } },
     h(
       'div',
       { class: 'install-guide-head' },
       h('h2', { id: headId }, g.title),
       mine ? h('span', { class: 'install-tag' }, 'Tu móvil') : null,
     ),
-    warn ? h('div', { class: 'notice notice--problem' }, icon('info', 22), h('p', null, warn)) : null,
+    warn ? h('div', { class: 'notice notice--problem' }, h('p', null, warn)) : null,
     h(
       'ol',
       { class: 'install-steps' },
@@ -191,13 +190,13 @@ function guideSection(key, { mine = false, warn = null } = {}) {
         h(
           'li',
           null,
-          h('span', { class: 'install-step-icon' }, icon(s.icon, 24)),
           h(
             'span',
             { class: 'install-step-text' },
             h('span', { class: 'install-step-title' }, s.title),
             h('span', { class: 'install-step-detail' }, s.detail),
           ),
+          h('span', { class: 'install-step-icon' }, icon(s.icon, 26, 1.4)),
         ),
       ),
     ),
@@ -217,7 +216,6 @@ export function render({ main, signal }) {
         h(
           'div',
           { class: 'notice notice--ok' },
-          icon('check', 22),
           h(
             'p',
             null,
@@ -230,7 +228,7 @@ export function render({ main, signal }) {
       return;
     }
     if (deferredPrompt) {
-      const btn = h('button', { type: 'button', class: 'btn btn--primary' }, icon('install', 22), 'Instalar');
+      const btn = h('button', { type: 'button', class: 'btn btn--primary' }, 'Instalar');
       btn.addEventListener('click', async () => {
         const ev = deferredPrompt;
         if (!ev) return;
@@ -279,12 +277,7 @@ export function render({ main, signal }) {
     top,
     status,
     isStandalone() ? null : guides,
-    h(
-      'div',
-      { class: 'notice notice--ok mt-lg' },
-      icon('lock', 22),
-      h('p', null, 'No ocupa espacio ni pide permisos al instalarla. Tus datos siguen solo en este móvil.'),
-    ),
+    h('div', { class: 'notice notice--ok mt-lg' }, h('p', null, 'No ocupa espacio ni pide permisos al instalarla. Tus datos siguen solo en este móvil.')),
     h('p', { class: 'install-note' }, 'Necesita internet para abrirse, igual que en el navegador.'),
   ]);
 

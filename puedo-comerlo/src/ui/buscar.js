@@ -1,9 +1,11 @@
-// Buscar: arriba «Tu respuesta» (la respuesta, primero); debajo «En la guía».
+// Buscar: el campo y la respuesta. Nada más. Lo que sabe el motor no se enseña como lista:
+// la persona solo quiere la respuesta.
 
-import { classifyText, searchFoods, verdictForFood, GROUPS, LEVEL_LABEL } from '../engine/index.js';
+import { classifyText, LEVEL_LABEL } from '../engine/index.js';
 import { addHistory } from '../store.js';
 import { h, icon, debounce, fill } from './dom.js';
-import { verdictCard, row, rows } from './components.js';
+import { verdictAnswer, addToListButton, shortcutList, sectionHead } from './components.js';
+import { ATAJOS_FUERA } from './fuera.js';
 import { buildHash, replaceQuietly } from './router.js';
 
 // Apunta una búsqueda enviada en el historial. Devuelve el veredicto.
@@ -22,18 +24,12 @@ export function recordSearch(q, profile) {
   return v;
 }
 
-function groupIds() {
-  return (GROUPS || []).map((g) => g.id);
-}
-
 export function render({ main, params, profile }) {
   let q = (params.get('q') || '').slice(0, 120);
-  let g = params.get('g') || 'todo';
-  if (!groupIds().includes(g)) g = 'todo';
 
   const input = h('input', {
     id: 'buscar-q',
-    class: 'input',
+    class: 'field-input',
     type: 'search',
     name: 'q',
     placeholder: 'Sushi, tortilla, jamón…',
@@ -52,127 +48,83 @@ export function render({ main, params, profile }) {
     h('label', { class: 'label', for: 'buscar-q' }, 'Plato o alimento'),
     h(
       'div',
-      { class: 'search-row' },
+      { class: 'field-box' },
       input,
-      h('button', { type: 'submit', class: 'btn btn--primary btn--icon', 'aria-label': 'Buscar' }, icon('search', 22)),
+      h('button', { type: 'submit', class: 'field-go', 'aria-label': 'Buscar' }, icon('search', 22, 1.7)),
     ),
-  );
-
-  const chipButtons = (GROUPS || []).map((grp) =>
-    h(
-      'button',
-      { type: 'button', class: 'chip', 'aria-pressed': String(grp.id === g), dataset: { group: grp.id } },
-      grp.label,
-    ),
-  );
-  const chips = h(
-    'div',
-    { class: 'chips chips--scroll mt-md', role: 'group', 'aria-label': 'Filtrar por grupo' },
-    chipButtons,
   );
 
   const live = h('p', { class: 'visually-hidden', role: 'status', 'aria-live': 'polite' });
   const results = h('div', { id: 'buscar-resultados' });
 
-  main.append(h('h1', null, 'Buscar'), form, chips, live, results);
+  main.append(h('h1', null, 'Buscar'), form, live, results);
 
   const syncUrl = () => {
-    replaceQuietly(buildHash('buscar', { q: q.trim(), g: g === 'todo' ? '' : g }));
+    replaceQuietly(buildHash('buscar', { q: q.trim() }));
   };
 
   function paint() {
     const text = q.trim();
-    const parts = [];
-    let liveText = '';
 
-    if (text) {
-      let v = null;
-      try {
-        v = classifyText(text, {}, profile);
-      } catch (err) {
-        console.error(err);
-      }
-      if (v) {
-        parts.push(
-          h(
-            'section',
-            { 'aria-labelledby': 'tu-respuesta' },
-            h('h2', { id: 'tu-respuesta' }, 'Tu respuesta'),
-            verdictCard(v, {
-              level: 3,
-              title: text.charAt(0).toLocaleUpperCase('es-ES') + text.slice(1),
-              hero: true,
-              listEntry: {
-                via: 'busqueda',
-                title: text,
-                level: v.level,
-                phrase: v.phrase,
-                foodId: v.foodId || null,
-                payload: { kind: 'texto', text },
-              },
-            }),
-          ),
-        );
-        liveText = `Tu respuesta: ${LEVEL_LABEL[v.level] || ''}.`;
-      }
+    if (!text) {
+      fill(
+        results,
+        h('p', { class: 'help' }, 'Escribe un plato, un alimento o una bebida.'),
+        h(
+          'section',
+          { class: 'section', 'aria-labelledby': 'atajos-buscar' },
+          sectionHead('Atajos', 'atajos-buscar'),
+          shortcutList(ATAJOS_FUERA),
+        ),
+      );
+      live.textContent = '';
+      return;
     }
 
-    let foods = [];
+    let v = null;
     try {
-      foods = searchFoods(text, g) || [];
+      v = classifyText(text, {}, profile);
     } catch (err) {
       console.error(err);
     }
-    const groupLabel = (GROUPS || []).find((x) => x.id === g)?.label || 'Todo';
-    const guideItems = foods.map((f) => {
-      let v = null;
-      try {
-        v = verdictForFood(f.id, profile);
-      } catch {
-        v = { level: f.level, phrase: f.phrase };
-      }
-      return row({ href: `#/ficha/${encodeURIComponent(f.id)}`, level: v.level, title: f.name, phrase: v.phrase, headingLevel: 3 });
-    });
-
-    const count = foods.length;
-    const countText = count === 1 ? '1 alimento' : `${count} alimentos`;
-    let guideBody;
-    if (count) {
-      guideBody = rows(guideItems);
-    } else if (text) {
-      guideBody = h(
-        'div',
-        { class: 'empty' },
-        h('p', null, `En la guía no aparece «${text}»${g !== 'todo' ? ` dentro de ${groupLabel}` : ''}.`),
-        h(
-          'p',
-          null,
-          g !== 'todo'
-            ? 'Prueba con otra palabra, o mira en «Todo».'
-            : 'Prueba con otra palabra, o con una parte del nombre. Arriba tienes la respuesta para lo que has escrito.',
-        ),
-      );
-    } else {
-      guideBody = h('div', { class: 'empty' }, h('p', null, 'No hay alimentos en este grupo.'));
+    if (!v) {
+      fill(results, h('p', { class: 'help' }, 'No he podido responder a esto. Prueba con otra palabra.'));
+      live.textContent = '';
+      return;
     }
 
-    parts.push(
+    // «Ver la ficha» solo si la respuesta sale de un único alimento de la guía.
+    const single = v.foodId && Array.isArray(v.foodIds) && v.foodIds.length === 1;
+    const entry = {
+      via: 'busqueda',
+      title: text,
+      level: v.level,
+      phrase: v.phrase,
+      foodId: v.foodId || null,
+      payload: { kind: 'texto', text },
+    };
+    const actions = [
+      addToListButton(entry, { small: true, variant: 'secondary', inline: true }),
+      single
+        ? h('a', { class: 'text-link', href: `#/ficha/${encodeURIComponent(v.foodId)}` }, 'Ver la ficha', icon('arrow-right', 18, 1.5))
+        : null,
+    ];
+
+    fill(
+      results,
       h(
         'section',
-        { 'aria-labelledby': 'en-la-guia' },
-        h(
-          'div',
-          { class: 'section-head' },
-          h('h2', { id: 'en-la-guia' }, 'En la guía'),
-          count ? h('span', { class: 'muted small' }, countText) : null,
-        ),
-        guideBody,
+        { class: 'answer-wrap', 'aria-label': 'Tu respuesta' },
+        verdictAnswer(v, {
+          level: 2,
+          title: text.charAt(0).toLocaleUpperCase('es-ES') + text.slice(1),
+          sheet: true,
+          fichaLink: false,
+          actions,
+        }),
       ),
     );
-    liveText += ` En la guía: ${count ? countText : 'nada'}.`;
-
-    fill(results, ...parts);
-    live.textContent = liveText.trim();
+    live.textContent = `Tu respuesta: ${LEVEL_LABEL[v.level] || ''}.`;
   }
 
   const onType = debounce(() => {
@@ -191,24 +143,7 @@ export function render({ main, params, profile }) {
     if (q.trim()) recordSearch(q, profile);
   });
 
-  chips.addEventListener('click', (e) => {
-    const btn = e.target.closest('button[data-group]');
-    if (!btn) return;
-    g = btn.dataset.group;
-    for (const b of chipButtons) b.setAttribute('aria-pressed', String(b.dataset.group === g));
-    syncUrl();
-    paint();
-  });
-
   paint();
-
-  // Lleva a la vista el filtro activo.
-  const active = chipButtons.find((b) => b.dataset.group === g);
-  if (active && g !== 'todo') {
-    requestAnimationFrame(() => {
-      chips.scrollLeft = Math.max(0, active.offsetLeft - chips.offsetLeft - 16);
-    });
-  }
 
   return () => onType.cancel();
 }

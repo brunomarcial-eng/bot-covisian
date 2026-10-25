@@ -1042,7 +1042,7 @@ export const FOODS = [
     ],
     groups: ['restaurante'],
     level: 'si',
-    phrase: 'Sí: pan, tomate y aceite.',
+    phrase: 'Sí: un plato sencillo, sin riesgos especiales.',
     detail:
       'El pan con tomate no tiene riesgos especiales si el tomate está bien lavado, como recomienda AESAN en el embarazo para lo que se come crudo. Si lleva jamón curado por encima, ese jamón va sin cocinar.',
     question: '¿Va solo con tomate y aceite, o lleva jamón encima?',
@@ -1182,7 +1182,7 @@ export const FOODS = [
     ],
     groups: ['bebidas', 'supermercado'],
     level: 'si',
-    phrase: 'Sí: del grifo o embotellada.',
+    phrase: 'Sí: agua del grifo o embotellada, sin problema.',
     detail:
       'El agua es la bebida de referencia para acompañar las comidas, también en el embarazo. AESAN la recomienda como bebida principal.',
     question: null,
@@ -1256,7 +1256,7 @@ export const FOODS = [
     ],
     groups: ['bebidas', 'supermercado'],
     level: 'no',
-    phrase: 'Mejor no, tampoco en cantidad pequeña.',
+    phrase: 'Mejor no: ni siquiera en cantidad pequeña.',
     detail:
       'AESAN y el Ministerio de Sanidad recomiendan no tomar alcohol durante el embarazo, porque no se conoce una cantidad sin riesgo. Vale para el vino, la cerveza, el cava, la sidra, el vermú, la sangría y los combinados, también en una copa o una caña.',
     question: '¿Tenéis versión 0,0 o sin alcohol?',

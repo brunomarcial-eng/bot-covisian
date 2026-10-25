@@ -71,6 +71,8 @@ const PATHS = {
     '<path d="M3.5 7.5v-3h3M20.5 7.5v-3h-3M3.5 16.5v3h3M20.5 16.5v3h-3"/><path d="M7.5 8v8M10.5 8v8M13 8v8M16.5 8v8"/>',
   label:
     '<path d="M6 3.5h12a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-15a1 1 0 0 1 1-1z"/><path d="M8.5 8h7M8.5 11.5h7M8.5 15h4.5"/>',
+  'arrow-right': '<path d="M4.5 12h14M13.5 7l5 5-5 5"/>',
+  'arrow-left': '<path d="M19.5 12h-14M10.5 7l-5 5 5 5"/>',
   'chevron-left': '<path d="m14.5 6-6 6 6 6"/>',
   'chevron-right': '<path d="m9.5 6 6 6-6 6"/>',
   'chevron-down': '<path d="m6 9.5 6 6 6-6"/>',
@@ -107,9 +109,9 @@ const PATHS = {
     '<rect x="6.5" y="3" width="11" height="18" rx="2.5"/><path d="M12 7.5v6.5M9.5 11.5 12 14l2.5-2.5M11 18h2"/>',
 };
 
-export function icon(name, size = 24) {
+export function icon(name, size = 24, stroke = 1.6) {
   const t = document.createElement('template');
-  t.innerHTML = `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${PATHS[name] || ''}</svg>`;
+  t.innerHTML = `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="${stroke}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${PATHS[name] || ''}</svg>`;
   return t.content.firstElementChild;
 }
 

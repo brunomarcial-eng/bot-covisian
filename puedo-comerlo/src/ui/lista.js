@@ -2,26 +2,25 @@
 
 import { verdictForFood, FOOD_BY_ID } from '../engine/index.js';
 import { getList, removeFromList, getFavorites } from '../store.js';
-import { h, icon, announce, fill } from './dom.js';
-import { verdictCard, pill, row, rows } from './components.js';
+import { h, announce, fill } from './dom.js';
+import { entryItem, entryLink, entries, sectionHead } from './components.js';
 import { refreshEntry } from './recalc.js';
 
 export function render({ main, profile }) {
   const h1 = h('h1', null, 'Lista');
   const listHost = h('div', { class: 'lista' });
   const favHost = h('div');
-  main.append(h1, h('p', { class: 'lead' }, 'Lo que has guardado, con el semáforo según tus ajustes de ahora.'), listHost, favHost);
+  main.append(h1, h('p', { class: 'lead' }, 'Lo que has guardado. Se recalcula con tus ajustes de ahora.'), listHost, favHost);
 
   function quitarButton(entry, index) {
     const btn = h(
       'button',
       {
         type: 'button',
-        class: 'btn btn--quiet btn--small btn--inline',
+        class: 'quiet-btn',
         'aria-label': `Quitar ${entry.title}`,
         dataset: { index: String(index) },
       },
-      icon('close', 20),
       'Quitar',
     );
     btn.addEventListener('click', () => {
@@ -39,27 +38,22 @@ export function render({ main, profile }) {
   function paintList() {
     const list = getList();
     if (!list.length) {
-      fill(listHost, 
+      fill(
+        listHost,
         h('div', { class: 'empty' }, h('p', null, 'Todavía no hay nada. Cuando mires un plato o un producto, puedes dejarlo aquí.')),
       );
       return;
     }
-    const cards = list.map((entry, i) => {
+    const items = list.map((entry, i) => {
       const fresh = refreshEntry(entry, profile);
       const aside = quitarButton(entry, i);
       if (fresh.verdict) {
-        return verdictCard(fresh.verdict, { level: 2, title: entry.title, aside });
+        return entryItem(fresh.verdict, { level: 2, title: entry.title, aside });
       }
-      return h(
-        'article',
-        { class: 'card', dataset: { level: fresh.level } },
-        pill(fresh.level),
-        h('h2', { class: 'card-name' }, entry.title || 'Sin nombre'),
-        h('p', { class: 'card-phrase' }, fresh.phrase),
-        h('div', { class: 'card-bar card-bar--end' }, aside),
-      );
+      // Sin veredicto completo (p. ej. una carta guardada): solo el nivel y la frase.
+      return entryItem({ level: fresh.level, phrase: fresh.phrase }, { level: 2, title: entry.title, aside, fichaLink: false });
     });
-    fill(listHost, ...cards);
+    fill(listHost, entries(items, 'Lo guardado'));
   }
 
   function paintFavs() {
@@ -68,12 +62,13 @@ export function render({ main, profile }) {
       favHost.replaceChildren();
       return;
     }
-    fill(favHost, 
+    fill(
+      favHost,
       h(
         'section',
-        { 'aria-labelledby': 'favoritos' },
-        h('h2', { id: 'favoritos' }, 'Favoritos'),
-        rows(
+        { class: 'section', 'aria-labelledby': 'favoritos' },
+        sectionHead('Favoritos', 'favoritos'),
+        entries(
           favs.map((id) => {
             const food = FOOD_BY_ID[id];
             let v;
@@ -82,7 +77,7 @@ export function render({ main, profile }) {
             } catch {
               v = { level: food.level, phrase: food.phrase };
             }
-            return row({ href: `#/ficha/${encodeURIComponent(id)}`, level: v.level, title: food.name, phrase: v.phrase, headingLevel: 3 });
+            return entryLink({ href: `#/ficha/${encodeURIComponent(id)}`, level: v.level, title: food.name, phrase: v.phrase, headingLevel: 3 });
           }),
         ),
       ),

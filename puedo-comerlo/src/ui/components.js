@@ -1,24 +1,33 @@
-// Piezas compartidas: pastilla de semáforo, ficha mínima, filas, avisos y estados.
+// Piezas compartidas. Una respuesta única (Buscar, ficha, producto) enseña la palabra del
+// semáforo en grande; una lista (carta, lista, historial) son filas con filetes y una marca
+// lateral del color del nivel. La pastilla rellena solo aparece donde resume (la carta).
 
 import { LEVEL_LABEL } from '../engine/levels.js';
 import { addToList, isInList } from '../store.js';
 import { h, icon, levelMark, uid, announce, fill } from './dom.js';
+import { trimPhrase } from './phrase.js';
 
 const KNOWN = ['si', 'cuidado', 'no', 'duda'];
+const capFirst = (t) => { const x = String(t || ''); return x.charAt(0).toLocaleUpperCase('es-ES') + x.slice(1); };
+const norm = (level) => (KNOWN.includes(level) ? level : 'duda');
 
-// Pastilla: color + palabra, siempre. Y una marca no cromática.
-export function pill(level, { small = false } = {}) {
-  const lv = KNOWN.includes(level) ? level : 'duda';
+// Pastilla rellena: color + palabra + marca no cromática. Solo para resúmenes y leyendas.
+export function pill(level, { small = false, text = null } = {}) {
+  const lv = norm(level);
   return h(
     'span',
     { class: `pill pill--${lv}${small ? ' pill--sm' : ''}`, dataset: { level: lv } },
     levelMark(lv),
-    h('span', null, LEVEL_LABEL[lv]),
+    h('span', null, text || LEVEL_LABEL[lv]),
   );
 }
 
-// Botón «Añadir a la lista». Cuando ya está, «En la lista» desactivado.
-// Usa aria-disabled para no perder el foco al pulsarlo.
+// Frase del veredicto sin repetir la palabra del nivel.
+export function phraseOf(v) {
+  return trimPhrase(v.phrase || '', v.level);
+}
+
+// Botón «Añadir a la lista». Cuando ya está, «En la lista» (aria-disabled, para no perder el foco).
 export function addToListButton(entry, { small = true, variant = 'secondary', inline = true } = {}) {
   const btn = h('button', {
     type: 'button',
@@ -26,7 +35,7 @@ export function addToListButton(entry, { small = true, variant = 'secondary', in
     dataset: { action: 'add-to-list' },
   });
   const paint = (inList) => {
-    fill(btn, icon(inList ? 'check' : 'plus', 20), inList ? 'En la lista' : 'Añadir a la lista');
+    fill(btn, inList ? icon('check', 18, 1.8) : null, inList ? 'En la lista' : 'Añadir a la lista');
     if (inList) btn.setAttribute('aria-disabled', 'true');
     else btn.removeAttribute('aria-disabled');
   };
@@ -49,39 +58,39 @@ export function verdictMore(v, opts = {}) {
 
   if (v.detail) parts.push(h('p', null, v.detail));
   if (Array.isArray(v.ingredients) && v.ingredients.length) {
-    parts.push(h(sub, { class: 'card-label' }, 'Ingredientes leídos'));
+    parts.push(h(sub, { class: 'more-label' }, 'Ingredientes leídos'));
     parts.push(h('p', null, v.ingredients.join(', ')));
   }
   if (v.question) {
-    parts.push(h(sub, { class: 'card-label' }, 'Qué preguntar o mirar'));
+    parts.push(h(sub, { class: 'more-label' }, 'Qué preguntar o mirar'));
     parts.push(h('p', null, v.question));
   }
   if (v.alternative) {
-    parts.push(h(sub, { class: 'card-label' }, 'Alternativa'));
+    parts.push(h(sub, { class: 'more-label' }, 'Alternativa'));
     parts.push(h('p', null, v.alternative));
   }
   if (Array.isArray(v.notes) && v.notes.length) {
-    parts.push(h(sub, { class: 'card-label' }, 'Forma de comer'));
-    parts.push(h('ul', { class: 'card-notes' }, v.notes.map((n) => h('li', null, n))));
+    parts.push(h(sub, { class: 'more-label' }, 'Forma de comer'));
+    parts.push(h('ul', { class: 'more-notes' }, v.notes.map((n) => h('li', null, n))));
   }
   if (extraMore) parts.push(extraMore);
-  if (v.source) parts.push(h('p', { class: 'card-source' }, `Fuente: ${v.source}`));
+  if (v.source) parts.push(h('p', { class: 'more-source' }, `Fuente: ${v.source}`));
 
   const actions = [];
   if (listEntry) actions.push(addToListButton(listEntry, listButtonOpts));
   if (fichaLink && v.foodId) {
     actions.push(
-      h('a', { class: 'link-btn', href: `#/ficha/${encodeURIComponent(v.foodId)}` }, 'Abrir la ficha', icon('chevron-right', 20)),
+      h('a', { class: 'text-link', href: `#/ficha/${encodeURIComponent(v.foodId)}` }, 'Abrir la ficha', icon('arrow-right', 18, 1.5)),
     );
   }
-  if (actions.length) parts.push(h('div', { class: 'card-actions' }, actions));
+  if (actions.length) parts.push(h('div', { class: 'more-actions' }, actions));
 
-  const panel = h('div', { class: 'card-more', id: moreId, hidden: !startOpen }, parts);
+  if (!parts.length) return { button: null, panel: null };
+  const panel = h('div', { class: 'more', id: moreId, hidden: !startOpen }, parts);
   const button = h(
     'button',
-    { type: 'button', class: 'link-btn', 'aria-expanded': String(!!startOpen), 'aria-controls': moreId },
+    { type: 'button', class: 'more-btn', 'aria-expanded': String(!!startOpen), 'aria-controls': moreId },
     'Ver más',
-    icon('chevron-down', 20),
   );
   button.addEventListener('click', () => {
     const open = button.getAttribute('aria-expanded') === 'true';
@@ -91,51 +100,96 @@ export function verdictMore(v, opts = {}) {
   return { button, panel };
 }
 
-// Ficha mínima: pastilla, nombre, una frase. «Ver más» despliega el resto.
-// `aside` se pinta en la misma línea que «Ver más» (p. ej. «Quitar» en la lista).
-export function verdictCard(v, opts = {}) {
-  const { level = 2, title = v.title, hero = false, aside = null, hideName = false } = opts;
+// Respuesta única: la palabra grande en su color, el nombre como contexto, la frase debajo.
+//   eyebrow: línea pequeña encima (grupo de la guía)   sheet: dentro de una hoja
+//   actions: nodos bajo la frase (antes de «Ver más»)   listEntry: añade «Añadir a la lista» en «Ver más»
+export function verdictAnswer(v, opts = {}) {
+  const { level = 2, title = v.title, eyebrow = null, sheet = false, actions = null, hideName = false } = opts;
+  const lv = norm(v.level);
   const { button, panel } = verdictMore(v, opts);
   const nameId = uid('nombre');
+  const phrase = phraseOf(v);
   return h(
     'article',
-    { class: `card${hero ? ' card--hero' : ''}`, 'aria-labelledby': nameId, dataset: { level: v.level } },
-    pill(v.level),
-    h(`h${level}`, { class: hideName ? 'visually-hidden' : 'card-name', id: nameId }, title || 'Sin nombre'),
-    h('p', { class: 'card-phrase' }, v.phrase || ''),
-    h('div', { class: 'card-bar' }, button, aside),
+    { class: `answer lv-${lv}${sheet ? ' answer--sheet' : ''}`, 'aria-labelledby': nameId, dataset: { level: lv } },
+    eyebrow ? h('p', { class: 'eyebrow' }, eyebrow) : null,
+    h('p', { class: 'answer-word' }, LEVEL_LABEL[lv]),
+    h(`h${level}`, { class: hideName ? 'visually-hidden' : 'answer-name', id: nameId }, capFirst(title) || 'Sin nombre'),
+    phrase ? h('p', { class: 'answer-phrase' }, phrase) : null,
+    actions ? h('div', { class: 'answer-actions' }, actions) : null,
+    button ? h('div', { class: 'more-bar' }, button) : null,
     panel,
   );
 }
 
-// Fila compacta (dentro de una lista .rows). Si hay href, toda la fila es un enlace.
-export function row({ href = null, level, title, phrase, meta = null, onClick = null, headingLevel = null }) {
-  const titleEl = headingLevel
-    ? h(`h${headingLevel}`, { class: 'row-title' }, title)
-    : h('span', { class: 'row-title' }, title);
-  const main = h(
-    'span',
-    { class: 'row-main' },
-    pill(level, { small: true }),
-    titleEl,
-    phrase ? h('span', { class: 'row-phrase' }, phrase) : null,
-    meta,
+// Fila de lista con «Ver más» (carta, lista). Sin caja: filetes y marca lateral.
+// `aside` va en la misma línea que «Ver más» (p. ej. «Quitar»).
+export function entryItem(v, opts = {}) {
+  const { level = 2, title = v.title, aside = null } = opts;
+  const lv = norm(v.level);
+  const { button, panel } = verdictMore(v, opts);
+  const nameId = uid('nombre');
+  const phrase = phraseOf(v);
+  return h(
+    'li',
+    { class: `entry lv-${lv}`, dataset: { level: lv } },
+    h(
+      'div',
+      { class: 'entry-body' },
+      h('span', { class: 'lvl' }, LEVEL_LABEL[lv]),
+      h(`h${level}`, { class: 'entry-name', id: nameId }, capFirst(title) || 'Sin nombre'),
+      phrase ? h('p', { class: 'entry-phrase' }, phrase) : null,
+      button || aside ? h('div', { class: 'more-bar' }, button, aside) : null,
+      panel,
+    ),
   );
+}
+
+// Fila de lista que es un enlace entero (historial, «Lo último», favoritos).
+export function entryLink({ href = null, level, title, phrase, meta = null, onClick = null, headingLevel = null }) {
+  const lv = norm(level);
+  const text = trimPhrase(phrase || '', lv);
+  const name = headingLevel
+    ? h(`h${headingLevel}`, { class: 'entry-name' }, capFirst(title))
+    : h('span', { class: 'entry-name' }, capFirst(title));
+  const body = [
+    h('span', { class: 'lvl' }, LEVEL_LABEL[lv]),
+    name,
+    text ? h('span', { class: 'entry-phrase' }, text) : null,
+    meta,
+  ];
   if (href) {
-    const a = h('a', { class: 'row', href }, main, h('span', { class: 'row-chevron' }, icon('chevron-right', 20)));
+    const a = h('a', { class: 'entry-body entry-link', href }, body);
     if (onClick) a.addEventListener('click', onClick);
-    return h('li', null, a);
+    return h('li', { class: `entry lv-${lv}` }, a);
   }
-  return h('li', null, h('div', { class: 'row' }, main));
+  return h('li', { class: `entry lv-${lv}` }, h('div', { class: 'entry-body' }, body));
 }
 
-export function rows(items, label = null) {
-  return h('ul', { class: 'rows', 'aria-label': label }, items);
+export function entries(items, label = null) {
+  return h('ul', { class: 'entries', 'aria-label': label }, items);
 }
 
+// Lista tipográfica de atajos: texto + flecha fina.
+export function shortcutList(list) {
+  return h(
+    'ul',
+    { class: 'shortcuts' },
+    list.map(([label, id]) =>
+      h('li', null, h('a', { href: `#/ficha/${id}` }, h('span', null, label), icon('arrow-right', 16, 1.4))),
+    ),
+  );
+}
+
+// Cabecera de sección: filete fino y rótulo en versalitas; `aside` a la derecha.
+export function sectionHead(text, id, aside = null) {
+  return h('div', { class: 'section-head' }, h('h2', { id }, text), aside);
+}
+
+// Nota serena: una línea con filete lateral. kind: info | problem | ok
 export function notice(text, kind = 'info') {
   const cls = kind === 'problem' ? ' notice--problem' : kind === 'ok' ? ' notice--ok' : '';
-  return h('div', { class: `notice${cls}` }, icon('info', 22), h('p', null, text));
+  return h('div', { class: `notice${cls}` }, h('p', null, text));
 }
 
 // Caja de estado con región viva («Leyendo la carta…»).
@@ -197,5 +251,5 @@ export const VIA_LABEL = {
   foto: 'Foto',
   codigo: 'Código',
   busqueda: 'Búsqueda',
-  guia: 'Guía',
+  guia: 'Ficha',
 };

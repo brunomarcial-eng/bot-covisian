@@ -1,8 +1,8 @@
 // Comer fuera: foto de la carta, o el plato escrito.
 
 import { addHistory, setResult } from '../store.js';
-import { h, icon, fill } from './dom.js';
-import { notice } from './components.js';
+import { h, fill } from './dom.js';
+import { shortcutList, sectionHead } from './components.js';
 import { classifyItem, worstOf, platosLeidos, NOTICE_CARTA_OCR } from './recalc.js';
 import { galleryInput, photoFlow, readingView } from './photo.js';
 import { navigate, replaceQuietly } from './router.js';
@@ -23,13 +23,9 @@ export const ATAJOS_FUERA = [
 export function atajos(list, headingId) {
   return h(
     'section',
-    { 'aria-labelledby': headingId },
-    h('h2', { id: headingId }, 'Atajos'),
-    h(
-      'ul',
-      { class: 'chips' },
-      list.map(([label, id]) => h('li', null, h('a', { class: 'chip', href: `#/ficha/${id}` }, label))),
-    ),
+    { class: 'section', 'aria-labelledby': headingId },
+    sectionHead('Atajos', headingId),
+    shortcutList(list),
   );
 }
 
@@ -61,9 +57,13 @@ export function render(ctx) {
       h(
         'div',
         { class: 'actions' },
-        h('button', { type: 'button', class: 'btn btn--primary', onclick: startCamera }, icon('camera', 22), 'Hacer una foto'),
-        h('button', { type: 'button', class: 'btn btn--secondary', onclick: () => gallery.click() }, icon('image', 22), 'Elegir una foto'),
-        h('a', { class: 'btn btn--secondary', href: '#/buscar' }, icon('search', 22), 'Buscar un plato'),
+        h('button', { type: 'button', class: 'btn btn--primary', onclick: startCamera }, 'Hacer una foto'),
+        h(
+          'div',
+          { class: 'actions-pair' },
+          h('button', { type: 'button', class: 'btn btn--secondary', onclick: () => gallery.click() }, 'Elegir una foto'),
+          h('a', { class: 'btn btn--secondary', href: '#/buscar' }, 'Buscar un plato'),
+        ),
       ),
       atajos(ATAJOS_FUERA, 'atajos-fuera'),
     );
@@ -85,13 +85,8 @@ export function render(ctx) {
     const msg = h(
       'div',
       { class: 'notice notice--problem', tabindex: '-1' },
-      icon('info', 22),
-      h(
-        'div',
-        null,
-        h('p', null, 'No he podido leer la carta. Acércala, o escribe el plato.'),
-        h('p', { class: 'mt-sm' }, h('a', { href: '#/buscar' }, 'Escribir el plato')),
-      ),
+      h('p', null, 'No he podido leer la carta. Acércala, o escribe el plato.'),
+      h('p', { class: 'mt-sm' }, h('a', { class: 'text-link', href: '#/buscar' }, 'Escribir el plato')),
     );
     showHome(msg);
   }

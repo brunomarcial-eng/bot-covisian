@@ -2,7 +2,7 @@
 
 import { classifyProduct } from '../engine/index.js';
 import { addHistory, setResult } from '../store.js';
-import { h, icon, fill } from './dom.js';
+import { h, fill } from './dom.js';
 import { classifyItem, NOTICE_ETIQUETA_OCR } from './recalc.js';
 import { galleryInput, photoFlow, readingView } from './photo.js';
 import { atajos, cleanItems } from './fuera.js';
@@ -24,13 +24,7 @@ const MSG_RED = 'No he podido consultar Open Food Facts. Revisa la conexión o f
 const MSG_ETIQUETA = 'No he podido leer la etiqueta. Acércala, con buena luz.';
 
 function messageBox(text, kind = 'problem') {
-  const el = h(
-    'div',
-    { class: `notice${kind === 'problem' ? ' notice--problem' : ''}`, tabindex: '-1' },
-    icon('info', 22),
-    h('p', null, text),
-  );
-  return el;
+  return h('div', { class: `notice${kind === 'problem' ? ' notice--problem' : ''}`, tabindex: '-1' }, h('p', null, text));
 }
 
 async function codeIsValid(code) {
@@ -74,19 +68,17 @@ export function render(ctx) {
     const scanBtn = h(
       'button',
       { type: 'button', class: `btn ${labelFirst ? 'btn--secondary' : 'btn--primary'}`, onclick: startScan },
-      icon('barcode', 22),
       labelFirst ? 'Escanear otro código' : 'Escanear el código',
     );
     const labelBtn = h(
       'button',
       { type: 'button', class: 'btn btn--primary', onclick: startLabel },
-      icon('label', 22),
       'Fotografiar la etiqueta',
     );
 
     const input = h('input', {
       id: 'codigo',
-      class: 'input',
+      class: 'field-input',
       type: 'text',
       name: 'codigo',
       inputmode: 'numeric',
@@ -101,14 +93,9 @@ export function render(ctx) {
     const form = h(
       'form',
       { novalidate: true, class: 'code-form' },
-      h('label', { class: 'label label--title', for: 'codigo' }, 'O escribe el código'),
-      h('p', { class: 'fieldset-hint', id: 'codigo-ayuda' }, 'Los números de debajo de las barras, de 8 a 14 cifras.'),
-      h(
-        'div',
-        { class: 'search-row' },
-        input,
-        h('button', { type: 'submit', class: 'btn btn--secondary' }, 'Consultar'),
-      ),
+      h('label', { class: 'label', for: 'codigo' }, 'O escribe el código'),
+      h('div', { class: 'field-box' }, input, h('button', { type: 'submit', class: 'field-go field-go--text' }, 'Consultar')),
+      h('p', { class: 'hint', id: 'codigo-ayuda' }, 'Los números de debajo de las barras, de 8 a 14 cifras.'),
       error,
     );
     form.addEventListener('submit', async (e) => {
@@ -138,11 +125,7 @@ export function render(ctx) {
       form,
       labelFirst
         ? null
-        : h(
-            'p',
-            { class: 'mt-sm' },
-            h('button', { type: 'button', class: 'btn btn--quiet btn--inline btn--tight', onclick: startLabel }, '¿Sin código? Fotografía la etiqueta'),
-          ),
+        : h('p', { class: 'mt-sm' }, h('button', { type: 'button', class: 'text-link text-link--button', onclick: startLabel }, '¿Sin código? Fotografía la etiqueta')),
       atajos(ATAJOS_SUPER, 'atajos-super'),
     );
     if (message) message.focus();

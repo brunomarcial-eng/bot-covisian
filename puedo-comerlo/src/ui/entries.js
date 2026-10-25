@@ -1,7 +1,7 @@
 // Filas de historial (Inicio «Lo último» y pantalla Historial).
 
 import { h } from './dom.js';
-import { row, relTime, VIA_LABEL } from './components.js';
+import { entryLink, relTime, VIA_LABEL } from './components.js';
 import { refreshEntry, entryTarget, reopenResult } from './recalc.js';
 
 export function entryRow(entry, profile, { withTime = false, headingLevel = null } = {}) {
@@ -10,12 +10,12 @@ export function entryRow(entry, profile, { withTime = false, headingLevel = null
   const meta = withTime
     ? h(
         'span',
-        { class: 'row-meta' },
+        { class: 'entry-meta' },
         `${VIA_LABEL[entry.via] || 'Consulta'} · `,
         h('time', { datetime: new Date(entry.at).toISOString() }, relTime(entry.at)),
       )
     : null;
-  return row({
+  return entryLink({
     href: target ? target.href : null,
     level: fresh.level,
     title: entry.title || 'Sin nombre',

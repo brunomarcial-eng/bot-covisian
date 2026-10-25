@@ -2,26 +2,27 @@
 
 import { getHistory } from '../store.js';
 import { h, icon } from './dom.js';
-import { rows } from './components.js';
+import { entries, sectionHead } from './components.js';
 import { entryRow } from './entries.js';
 import { recordSearch } from './buscar.js';
 import { buildHash, navigate } from './router.js';
 import { installHint } from './instalar.js';
 
-function tile(href, iconName, title, sub) {
+// Dos accesos grandes: la tipografía manda; no hay icono ni círculo.
+function tile(href, title, kicker, variant = '') {
   return h(
     'a',
-    { class: 'tile', href },
-    h('span', { class: 'tile-icon' }, icon(iconName, 24)),
-    h('span', { class: 'tile-text' }, h('span', { class: 'tile-title' }, title), h('span', { class: 'tile-sub' }, sub)),
-    h('span', { class: 'tile-go' }, icon('chevron-right', 24)),
+    { class: `tile${variant ? ` tile--${variant}` : ''}`, href },
+    h('span', { class: 'tile-kicker' }, kicker),
+    h('span', { class: 'tile-title' }, title),
+    h('span', { class: 'tile-arrow' }, icon('arrow-right', 28, 1.4)),
   );
 }
 
 export function render({ main, profile }) {
   const input = h('input', {
     id: 'plato',
-    class: 'input',
+    class: 'field-input',
     type: 'search',
     name: 'q',
     placeholder: 'Sushi, tortilla, jamón…',
@@ -34,12 +35,12 @@ export function render({ main, profile }) {
   const form = h(
     'form',
     { class: 'search-form', role: 'search', novalidate: true },
-    h('label', { class: 'label label--title', for: 'plato' }, 'O escribe el plato'),
+    h('label', { class: 'label', for: 'plato' }, 'O escribe el plato'),
     h(
       'div',
-      { class: 'search-row' },
+      { class: 'field-box' },
       input,
-      h('button', { type: 'submit', class: 'btn btn--secondary btn--icon', 'aria-label': 'Buscar' }, icon('search', 22)),
+      h('button', { type: 'submit', class: 'field-go', 'aria-label': 'Buscar' }, icon('search', 22, 1.7)),
     ),
   );
   form.addEventListener('submit', (e) => {
@@ -55,8 +56,8 @@ export function render({ main, profile }) {
     h(
       'div',
       { class: 'tiles' },
-      tile('#/fuera', 'fork', 'Comer fuera', 'Foto de la carta o el plato'),
-      tile('#/super', 'basket', 'En el súper', 'Código de barras o etiqueta'),
+      tile('#/fuera', 'Comer fuera', 'Foto de la carta o el plato'),
+      tile('#/super', 'En el súper', 'Código de barras o etiqueta', 'light'),
     ),
     form,
   );
@@ -66,14 +67,9 @@ export function render({ main, profile }) {
     main.append(
       h(
         'section',
-        { 'aria-labelledby': 'lo-ultimo' },
-        h(
-          'div',
-          { class: 'section-head' },
-          h('h2', { id: 'lo-ultimo' }, 'Lo último'),
-          h('a', { href: '#/historial' }, 'Ver el historial'),
-        ),
-        rows(history.map((e) => entryRow(e, profile, { headingLevel: 3 }))),
+        { class: 'section', 'aria-labelledby': 'lo-ultimo' },
+        sectionHead('Lo último', 'lo-ultimo', h('a', { class: 'text-link text-link--small', href: '#/historial' }, 'Ver el historial')),
+        entries(history.map((e) => entryRow(e, profile, { headingLevel: 3 }))),
       ),
     );
   }

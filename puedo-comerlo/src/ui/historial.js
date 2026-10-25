@@ -1,8 +1,8 @@
 // Historial: las últimas 40 consultas, con semáforo.
 
 import { getHistory, clearHistory, HISTORY_MAX } from '../store.js';
-import { h, icon, announce, fill } from './dom.js';
-import { rows, confirmBox } from './components.js';
+import { h, announce, fill } from './dom.js';
+import { entries, confirmBox } from './components.js';
 import { entryRow } from './entries.js';
 
 export function render({ main, profile }) {
@@ -13,22 +13,14 @@ export function render({ main, profile }) {
   function paint() {
     const history = getHistory().slice(0, HISTORY_MAX);
     if (!history.length) {
-      fill(host, 
-        h(
-          'div',
-          { class: 'empty' },
-          h('p', null, 'Todavía no has consultado nada. Lo que mires en la guía, busques o fotografíes aparecerá aquí.'),
-        ),
+      fill(
+        host,
+        h('div', { class: 'empty' }, h('p', null, 'Todavía no has consultado nada. Lo que busques o fotografíes aparecerá aquí.')),
       );
       return;
     }
-    const clearArea = h('div', { class: 'actions mt-xl' });
-    const clearBtn = h(
-      'button',
-      { type: 'button', class: 'btn btn--danger' },
-      icon('trash', 22),
-      'Borrar el historial',
-    );
+    const clearArea = h('div', { class: 'actions actions--end' });
+    const clearBtn = h('button', { type: 'button', class: 'btn btn--danger' }, 'Borrar el historial');
     clearBtn.addEventListener('click', () => {
       const box = confirmBox({
         text: '¿Borrar todo el historial?',
@@ -50,7 +42,7 @@ export function render({ main, profile }) {
     });
     clearArea.append(clearBtn);
 
-    fill(host, rows(history.map((e) => entryRow(e, profile, { withTime: true, headingLevel: 2 }))), clearArea);
+    fill(host, entries(history.map((e) => entryRow(e, profile, { withTime: true, headingLevel: 2 }))), clearArea);
   }
 
   paint();

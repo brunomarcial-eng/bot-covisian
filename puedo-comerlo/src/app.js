@@ -93,6 +93,10 @@ function render() {
   const controller = new AbortController();
   const main = document.getElementById('main');
   main.replaceChildren();
+  // Entrada breve de cada pantalla (la anula prefers-reduced-motion).
+  main.classList.remove('is-entering');
+  void main.offsetWidth;
+  main.classList.add('is-entering');
   document.body.classList.toggle('is-onboarding', name === 'arranque');
   document.body.dataset.screen = name || 'inicio';
   setTab(TAB_FOR[name] || null);
