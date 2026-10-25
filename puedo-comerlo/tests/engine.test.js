@@ -1197,3 +1197,62 @@ describe('temas: coherencia y determinismo', () => {
     assert.deepEqual(verdictForFood('queso-azul', BASE), verdictForFood('queso-azul', BASE));
   });
 });
+
+describe('producto: la frase de un «Sí» no la da un ingrediente', () => {
+  const NEUTRA = 'He mirado los ingredientes y no veo nada que haya que vigilar.';
+  const LECHE = FOOD_BY_ID['leche-pasteurizada'].phrase;
+
+  test('ñoquis con leche pasteurizada en la etiqueta → Sí, pero no con la frase de la leche', () => {
+    const v = classifyProduct({ name: 'Ñoquis de patata', ingredientsText: 'patata, harina de trigo, leche pasteurizada, sal' }, BASE);
+    assert.equal(v.level, 'si');
+    assert.notEqual(v.phrase, LECHE);
+    assert.notEqual(v.foodId, 'leche-pasteurizada');
+    assert.ok(v.foodIds.includes('leche-pasteurizada'), 'foodIds sigue con todas las coincidencias');
+    assert.deepEqual(v.topics, []);
+    assert.deepEqual(v.missing, []);
+  });
+
+  test('nombre sin coincidencia y ingredientes «Sí» → frase neutra de la propia app', () => {
+    const v = classifyProduct({ name: 'Producto del obrador', ingredientsText: 'leche pasteurizada, sal' }, BASE);
+    assert.equal(v.level, 'si');
+    assert.equal(v.phrase, NEUTRA);
+    assert.match(v.detail, /^He comparado los ingredientes con los temas que se repiten en el embarazo/);
+    assert.match(v.detail, /Fuente: la propia app, a partir de la lista de ingredientes\.$/);
+    assert.equal(v.source, 'La propia app: a partir de los ingredientes');
+    assert.equal(v.question, null);
+    assert.equal(v.alternative, null);
+    assert.equal(v.foodId, null);
+    assert.deepEqual(v.foodIds, ['leche-pasteurizada']);
+  });
+
+  test('yogur natural por nombre con ingredientes de OFF → su frase de yogur', () => {
+    const v = classifyProduct({ name: 'Yogur natural', ingredientsText: 'leche pasteurizada, fermentos lácticos' }, BASE);
+    assert.equal(v.level, 'si');
+    assert.equal(v.foodId, 'yogur');
+    assert.equal(v.phrase, FOOD_BY_ID.yogur.phrase);
+  });
+
+  test('por categoría de OFF también cuenta como el producto', () => {
+    const v = classifyProduct({ name: 'Natural', ingredientsText: 'leche pasteurizada, fermentos', categories: ['en:yogurts'] }, BASE);
+    assert.equal(v.foodId, 'yogur');
+  });
+
+  test('«Con cuidado» y «Mejor no» siguen decidiéndose por los ingredientes, con su motivo', () => {
+    const azul = classifyProduct({ name: 'Pasta fresca rellena', ingredientsText: 'harina, queso azul, huevo' }, BASE);
+    assert.equal(azul.level, 'no');
+    assert.equal(azul.foodId, 'queso-azul');
+    assert.match(azul.phrase, /queso azul/);
+    assert.deepEqual(azul.topics, ['listeria']);
+    const fresco = classifyProduct({ name: 'Pasta fresca rellena', ingredientsText: 'harina, queso fresco, sal' }, BASE);
+    assert.equal(fresco.level, 'cuidado');
+    assert.deepEqual(fresco.topics, ['listeria']);
+  });
+
+  test('la frase neutra no cambia alergias, trazas ni la rebaja por falta de ingredientes', () => {
+    const p = { name: 'Producto del obrador', ingredientsText: 'leche pasteurizada, sal' };
+    assert.equal(classifyProduct({ ...p, allergens: ['en:milk'] }, profile({ alergias: ['leche'] })).level, 'no');
+    assert.equal(classifyProduct({ ...p, traces: ['en:nuts'] }, profile({ alergias: ['frutos_secos'] })).level, 'cuidado');
+    assert.equal(classifyProduct({ ...p, ingredientsSource: 'web' }, BASE).phrase, DATOS_WEB);
+    assert.equal(classifyProduct({ name: 'Yogur natural', ingredientsText: ' ' }, BASE).phrase, SIN_INGREDIENTES);
+  });
+});

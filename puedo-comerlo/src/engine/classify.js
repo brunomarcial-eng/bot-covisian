@@ -520,6 +520,21 @@ function unknownPiece() {
   };
 }
 
+// «Sí» de un producto por sus ingredientes: la propia app, no una ficha de la guía.
+function neutralPiece() {
+  return {
+    id: null,
+    level: 'si',
+    phrase: 'He mirado los ingredientes y no veo nada que haya que vigilar.',
+    detail:
+      'He comparado los ingredientes con los temas que se repiten en el embarazo (listeria, toxoplasmosis, huevo crudo, alcohol…) ' +
+      'y no aparece nada que pida cuidado. Fuente: la propia app, a partir de la lista de ingredientes.',
+    question: null,
+    alternative: null,
+    source: 'La propia app: a partir de los ingredientes',
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Alergias, «otra cosa», forma de comer
 // ---------------------------------------------------------------------------
@@ -684,7 +699,7 @@ function classifyDoc(
     let piece = pieceFromFood(food, { order: m.order, K: m.K });
     piece = applyEmbutidoProfile(piece, food, p);
     piece = applyPasteurized(piece, text);
-    return { food, piece };
+    return { food, piece, m };
   });
   const pieces = entries.map((e) => e.piece);
   // Temas: por relevancia (lo más grave primero) y solo de lo que de verdad pide cuidado o es «Mejor no».
@@ -695,7 +710,14 @@ function classifyDoc(
     byRelevance.filter((e) => e.piece.level === 'cuidado' || e.piece.level === 'no').map((e) => topicsForFood(e.food)),
   );
   const missingList = missingFor(byRelevance, text);
-  const base = pieces.length ? mergePieces(pieces) : unknownPiece();
+  let base = pieces.length ? mergePieces(pieces) : unknownPiece();
+  // Producto: un «Sí» solo puede hablar con la voz de un alimento emparejado por el nombre (o la categoría) del
+  // producto. Si lo único que lo decide son ingredientes («leche pasteurizada» en unos ñoquis), la frase de esa
+  // ficha describiría el ingrediente y no el producto: frase neutra. «Con cuidado» y «Mejor no» sí se quedan.
+  if (context === 'product' && pieces.length && base.level === 'si') {
+    const byName = entries.filter((e) => e.m.where !== 'ingredient').map((e) => e.piece);
+    base = byName.length ? mergePieces(byName) : neutralPiece();
+  }
   const foodIds = [...new Set(matches.map((m) => m.id))];
 
   // Alergias y forma de comer: etiquetas de los alimentos + léxico del texto, menos negaciones;
