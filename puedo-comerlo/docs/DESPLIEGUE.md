@@ -7,20 +7,17 @@ Guía en lenguaje llano. No hace falta saber programar: todo se hace desde la we
 
 ## 1. Dirección pública
 
-**Todavía no está publicada.** La conexión automática que usamos no tiene permiso para crear proyectos
-en tu cuenta de Vercel, así que el primer paso (crear el proyecto) tienes que darlo tú, una sola vez.
-Son unos cinco minutos y está explicado en el apartado 2.
+**https://puedo-comerlo.vercel.app** — publicada el 25-10-2026 en el equipo «brunomarcial-3195's projects»,
+proyecto `puedo-comerlo`. Las 11 pruebas de extremo a extremo pasan contra esta dirección.
 
-Cuando lo hagas, la dirección será la que te enseñe Vercel al terminar. Normalmente:
-
-**https://puedo-comerlo.vercel.app**
-
-(Si ese nombre ya estuviera cogido, Vercel le añade algo detrás; la verás en la pantalla del proyecto,
-arriba, en «Domains».)
+Se publicó desde la línea de comandos de Vercel (`vercel deploy --prod` en la carpeta `puedo-comerlo`),
+porque tu cuenta de Vercel no tiene GitHub vinculado. Si quieres que cada cambio en GitHub se publique
+solo, vincula GitHub en vercel.com → Account Settings → Authentication y conecta el repositorio en el
+proyecto (Settings → Git, Root Directory `puedo-comerlo`). El apartado 2 queda como referencia.
 
 ---
 
-## 2. Publicarla por primera vez (una sola vez)
+## 2. (Referencia) Publicarla desde GitHub
 
 1. Entra en **vercel.com** con tu cuenta (equipo «brunomarcial-3195's projects»).
 2. Pulsa **Add New… → Project**.
