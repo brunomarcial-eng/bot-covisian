@@ -57,6 +57,26 @@ const NO_EMBUTIDOS = /embutid|jam[oó]n|AESAN|toxoplasm|listeria|solo si van coc
 // Estructura vieja que ya no existe (rediseño N5).
 const LEGACY_SEL = '.card, .chip, .chips, .sheet, .row, .link-btn, .answer .pill, .entry .pill';
 const LEVEL_WORDS = Object.values(LEVEL_LABEL);
+// N6: la pantalla de UNA respuesta toma el color del veredicto en el fondo del body.
+const TONE_BG = { si: 'rgb(36, 84, 67)', cuidado: 'rgb(176, 79, 16)', no: 'rgb(122, 51, 44)', duda: 'rgb(134, 103, 42)' };
+const TONE_META = { si: '#245443', cuidado: '#b04f10', no: '#7a332c', duda: '#86672a' };
+const CREAM_RGB = 'rgb(243, 238, 230)';
+const CREAM_HEX = '#f3eee6';
+const WORD_CREAM = 'rgb(255, 253, 248)';
+// Texto del nivel sobre las bandas de las listas y tinte de cada banda
+const LVL_TEXT = { 'Sí': 'rgb(36, 84, 67)', 'Con cuidado': 'rgb(141, 67, 36)', 'Mejor no': 'rgb(122, 51, 44)' };
+const BAND_BG = { si: 'rgb(224, 234, 227)', cuidado: 'rgb(248, 226, 208)', no: 'rgb(242, 223, 219)', duda: 'rgb(239, 230, 200)' };
+const LEVEL_KEY = { 'Sí': 'si', 'Con cuidado': 'cuidado', 'Mejor no': 'no', 'No estoy segura': 'duda' };
+const TONE_WAIT = 700; // el fondo tarda ~0,45 s en tomar el color
+
+// Contraste WCAG entre dos «rgb(…)» / «rgba(…)» (un fondo con alfa se compone sobre el crema)
+function parseRgb(c, over = [243, 238, 230]) {
+  const m = String(c).match(/rgba?\(([^)]+)\)/); if (!m) return null;
+  const [r, g, b, a = 1] = m[1].split(/[ ,\/]+/).filter(Boolean).map(Number);
+  return [r, g, b].map((v, i) => Math.round(v * a + over[i] * (1 - a)));
+}
+function lum([r, g, b]) { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); }
+function contrast(fg, bg) { const a = parseRgb(fg), b = parseRgb(bg); if (!a || !b) return 0; const [l1, l2] = [lum(a), lum(b)].sort((x, y) => y - x); return (l1 + 0.05) / (l2 + 0.05); }
 
 let BASE = '';
 let SERVER_KIND = '';
@@ -270,6 +290,8 @@ function PILLS_FN() {
       fontFamily: cs ? cs.fontFamily : null,
       fontSize: cs ? cs.fontSize : null,
       markColor: b ? b.borderLeftColor : null,
+      bg: getComputedStyle(el).backgroundColor,
+      phraseColor: phraseEl ? getComputedStyle(phraseEl).color : null,
       hasMore: !!el.querySelector('.more-btn'),
       inLo: !!el.closest('section[aria-labelledby="lo-ultimo"]'),
       valid: !!wordEl && L.includes(clean(wordEl.innerText)),
@@ -285,6 +307,45 @@ async function mainPill(page, timeout = 6000) {
     if (p.length || Date.now() > end) return p[0] || null;
     await page.waitForTimeout(250);
   }
+}
+
+// Estado de «pantalla entera del color»: atributo del body, fondo calculado, meta theme-color y «?» decorativos.
+async function toneState(page) {
+  return page.evaluate(() => {
+    const meta = document.querySelector('meta[name="theme-color"]');
+    const marks = [...document.querySelectorAll('#tone span[aria-hidden]')];
+    const foot = [...document.querySelectorAll('footer, [role=contentinfo]')][0];
+    const fl = foot ? [...foot.querySelectorAll('*')].find((e) => e.children.length === 0 && /No sustituye/.test(e.textContent)) || foot : null;
+    const word = document.querySelector('article.answer .answer-word');
+    const phrase = document.querySelector('article.answer .answer-phrase');
+    return {
+      verdict: document.body.dataset.verdict || null,
+      bg: getComputedStyle(document.body).backgroundColor,
+      htmlBg: getComputedStyle(document.documentElement).backgroundColor,
+      meta: meta ? meta.getAttribute('content') : null,
+      marks: marks.length,
+      marksText: [...new Set(marks.map((m) => m.textContent.trim()))].join(''),
+      footColor: fl ? getComputedStyle(fl).color : null,
+      footBg: foot ? getComputedStyle(foot).backgroundColor : null,
+      wordColor: word ? getComputedStyle(word).color : null,
+      wordText: word ? word.innerText.trim() : null,
+      phraseColor: phrase ? getComputedStyle(phrase).color : null,
+    };
+  }).catch(() => ({}));
+}
+// Espera a que el fondo tome el color (≥ 0,5 s) y devuelve el estado
+async function settledTone(page, ms = TONE_WAIT) { await page.waitForTimeout(ms); return toneState(page); }
+// Comprueba una pantalla de respuesta de color `level` (si|cuidado|no|duda) o, con null, crema sin veredicto
+async function checkTone(t, page, level, what, st) {
+  st = st || await settledTone(page);
+  if (!level) {
+    await t.check(st.verdict === null && st.bg === CREAM_RGB && st.meta === CREAM_HEX && st.marks === 0,
+      `${what}: sin data-verdict, fondo crema, theme-color #f3eee6 y sin «?»`, JSON.stringify({ v: st.verdict, bg: st.bg, meta: st.meta, marks: st.marks }));
+    return st;
+  }
+  await t.check(st.verdict === level && st.bg === TONE_BG[level] && st.meta === TONE_META[level],
+    `${what}: body[data-verdict=${level}], fondo ${TONE_BG[level]} y theme-color ${TONE_META[level]}`, JSON.stringify({ v: st.verdict, bg: st.bg, meta: st.meta }));
+  return st;
 }
 
 // Instantánea de textos para el escenario 10.
@@ -304,7 +365,12 @@ async function snap(page, t, screen) {
       return { label: q(a ? '.answer-word' : '.lvl'), name: q(a ? '.answer-name' : '.entry-name'), phrase: q(a ? '.answer-phrase' : '.entry-phrase') };
     });
     const legacy = [...document.querySelectorAll(LEGACY)].map((n) => n.tagName.toLowerCase() + '.' + String(n.className).split(/\s+/).slice(0, 2).join('.'));
-    return { text: document.body.innerText, headings, leaves: [...new Set(leaves)], answers, legacy };
+    const svgs = [...document.querySelectorAll('svg')].map((v) => ({
+      cls: String(v.getAttribute('class') || '').slice(0, 30), hidden: v.closest('[aria-hidden=true]') !== null || v.getAttribute('aria-hidden') === 'true',
+      text: v.querySelectorAll('text, tspan').length, image: v.querySelectorAll('image').length, fo: v.querySelectorAll('foreignObject').length, use: v.querySelectorAll('use').length,
+      big: v.getBoundingClientRect().width > 100,
+    }));
+    return { text: document.body.innerText, headings, leaves: [...new Set(leaves)], answers, legacy, svgs };
   }, LEGACY_SEL).catch(() => null);
   if (data) CORPUS.push({ scenario: t.id, screen, hash: await getHash(page), ...data });
   return data;
@@ -515,6 +581,62 @@ async function checkLeerRequests(t) {
 // Escenarios
 // ======================================================================
 
+// Estado vacío ilustrado (Lista, Historial, «Lo último»): plato suelto decorativo y la línea literal.
+async function emptyArt(page) {
+  return page.evaluate(() => {
+    const e = document.querySelector('.empty.empty--art');
+    if (!e) return null;
+    const art = e.querySelector('.empty-art'); const svg = art && art.querySelector('svg');
+    return { text: e.innerText.replace(/\s+/g, ' ').trim(), artHidden: art ? art.getAttribute('aria-hidden') : null, svg: !!svg, svgBad: svg ? svg.querySelectorAll('text, tspan, image, foreignObject').length : -1, w: svg ? Math.round(svg.getBoundingClientRect().width) : 0 };
+  });
+}
+
+// Portada (N7/N7b): la mesa decorativa de 12 platos, «Seguir» a la vista sobre el pie y la nota tras el botón.
+async function portadaChecks(t, page, label) {
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(2600); // acaba la entrada escalonada de los platos
+  const c = await page.evaluate(() => {
+    const art = document.querySelector('.cover-art');
+    const main = document.querySelector('main');
+    const seguir = [...document.querySelectorAll('button')].find((b) => b.innerText.trim() === 'Seguir');
+    const note = document.querySelector('.disclaimer-note');
+    const foot = [...document.querySelectorAll('footer, [role=contentinfo]')][0];
+    const sr = seguir && seguir.getBoundingClientRect();
+    const fr = foot && foot.getBoundingClientRect();
+    const plates = [...document.querySelectorAll('.cover-art .art-plato')];
+    const svg = art && art.querySelector('svg');
+    return {
+      art: !!art, artHidden: art ? art.getAttribute('aria-hidden') : null, nPlates: plates.length,
+      opac: plates.map((x) => Number(getComputedStyle(x).opacity)),
+      isCover: !!main && main.classList.contains('is-cover'),
+      steps: (document.querySelector('.steps-count') || {}).innerText || null,
+      bar: document.querySelectorAll('.steps-bar span').length,
+      seguir: sr ? { top: Math.round(sr.top), bottom: Math.round(sr.bottom), h: Math.round(sr.height) } : null,
+      footTop: fr ? Math.round(fr.top) : null, innerH: innerHeight, innerW: innerWidth,
+      noteAfter: !!(seguir && note && (seguir.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING)),
+      noteText: note ? note.innerText.replace(/\s+/g, ' ').trim() : null,
+      svgText: svg ? svg.querySelectorAll('text, tspan, image, foreignObject').length : -1,
+      svgW: svg ? Math.round(svg.getBoundingClientRect().width) : 0, artH: art ? Math.round(art.getBoundingClientRect().height) : 0,
+      scrollW: document.documentElement.scrollWidth, scrollY: scrollY,
+    };
+  });
+  const L = `Portada ${label}`;
+  await t.check(c.art && c.artHidden === 'true', `${L}: .cover-art decorativa (aria-hidden="true")`, JSON.stringify({ art: c.art, h: c.artHidden }));
+  await t.check(c.nPlates === 12, `${L}: la mesa tiene 12 .art-plato`, String(c.nPlates));
+  await t.check(c.opac.length === 12 && c.opac.every((o) => o > 0.99), `${L}: tras la entrada los 12 platos tienen opacidad 1`, c.opac.join(','));
+  await t.check(c.svgText === 0, `${L}: el SVG de la mesa no contiene <text>, <image> ni <foreignObject>`, String(c.svgText));
+  await t.check(c.isCover, `${L}: main.is-cover`);
+  await t.check(c.steps === 'Paso 1 de 4' && c.bar === 4, `${L}: «Paso 1 de 4» y barra de 4 pasos`, JSON.stringify({ s: c.steps, bar: c.bar }));
+  await t.check(!!c.seguir && c.seguir.top >= 0 && c.seguir.bottom <= c.innerH && c.seguir.bottom <= c.footTop, `${L}: «Seguir» dentro del viewport y por encima del pie (sin hacer scroll)`, JSON.stringify({ seguir: c.seguir, footTop: c.footTop, innerH: c.innerH }));
+  if (c.seguir) t.info(`${L}: holgura entre «Seguir» y el pie`, `${c.footTop - c.seguir.bottom}px · mesa ${c.svgW}×${c.artH}`);
+  await t.check(c.seguir && c.seguir.h >= 47.5, `${L}: «Seguir» ≥ 48 px`, String(c.seguir && c.seguir.h));
+  await t.check(c.noteAfter && c.noteText === 'Es una guía orientativa, no una app médica. No hay un médico detrás y no sustituye a tu matrona, a tu ginecólogo ni a tu médico.', `${L}: .disclaimer-note va DESPUÉS de «Seguir» con su texto`, c.noteText);
+  await t.check(c.scrollW <= c.innerW + 1, `${L}: sin scroll horizontal`, `${c.scrollW}/${c.innerW}`);
+  const f = await footerState(page);
+  await t.check(f.found && f.ok, `${L}: pie literal visible y no tapado`, f.found ? JSON.stringify(f.all) : 'no encontrado');
+  await t.shot('portada-' + label.replace(/\W+/g, ''));
+}
+
 async function s1(t, browser) {
   const { page } = await t.newPage(browser);
   const forms = [];
@@ -543,6 +665,12 @@ async function s1(t, browser) {
   await t.check(await seen(page, TXT.portada), 'Portada: texto literal «Para la carta y para el súper…»');
   await t.check(await seen(page, FOOTER), 'Portada: disclaimer literal');
   await t.check(!!(await find(page, 'Seguir', { timeout: 2000, loose: false })), 'Portada: botón «Seguir»');
+  await portadaChecks(t, page, '390×844');
+  await page.setViewportSize({ width: 360, height: 740 });
+  await page.waitForTimeout(500);
+  await portadaChecks(t, page, '360×740');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForTimeout(400);
   let si = await stepInfo();
   await t.check(si.count === 'Paso 1 de 4', 'Portada: «Paso 1 de 4» (.steps-count)', JSON.stringify(si));
   await t.check(si.back.length === 0, 'Portada: sin botón «Atrás»', JSON.stringify(si.back));
@@ -667,6 +795,20 @@ async function s1(t, browser) {
 async function s2(t, browser) {
   const { page } = await t.newPage(browser);
   await seed(page, t);
+  // Vacíos ilustrados (todavía sin lista ni historial)
+  for (const [hash, plate, literal] of [['#/lista', 'Lista', TXT.listaVacia], ['#/historial', 'Historial', 'Todavía no has consultado nada. Lo que busques o fotografíes aparecerá aquí.']]) {
+    await go(page, hash);
+    const e = await emptyArt(page);
+    await t.check(!!e && e.artHidden === 'true' && e.svg && e.svgBad === 0 && e.w >= 100, `${plate} vacía: .empty.empty--art con .empty-art decorativo (SVG sin <text>/<image>)`, JSON.stringify(e));
+    await t.check(!!e && e.text.includes(literal), `${plate} vacía: línea literal «${short(literal, 50)}»`, e && e.text);
+    await snap(page, t, plate + '-vacia');
+    await t.shot(plate.toLowerCase() + '-vacia');
+  }
+  await go(page, '#/');
+  const eh = await emptyArt(page);
+  await t.check(!!eh && /Aqu[ií] ir[aá]n tus [uú]ltimas respuestas\./.test(eh.text) && eh.artHidden === 'true' && eh.svgBad === 0, 'Inicio sin historial: «Lo último» con plato y «Aquí irán tus últimas respuestas.»', JSON.stringify(eh));
+  await t.check(await seen(page, /^Lo [uú]ltimo/, { timeout: 1000 }), 'Inicio sin historial: se ve el rótulo «Lo último»');
+  await snap(page, t, 'inicio-sin-historial');
   const screens = [
     ['Inicio', async () => { await tapNav(page, 'Inicio'); return /^#\/?$/; }],
     ['Fuera', async () => { await tapNav(page, 'Fuera'); return /#\/fuera/; }],
@@ -693,6 +835,12 @@ async function s2(t, browser) {
     const f2 = await footerState(page);
     await t.check(f2.found && f2.ok, `${name}: pie visible también al hacer scroll hasta abajo`, JSON.stringify(f2.all || f2.partial));
     await page.evaluate(() => window.scrollTo(0, 0));
+    // N6: solo la ficha (una respuesta) lleva el color; el resto vuelve a crema
+    const ts = await settledTone(page, 300);
+    if (name === 'Ficha') {
+      await checkTone(t, page, 'cuidado', 'Ficha tortilla', ts);
+      await t.check(ts.marks >= 1 && ts.marksText === '?', 'Ficha «Con cuidado»: «?» decorativos span[aria-hidden] en #tone', `${ts.marks} «${ts.marksText}»`);
+    } else await checkTone(t, page, null, name, ts);
     const n = await navState(page);
     const bottom = n.navs.find((x) => x.bottom >= n.innerHeight - 6 && x.top > n.innerHeight * 0.55);
     await t.check(!!bottom && JSON.stringify(bottom.items) === JSON.stringify(NAV), `${name}: navegación inferior con exactamente Inicio, Fuera, Súper, Lista`, JSON.stringify(n.navs));
@@ -838,6 +986,11 @@ async function s4(t, browser) {
   await t.check(p && p.label === 'Con cuidado' && p.kind === 'answer', 'Ficha tortilla: respuesta «Con cuidado»', p ? p.label : 'sin respuesta');
   await t.check(p && p.name === 'Tortilla de patata', 'Ficha tortilla: nombre «Tortilla de patata»', p && p.name);
   await t.check(p && p.phrase && !/^con cuidado\s*[:,]/i.test(p.phrase), 'Ficha tortilla: la frase no repite «Con cuidado»', p && p.phrase);
+  {
+    const ts = await settledTone(page);
+    await checkTone(t, page, 'cuidado', 'Ficha tortilla', ts);
+    await t.check(ts.wordColor === WORD_CREAM && ts.wordText === 'Con cuidado', 'Ficha tortilla: .answer-word crema con el texto exacto «Con cuidado»', JSON.stringify({ w: ts.wordColor, t: ts.wordText }));
+  }
   const srcRe = /AESAN|Ministerio de Sanidad|propia app/;
   const before = await bodyText(page);
   await t.check(!srcRe.test(before.replace(FOOTER, '')), 'Ficha mínima: la fuente no se ve hasta «Ver más»', short(before, 300));
@@ -862,6 +1015,8 @@ async function s4(t, browser) {
   const lp = await pills(page);
   const row = lp.find((x) => /tortilla/i.test(x.name));
   await t.check(!!row && row.kind === 'entry' && row.label === 'Con cuidado' && !!row.phrase, 'Lista: la tortilla es una fila ul.entries > li.entry con «Con cuidado» y frase', lp.map((x) => `${x.label}: ${short(x.name + ' · ' + x.phrase, 80)}`).join(' | '));
+  await t.check(!!row && row.bg === BAND_BG.cuidado && row.color === LVL_TEXT['Con cuidado'] && contrast(row.color, row.bg) >= 4.5, 'Lista: la fila lleva banda suave de fondo (#f8e2d0) y la palabra en arcilla con contraste ≥ 4,5:1', row ? `${row.bg} / ${row.color} / ${contrast(row.color, row.bg).toFixed(1)}` : 'sin fila');
+  await checkTone(t, page, null, 'Lista con filas');
   const q0 = await page.locator('button.quiet-btn').evaluateAll((els) => els.map((e) => ({ aria: e.getAttribute('aria-label'), text: e.innerText.trim(), h: Math.round(e.getBoundingClientRect().height) })));
   await t.check(q0.length === 1 && /^Quitar Tortilla/.test(q0[0].aria || '') && q0[0].text === 'Quitar', '«Quitar»: button.quiet-btn con aria-label «Quitar Tortilla de patata»', JSON.stringify(q0));
   await t.check(q0.every((x) => x.h >= 47.5), '«Quitar» mide ≥ 48 px', JSON.stringify(q0));
@@ -877,9 +1032,35 @@ async function s4(t, browser) {
     const pl = parseJSON((await storage(page))['pc.v1.list'], []);
     await t.check(rest.length === 0 && !pl.some((e) => e.foodId === 'tortilla-patata'), '«Quitar» elimina la tortilla de la lista (pantalla y pc.v1.list)', rest.map((x) => short(x.card, 80)).join(' | ') + ' · list=' + JSON.stringify(pl.map((e) => e.title)));
     await t.check(await seen(page, TXT.listaVacia, { timeout: 2000 }), 'Lista vacía: texto literal «Todavía no hay nada…»');
+    const ea = await emptyArt(page);
+    await t.check(!!ea && ea.artHidden === 'true' && ea.svg && ea.svgBad === 0 && ea.text.includes(TXT.listaVacia), 'Lista vacía tras «Quitar»: .empty.empty--art con plato decorativo y la línea literal', JSON.stringify(ea));
     await snap(page, t, 'lista-vacia');
     await t.shot('lista-vacia');
   } catch (e) { await t.check(false, '«Quitar» en la lista', e.message); }
+}
+
+// Estado de carga ilustrado: el plato que gira (.status-art, decorativo) y el texto en .status-text; sin .spinner.
+async function loadingState(page) {
+  return page.evaluate(() => {
+    const st = document.querySelector('.status');
+    if (!st) return null;
+    const art = st.querySelector('.status-art'); const svg = art && art.querySelector('svg');
+    const anims = svg ? svg.getAnimations({ subtree: true }).length + (art.getAnimations ? art.getAnimations({ subtree: true }).length : 0) : 0;
+    return {
+      cls: st.className, role: st.getAttribute('role'), live: st.getAttribute('aria-live'),
+      art: !!art, artHidden: art ? art.getAttribute('aria-hidden') : null, svg: !!svg, svgBad: svg ? svg.querySelectorAll('text, tspan, image, foreignObject').length : -1,
+      text: (st.querySelector('.status-text') || {}).innerText || '', spinners: document.querySelectorAll('.spinner').length, anims,
+      artSize: svg ? Math.round(svg.getBoundingClientRect().width) : 0,
+    };
+  }).catch(() => null);
+}
+async function checkLoading(t, page, what) {
+  const ld = await page.waitForSelector('.status', { timeout: 4000 }).then(() => loadingState(page)).catch(() => null);
+  if (!ld) { t.warn(`${what}: no llegué a ver el estado de carga (lectura demasiado rápida)`); return; }
+  await t.check(/\bstatus--art\b/.test(ld.cls) && ld.art && ld.artHidden === 'true' && ld.svg && ld.svgBad === 0, `${what}: .status--art con .status-art decorativo (SVG sin <text>/<image>)`, JSON.stringify(ld));
+  await t.check(ld.role === 'status' && ld.live === 'polite' && ld.text.trim().length > 3, `${what}: el texto vive en .status-text dentro de la región viva`, JSON.stringify({ role: ld.role, live: ld.live, text: ld.text }));
+  await t.check(ld.spinners === 0, `${what}: ya no existe .spinner`, String(ld.spinners));
+  t.info(`${what}: plato animado`, `${ld.artSize}px, ${ld.anims} animaciones, texto «${short(ld.text, 50)}»`);
 }
 
 // Lee una foto en Fuera y devuelve el resultado.
@@ -888,6 +1069,7 @@ async function readPhoto(t, page, file) {
   await waitHash(page, /fuera/, 3000);
   const how = await chooseFile(page, 'Elegir una foto', file);
   t.info('Foto entregada mediante', how);
+  await checkLoading(t, page, 'Leyendo la foto');
   const r = await waitReading(page);
   t.info('Mensajes de progreso vistos', r.statuses.join(' / ') || '(ninguno)');
   const tess = t.requests.filter((x) => /tesseract/i.test(x.url));
@@ -936,6 +1118,15 @@ async function s5(t, browser) {
   if (r.outcome === 'fichas') {
     await t.check(await seen(page, TXT.laCarta, { timeout: 1500 }), 'Resultado con título «La carta»');
     await t.check(r.pills.length <= 12, 'Como mucho 12 platos', String(r.pills.length));
+    const rise = await page.locator('ul.entries.entries--rise').count();
+    await t.check(rise === 1, 'Carta leída: la lista es ul.entries.entries--rise', String(rise));
+    const bands = r.pills.filter((x) => x.kind === 'entry' && (x.bg !== BAND_BG[LEVEL_KEY[x.label]] || x.lvCls !== LEVEL_KEY[x.label]));
+    await t.check(bands.length === 0, 'Carta: cada fila lleva su banda suave de fondo del nivel', bands.map((x) => `${x.name}: ${x.label} ${x.bg}`).join(' | '));
+    const lowc = r.pills.filter((x) => contrast(x.color, x.bg) < 4.5);
+    await t.check(lowc.length === 0, 'Carta: la palabra del nivel sobre su banda con contraste ≥ 4,5:1', lowc.map((x) => `${x.name}: ${contrast(x.color, x.bg).toFixed(1)}`).join(' | '));
+    await checkTone(t, page, null, 'Carta (varias respuestas)');
+    const rw = await page.evaluate(() => { const u = document.querySelector('ul.entries'); const r = u.getBoundingClientRect(); return { w: Math.round(r.width), left: Math.round(r.left), right: Math.round(innerWidth - r.right), sw: document.documentElement.scrollWidth, iw: innerWidth }; });
+    await t.check(rw.sw <= rw.iw + 1 && Math.abs(rw.left - rw.right) <= 2, 'Carta: las filas a sangre caben en 390 px sin scroll horizontal y centradas', JSON.stringify(rw));
     t.info('Filas', r.pills.map((x) => `${x.label}: ${short(x.name + ' · ' + x.phrase, 90)}`).join(' | '));
     await t.check(r.pills.every((x) => x.kind === 'entry' && x.valid && x.lvCls === x.level), 'Carta: cada plato es una fila li.entry.lv-<nivel>[data-level] con .lvl, .entry-name y .entry-phrase', r.pills.filter((x) => !(x.kind === 'entry' && x.valid && x.lvCls === x.level)).map((x) => x.name).join(', '));
     const resumen = await page.locator('.summary .pill').evaluateAll((els) => els.map((e) => e.innerText.replace(/\s+/g, ' ').trim()));
@@ -1086,14 +1277,22 @@ async function s7(t, browser) {
     return inp;
   };
 
-  // Nutella
+  // Nutella (con la respuesta de OFF retrasada para ver el estado de carga)
+  await page.route('**/world.openfoodfacts.org/**', async (route) => { await sleep(4000); route.continue().catch(() => {}); });
   await submit('3017620422003');
+  await checkLoading(t, page, 'Buscando en Open Food Facts');
   const gotN = await seen(page, /nutella/i, { timeout: 25000 });
   await t.check(gotN, '3017620422003 → aparece el producto «Nutella» de Open Food Facts', await getHash(page));
   const offReq = t.requests.filter((r) => /openfoodfacts/.test(r.url));
   t.info('Petición a OFF', offReq.map((r) => short(r.url, 140)).join(' | '));
   await t.check(offReq.some((r) => /world\.openfoodfacts\.org\/api\/v2\/product\/3017620422003/.test(r.url)), 'Usa GET world.openfoodfacts.org/api/v2/product/{code}');
+  await page.unroute('**/world.openfoodfacts.org/**').catch(() => {});
   const p = await mainPill(page);
+  {
+    const ts = await settledTone(page);
+    await checkTone(t, page, 'no', 'Producto Nutella', ts);
+    await t.check(ts.wordColor === WORD_CREAM && ts.wordText === 'Mejor no', 'Producto Nutella: .answer-word crema con el texto exacto «Mejor no»', JSON.stringify({ w: ts.wordColor, t: ts.wordText }));
+  }
   await t.check(p && p.label === 'Mejor no' && p.kind === 'answer' && p.lvCls === 'no', 'Nutella con leche y frutos secos marcados → respuesta «Mejor no» (article.answer.lv-no)', p ? `${p.label} — ${short(p.card)}` : 'sin respuesta');
   await t.check(p && /nutella/i.test(p.name), 'La respuesta lleva el nombre del producto (.answer-name)', p && p.name);
   await t.check(p && /^Has marcado/.test(p.phrase), 'La frase de la respuesta empieza por «Has marcado…»', p && p.phrase);
@@ -1141,6 +1340,10 @@ async function s7(t, browser) {
       const lp = r.pills;
       t.info('Etiqueta (opcional)', `${r.outcome} en ${Math.round(r.ms / 1000)} s; ${r.message || lp.map((x) => x.label + ': ' + short(x.card, 100)).join(' | ')}`);
       if (r.outcome === 'fichas') {
+        if (lp.length === 1) {
+          const ts = await settledTone(page);
+          await t.check(ts.verdict === LEVEL_KEY[lp[0].label] && ts.bg === TONE_BG[ts.verdict], 'Etiqueta de un solo plato: pantalla entera del color de su veredicto', JSON.stringify({ lvl: lp[0].label, v: ts.verdict, bg: ts.bg, meta: ts.meta }));
+        }
         if (!(await seen(page, 'La etiqueta', { timeout: 1000 }))) t.warn('El resultado de la etiqueta no se titula «La etiqueta»');
         if (!(lp[0] && lp[0].label === 'Mejor no' && /Has marcado/.test(lp[0].phrase))) t.warn('Queso fresco con alergia a la leche no sale «Mejor no» con «Has marcado…»', lp.map((x) => x.label + ': ' + short(x.card, 100)).join(' | '));
       } else if (r.outcome !== 'mensaje') t.warn('La lectura de la etiqueta no termina ni en fichas ni en mensaje', r.outcome);
@@ -1251,6 +1454,135 @@ async function s8(t, browser) {
   if (keys2.length) t.info('Claves que la app vuelve a crear al cargar el arranque', keys2.join(', '));
 }
 
+// N6: transiciones de color en Buscar mientras se escribe, atrás/adelante y reduced-motion.
+async function transicionesDeColor(t, browser) {
+  const { page } = await t.newPage(browser);
+  await seed(page, t);
+  await go(page, '#/');
+  await checkTone(t, page, null, 'Inicio');
+  await go(page, '#/buscar');
+  await checkTone(t, page, null, 'Buscar sin respuesta');
+  const box = page.locator('#buscar-q');
+  const seq = [['sushi', 'no', 'Mejor no'], ['lubina a la plancha', 'si', 'Sí'], ['tortilla', 'cuidado', 'Con cuidado'], ['xyzzy', 'duda', 'No estoy segura']];
+  for (const [q, key, label] of seq) {
+    await box.fill(q);
+    await page.waitForTimeout(450); // debounce de 180 ms
+    const early = await toneState(page);
+    await t.check(early.verdict === key && early.meta === TONE_META[key], `Buscar «${q}»: data-verdict y theme-color cambian de inmediato (sin esperar al fundido)`, JSON.stringify({ v: early.verdict, meta: early.meta }));
+    const st = await settledTone(page);
+    await checkTone(t, page, key, `Buscar «${q}»`, st);
+    await t.check(st.wordText === label && st.wordColor === WORD_CREAM, `Buscar «${q}»: .answer-word «${label}» en crema`, JSON.stringify({ w: st.wordText, c: st.wordColor }));
+    const wantMarks = key === 'cuidado' ? [1, 3] : key === 'duda' ? [3, 8] : [0, 0];
+    await t.check(st.marks >= wantMarks[0] && st.marks <= wantMarks[1] && (st.marks === 0 || st.marksText === '?'), `Buscar «${q}»: «?» decorativos solo con cuidado/duda (aquí ${wantMarks[0] === 0 ? 'ninguno' : wantMarks[0] + '–' + wantMarks[1]})`, `${st.marks} «${st.marksText}»`);
+    await snap(page, t, 'buscar-tono-' + key);
+    await t.shot('tono-' + key);
+  }
+  await box.fill('');
+  await page.waitForTimeout(450);
+  const e2 = await toneState(page);
+  await t.check(e2.verdict === null && e2.meta === CREAM_HEX, 'Buscar vacío: se quita data-verdict y theme-color vuelve a #f3eee6 de inmediato', JSON.stringify({ v: e2.verdict, meta: e2.meta }));
+  await checkTone(t, page, null, 'Buscar vacío tras la secuencia', await settledTone(page));
+  await t.check((await pills(page)).length === 0, 'Buscar vacío: ya no hay respuesta');
+
+  // Atrás / adelante
+  await go(page, '#/');
+  await go(page, '#/ficha/agua'); await page.waitForTimeout(TONE_WAIT);
+  await go(page, '#/ficha/tortilla-patata'); await page.waitForTimeout(TONE_WAIT);
+  const stepHist = async (dir, level, what) => {
+    await page.evaluate((d) => (d < 0 ? history.back() : history.forward()), dir);
+    await page.waitForTimeout(TONE_WAIT);
+    await checkTone(t, page, level, what);
+  };
+  await stepHist(-1, 'si', 'Atrás a la ficha del agua');
+  await stepHist(-1, null, 'Atrás a Inicio');
+  await stepHist(1, 'si', 'Adelante a la ficha del agua');
+  await stepHist(1, 'cuidado', 'Adelante a la ficha de la tortilla');
+  await go(page, '#/lista'); await page.waitForTimeout(TONE_WAIT);
+  await checkTone(t, page, null, 'De una ficha de color a Lista');
+
+  // prefers-reduced-motion: cambio instantáneo y ninguna animación
+  const { page: rp } = await t.newPage(browser, { reducedMotion: 'reduce' });
+  await seed(rp, t);
+  t.info('reduced-motion emulado', String(await rp.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches)));
+  const running = () => rp.evaluate(() => document.getAnimations().filter((a) => a.playState === 'running' || a.playState === 'pending').map((a) => (a.animationName || a.transitionProperty || a.constructor.name) + '@' + ((a.effect && a.effect.target && (a.effect.target.id || String(a.effect.target.className || '').slice(0, 20))) || '?')));
+  await go(rp, '#/ficha/pescado-crudo');
+  await rp.waitForTimeout(150);
+  const r1 = await toneState(rp);
+  await t.check(r1.verdict === 'no' && r1.bg === TONE_BG.no && r1.meta === TONE_META.no, 'Reduced-motion: la ficha toma el color al instante (sin esperar 0,5 s)', JSON.stringify({ v: r1.verdict, bg: r1.bg }));
+  const an = await running();
+  await t.check(an.length === 0, 'Reduced-motion: ninguna animación ni transición en marcha en la pantalla de color', an.join(', '));
+  await go(rp, '#/ficha/tortilla-patata');
+  await rp.waitForTimeout(150);
+  const r2 = await toneState(rp);
+  await t.check(r2.verdict === 'cuidado' && r2.bg === TONE_BG.cuidado && r2.marks >= 1, 'Reduced-motion: de un color a otro al instante y con los «?» ya puestos', JSON.stringify({ v: r2.verdict, bg: r2.bg, marks: r2.marks }));
+  await go(rp, '#/');
+  await rp.waitForTimeout(150);
+  const r3 = await toneState(rp);
+  await t.check(r3.verdict === null && r3.bg === CREAM_RGB && r3.meta === CREAM_HEX && r3.marks === 0, 'Reduced-motion: de vuelta a Inicio, crema al instante', JSON.stringify({ v: r3.verdict, bg: r3.bg }));
+  // portada con reduced-motion: los 12 platos a la vista desde el primer momento y 0 animaciones
+  const { page: cp } = await t.newPage(browser, { reducedMotion: 'reduce' });
+  await openApp(cp, '#/');
+  await cp.waitForTimeout(250);
+  const cov = await cp.evaluate(() => ({ n: document.querySelectorAll('.cover-art .art-plato').length, op: [...document.querySelectorAll('.cover-art .art-plato')].map((x) => Number(getComputedStyle(x).opacity)), anims: document.getAnimations().filter((a) => a.playState === 'running' || a.playState === 'pending').length }));
+  await t.check(cov.n === 12 && cov.op.every((o) => o === 1) && cov.anims === 0, 'Portada con reduced-motion: 12 .art-plato con opacidad 1 y 0 animaciones', JSON.stringify({ n: cov.n, op: cov.op.join(','), anims: cov.anims }), cp);
+  await t.shot('portada-reduced', cp);
+  // sin reduced-motion los platos entran escalonados (hay animación al principio y todo acaba a la vista)
+  const { page: np } = await t.newPage(browser);
+  await openApp(np, '#/');
+  const anims0 = await np.evaluate(() => document.getAnimations().filter((a) => a.playState === 'running').length);
+  t.info('Portada con movimiento: animaciones en marcha al abrir', String(anims0));
+  await t.check(anims0 > 0, 'Portada sin reduced-motion: los platos entran con animación', String(anims0), np);
+}
+
+// Colores y listas a 360×740 (móvil pequeño): nada se corta ni se solapa con el pie.
+async function colorEnPantalla360(t, browser) {
+  const { page } = await t.newPage(browser, { viewport: { width: 360, height: 740 } });
+  await seed(page, t);
+  const problems = [];
+  const measure = async (what, tone) => {
+    await page.waitForTimeout(TONE_WAIT);
+    const b = await buttonSizes(page);
+    const bad = b.buttons.filter((x) => x.h < 47.5 && x.kind !== 'opcion' && x.kind !== 'enlace-texto');
+    const f = await footerState(page);
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight)); await page.waitForTimeout(200);
+    const f2 = await footerState(page);
+    const over = await page.evaluate(() => {
+      const foot = document.querySelector('footer, [role=contentinfo]'); const top = foot ? foot.getBoundingClientRect().top : innerHeight;
+      const els = [...document.querySelectorAll('main a, main button, main h1, main p, main .answer-word')].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; });
+      const last = els.map((e) => e.getBoundingClientRect().bottom).reduce((a, c) => Math.max(a, c), 0);
+      const wide = [...document.querySelectorAll('main *')].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && (r.right > innerWidth + 1) && !e.closest('.cover-art, #tone'); }).map((e) => e.tagName + '.' + String(e.className).slice(0, 20));
+      return { lastBottom: Math.round(last), footTop: Math.round(top), wide: wide.slice(0, 4), word: (document.querySelector('.answer-word') ? Math.round(document.querySelector('.answer-word').scrollWidth - document.querySelector('.answer-word').clientWidth) : 0) };
+    });
+    await page.evaluate(() => window.scrollTo(0, 0));
+    if (b.scrollW > b.innerW + 1) problems.push(`${what}: scroll horizontal ${b.scrollW}`);
+    if (bad.length) problems.push(`${what}: controles < 48 px: ${bad.map((x) => x.text + ' ' + x.h).join(', ')}`);
+    if (!(f.found && f.ok && f2.found && f2.ok)) problems.push(`${what}: pie no visible`);
+    if (over.lastBottom > over.footTop + 1) problems.push(`${what}: contenido tapado por el pie (${over.lastBottom} > ${over.footTop})`);
+    if (over.wide.length) problems.push(`${what}: desborda por la derecha: ${over.wide.join(', ')}`);
+    if (over.word > 1) problems.push(`${what}: la palabra del nivel desborda ${over.word}px`);
+    if (tone) { const st = await toneState(page); if (st.bg !== TONE_BG[tone]) problems.push(`${what}: fondo ${st.bg}`); }
+    await t.shot('360-' + slug(what));
+    await snap(page, t, '360-' + what);
+  };
+  await go(page, '#/'); await measure('inicio', null);
+  await go(page, '#/ficha/agua'); await measure('ficha si', 'si');
+  await go(page, '#/ficha/tortilla-patata'); await measure('ficha cuidado', 'cuidado');
+  await go(page, '#/ficha/pescado-crudo'); await measure('ficha no', 'no');
+  await go(page, '#/buscar?q=xyzzy'); await measure('buscar duda', 'duda');
+  await go(page, '#/buscar?q=' + encodeURIComponent('gulas con gambas y jamon serrano al ajillo y un poco de vino')); await measure('buscar largo', null);
+  await tap(page, 'Ver más'); await measure('buscar largo con ver más', null);
+  await page.evaluate(() => {
+    const items = ['Sushi variado', 'Tortilla de patata', 'Tiramisú casero', 'Tinto de verano', 'Cerveza 0,0', 'Entrecot poco hecho al punto con salsa de roquefort y patatas', 'Lubina a la plancha', 'Croquetas de jamón'].map((n) => ({ name: n, ingredients: [], uncertain: false }));
+    localStorage.setItem('pc.v1.result', JSON.stringify({ title: 'La carta', via: 'foto', items: [], notice: null, payload: { kind: 'carta', items } }));
+  });
+  await go(page, '#/resultado'); await measure('carta', null);
+  await go(page, '#/ficha/tortilla-patata'); await tap(page, 'Añadir a la lista');
+  await go(page, '#/lista'); await measure('lista con fila', null);
+  await go(page, '#/historial'); await measure('historial con filas', null);
+  await go(page, '#/ajustes'); await measure('ajustes', null);
+  await t.check(problems.length === 0, 'A 360×740: respuestas de cada color, carta, lista e historial sin desbordes, sin scroll horizontal, controles ≥ 48 px y nada tapado por el pie', problems.join(' | '));
+}
+
 async function s9(t, browser) {
   const { page } = await t.newPage(browser);
   const sizes = [];
@@ -1314,28 +1646,50 @@ async function s9(t, browser) {
   t.info('border-radius de botones', [...radii].join(', '));
   await t.check(hscroll.length === 0, 'Sin scroll horizontal a 390 px', hscroll.join(' | '));
 
-  // La palabra del nivel: texto exacto, en Fraunces y en su color
-  for (const [id, label] of [['agua', 'Sí'], ['tortilla-patata', 'Con cuidado'], ['pescado-crudo', 'Mejor no']]) {
+  // N6: la pantalla de UNA respuesta toma el color en el fondo; la palabra (crema) conserva su texto exacto
+  const fichaTone = [['agua', 'Sí', 'si'], ['tortilla-patata', 'Con cuidado', 'cuidado'], ['pescado-crudo', 'Mejor no', 'no']];
+  for (const [id, label, key] of fichaTone) {
     await go(page, '#/ficha/' + id);
     const p = await mainPill(page, 4000);
     if (!p || p.label !== label) { await t.check(false, `Ficha ${id} muestra «${label}» para medir su color`, p ? p.label : 'sin respuesta'); continue; }
-    const want = `rgb(${COLORS[label].join(', ')})`;
-    await t.check(p.color === want, `.answer-word «${label}» en ${want}`, p.color);
+    const ts = await settledTone(page);
+    await checkTone(t, page, key, `Ficha ${id}`, ts);
+    await t.check(ts.wordColor === WORD_CREAM && ts.wordText === label, `.answer-word «${label}» es crema ${WORD_CREAM} (el color vive en el fondo)`, `${ts.wordColor} «${ts.wordText}»`);
+    await t.check(contrast(ts.wordColor, ts.bg) >= 4.5 && contrast(ts.phraseColor, ts.bg) >= 4.5, `Ficha ${id}: palabra y frase sobre el fondo con contraste ≥ 4,5:1`, `${contrast(ts.wordColor, ts.bg).toFixed(1)} / ${contrast(ts.phraseColor, ts.bg).toFixed(1)}`);
+    await t.check(contrast(ts.footColor, ts.footBg === 'rgba(0, 0, 0, 0)' ? ts.bg : ts.footBg) >= 4.5, `Ficha ${id}: el pie se lee sobre el color (contraste ≥ 4,5:1)`, `${ts.footColor} sobre ${ts.footBg}/${ts.bg} = ${contrast(ts.footColor, ts.footBg === 'rgba(0, 0, 0, 0)' ? ts.bg : ts.footBg).toFixed(1)}`);
     await t.check(/Fraunces/i.test(p.fontFamily || '') && parseFloat(p.fontSize) >= 40, `.answer-word «${label}» en Fraunces y grande (≥ 40 px)`, `${p.fontFamily} ${p.fontSize}`);
+    if (key === 'si' || key === 'no') await t.check(ts.marks === 0, `«${label}»: sin «?» decorativos`, String(ts.marks));
   }
   await go(page, '#/buscar?q=xyzzy');
-  await page.waitForTimeout(500);
+  const tsd = await settledTone(page);
   const pd = (await pills(page))[0];
   await t.check(!!pd && pd.label === 'No estoy segura', 'Buscar «xyzzy»: .answer-word «No estoy segura»', pd ? pd.label : 'sin respuesta');
-  if (pd) t.info('Color de «No estoy segura» (arena)', `${pd.color} · marca lateral ${pd.markColor} · ${pd.fontSize}`);
-  if (pd) await t.check(parseFloat(pd.fontSize) < 56 + 0.5, '«No estoy segura» baja de tamaño para caber en una línea', pd.fontSize);
-  // Filas: la palabra `.lvl` en el color del nivel (Historial con las tres consultas de antes)
+  await checkTone(t, page, 'duda', 'Buscar «xyzzy»', tsd);
+  await t.check(tsd.wordColor === WORD_CREAM && contrast(tsd.wordColor, tsd.bg) >= 4.5, '«No estoy segura»: palabra crema con contraste ≥ 4,5:1', `${tsd.wordColor} ${contrast(tsd.wordColor, tsd.bg).toFixed(1)}`);
+  await t.check(tsd.marks >= 3 && tsd.marksText === '?', '«No estoy segura»: varios «?» decorativos (span[aria-hidden] en #tone)', `${tsd.marks} «${tsd.marksText}»`);
+  if (pd) await t.check(parseFloat(pd.fontSize) >= 52 - 0.5 && parseFloat(pd.fontSize) <= 72 + 0.5, '.answer-word «No estoy segura» entre 3,25 y 4,5 rem', pd.fontSize);
+  // Filas: banda suave del nivel con la palabra `.lvl` en su color de texto (Historial con las consultas de antes)
   await go(page, '#/historial');
+  await page.waitForTimeout(TONE_WAIT);
   const rows = (await pills(page)).filter((x) => x.kind === 'entry');
-  const badRows = rows.filter((x) => COLORS[x.label] && x.color !== `rgb(${COLORS[x.label].join(', ')})`);
-  await t.check(rows.length >= 3 && badRows.length === 0, 'Historial: cada .lvl muestra la palabra exacta y en su color (Sí #245443, Con cuidado #8d4324, Mejor no #7a332c)', badRows.map((x) => `${x.name}: ${x.label} ${x.color}`).join(' | ') + ` · ${rows.length} filas`);
+  const badRows = rows.filter((x) => LVL_TEXT[x.label] && x.color !== LVL_TEXT[x.label]);
+  await t.check(rows.length >= 3 && badRows.length === 0, 'Historial: cada .lvl con la palabra exacta y su color de texto (Sí #245443, Con cuidado #8d4324, Mejor no #7a332c)', badRows.map((x) => `${x.name}: ${x.label} ${x.color}`).join(' | ') + ` · ${rows.length} filas`);
+  const badBand = rows.filter((x) => x.bg !== BAND_BG[LEVEL_KEY[x.label]]);
+  await t.check(rows.length >= 3 && badBand.length === 0, 'Historial: cada fila lleva la banda suave de su nivel (#e0eae3, #f8e2d0, #f2dfdb, #efe6c8)', badBand.map((x) => `${x.name}: ${x.label} ${x.bg}`).join(' | '));
+  const lowRows = rows.filter((x) => contrast(x.color, x.bg) < 4.5);
+  await t.check(lowRows.length === 0, 'Historial: palabra del nivel sobre su banda ≥ 4,5:1', lowRows.map((x) => `${x.label} ${contrast(x.color, x.bg).toFixed(1)}`).join(' | '));
   await t.check(new Set(rows.map((x) => x.label)).size >= 3, 'Historial: las filas cubren Sí, Con cuidado y Mejor no', [...new Set(rows.map((x) => x.label))].join(', '));
+  await checkTone(t, page, null, 'Historial');
   await t.shot('pastillas');
+
+  // Historial a sangre: las filas son más anchas que la columna, pero caben y no hacen scroll horizontal
+  const hw = await buttonSizes(page);
+  await t.check(hw.scrollW <= hw.innerW + 1, 'Historial con filas: sin scroll horizontal a 390 px', `${hw.scrollW}/${hw.innerW}`);
+  const hb = hw.buttons.filter((b) => b.h < 47.5 && b.kind !== 'opcion' && b.kind !== 'enlace-texto');
+  await t.check(hb.length === 0, 'Historial con filas: botones y filas-enlace ≥ 48 px', hb.map((b) => `${b.kind} «${b.text}» ${b.h}`).join(' | '));
+
+  await transicionesDeColor(t, browser);
+  await colorEnPantalla360(t, browser);
 
   // Escritorio 1280: columna ≤ 32rem y centrada
   const { page: d } = await t.newPage(browser, { viewport: { width: 1280, height: 900 }, isMobile: false, hasTouch: false, deviceScaleFactor: 1 });
@@ -1357,11 +1711,16 @@ async function s9(t, browser) {
     });
     await t.check(!!col && col.width <= 512.5 && Math.abs(col.left - col.right) <= 2, `1280 px (${hash}): columna principal ≤ 32rem y centrada`, JSON.stringify(col), d);
   }
+  // Con filas (historial), las bandas son 2 × gutter más anchas que la columna: caben y siguen centradas
+  await go(d, '#/historial');
+  const rowsW = await d.evaluate(() => { const u = document.querySelector('ul.entries'); const m = document.querySelector('main'); if (!u) return null; const r = u.getBoundingClientRect(); const mr = m.getBoundingClientRect(); return { ul: Math.round(r.width), main: Math.round(mr.width), left: Math.round(r.left), right: Math.round(innerWidth - r.right), sw: document.documentElement.scrollWidth, iw: innerWidth }; });
+  await t.check(!!rowsW && rowsW.ul <= 512 + 40 && Math.abs(rowsW.left - rowsW.right) <= 2 && rowsW.sw <= rowsW.iw, '1280 px (#/historial): las filas a sangre ≤ 32rem + 2 gutter, centradas y sin scroll horizontal', JSON.stringify(rowsW), d);
   await t.shot('escritorio', d);
 }
 
 async function s10(t, browser) {
-  const { page } = await t.newPage(browser);
+  // Con reduced-motion el color llega al instante: así se mide el fondo de las 140 fichas sin esperar al fundido
+  const { page } = await t.newPage(browser, { reducedMotion: 'reduce' });
   await seed(page, t);
   const foods = await page.evaluate(async () => {
     const m = await import(new URL('src/engine/foods.js', location.href).href);
@@ -1369,7 +1728,7 @@ async function s10(t, browser) {
   }).catch((e) => { throw new Error('No puedo importar src/engine/foods.js: ' + e.message); });
   t.info('Fichas de la guía recorridas', String(foods.length));
   await t.check(foods.length === 140 && new Set(foods.map((f) => f.id)).size === 140, 'La guía tiene 140 alimentos (ids únicos)', String(foods.length));
-  const noAnswer = []; const wrongLevel = []; const badWord = []; const noSource = []; const multi = []; const noName = []; const repeats = []; const noMore = []; const badColor = [];
+  const noAnswer = []; const wrongLevel = []; const badWord = []; const noSource = []; const multi = []; const noName = []; const repeats = []; const noMore = []; const badColor = []; const badMarks = [];
   for (const f of foods) {
     await go(page, '#/ficha/' + f.id);
     const p = (await pills(page)).filter((x) => !x.inLo);
@@ -1378,7 +1737,9 @@ async function s10(t, browser) {
     const a = p[0];
     if (!a.valid) badWord.push(`${f.id}: «${a.label}»`);
     if (a.label !== LEVEL_LABEL[f.level] || a.lvCls !== f.level || a.level !== f.level) wrongLevel.push(`${f.id}: base ${LEVEL_LABEL[f.level]}, ficha ${a.label} (${a.lvCls}/${a.level})`);
-    if (COLORS[a.label] && a.color !== `rgb(${COLORS[a.label].join(', ')})`) badColor.push(`${f.id}: ${a.label} ${a.color}`);
+    const ts = await toneState(page);
+    if (ts.verdict !== f.level || ts.bg !== TONE_BG[f.level] || ts.meta !== TONE_META[f.level] || ts.wordColor !== WORD_CREAM || contrast(ts.wordColor, ts.bg) < 4.5) badColor.push(`${f.id}: ${a.label} → ${ts.verdict}/${ts.bg}/${ts.meta}/${ts.wordColor}`);
+    if ((f.level === 'duda' || f.level === 'cuidado') ? ts.marks < 1 : ts.marks !== 0) badMarks.push(`${f.id} (${f.level}): ${ts.marks} «?»`);
     if (!a.name || norm(a.name) !== norm(f.name)) noName.push(`${f.id} («${f.name}» / «${a.name}»)`);
     if (new RegExp('^(' + LEVEL_WORDS.map(esc).join('|') + ')\\s*([:,]|por\\b)', 'i').test(a.phrase)) repeats.push(`${f.id}: «${short(a.phrase, 60)}»`);
     const vm = page.locator('article.answer button.more-btn');
@@ -1395,7 +1756,8 @@ async function s10(t, browser) {
     await t.check(multi.length === 0, 'Ficha mínima: una sola respuesta por ficha', multi.join(', '));
     await t.check(badWord.length === 0, 'Cada ficha muestra una palabra de nivel exacta (Sí, Con cuidado, Mejor no o No estoy segura)', badWord.join(' | '));
     await t.check(wrongLevel.length === 0, 'Con perfil neutro, cada ficha muestra su nivel base (palabra, clase lv-* y data-level)', wrongLevel.join(' | '));
-    await t.check(badColor.length === 0, 'La palabra de cada ficha va en el color de su nivel', badColor.slice(0, 8).join(' | '));
+    await t.check(badColor.length === 0, 'Cada ficha pone el body en el color de su nivel (data-verdict, fondo y theme-color) y la palabra en crema con contraste ≥ 4,5:1', badColor.slice(0, 8).join(' | '));
+    await t.check(badMarks.length === 0, 'Los «?» decorativos salen solo en las fichas «Con cuidado» y «No estoy segura»', badMarks.slice(0, 8).join(' | '));
     await t.check(noName.length === 0, 'Cada ficha muestra su nombre (.answer-name)', noName.join(', '));
     await t.check(repeats.length === 0, '(d) En las fichas, la frase no empieza repitiendo la palabra del nivel', repeats.join(' | '));
     await t.check(noMore.length === 0, 'Cada ficha tiene «Ver más»', noMore.join(', '));
@@ -1427,6 +1789,15 @@ async function s10(t, browser) {
   await t.check(badLbl.length === 0, 'Toda fila y respuesta lleva una palabra de nivel exacta', [...new Set(badLbl)].slice(0, 8).join(' | '));
   const leg = CORPUS.filter((c) => (c.legacy || []).length).map((c) => `${c.screen}: ${[...new Set(c.legacy)].join(' ')}`);
   await t.check(leg.length === 0, 'Ninguna pantalla recorrida usa la estructura vieja (.card, .chip, .chips, .sheet, .row, .link-btn, .pill por respuesta)', [...new Set(leg)].slice(0, 6).join(' | '));
+  const svgBad = []; let svgN = 0; let svgBig = 0;
+  for (const c of CORPUS) for (const v of c.svgs || []) {
+    svgN++; if (v.big) svgBig++;
+    if (v.text || v.image || v.fo) svgBad.push(`${c.screen}: svg.${v.cls} text=${v.text} image=${v.image} foreignObject=${v.fo}`);
+  }
+  t.info('SVG analizados en las pantallas recorridas', `${svgN} (${svgBig} ilustraciones grandes)`);
+  await t.check(svgBig >= 3 && svgBad.length === 0, 'Ningún SVG de las pantallas (portada, vacíos, iconos) contiene <text>, <tspan>, <image> ni <foreignObject>', [...new Set(svgBad)].slice(0, 6).join(' | ') + ` · grandes vistos: ${svgBig}`);
+  const decor = CORPUS.flatMap((c) => (c.svgs || []).filter((v) => v.big && !v.hidden).map((v) => `${c.screen}: svg.${v.cls}`));
+  await t.check(decor.length === 0, 'Las ilustraciones grandes son decorativas (aria-hidden)', [...new Set(decor)].slice(0, 6).join(' | '));
   const enBuscar = CORPUS.filter((c) => /^#\/buscar/.test(c.hash) && /En la gu[ií]a|No aparece/i.test(c.text)).map((c) => c.screen);
   await t.check(enBuscar.length === 0, '(a) Ninguna pantalla de Buscar contiene «En la guía» ni «No aparece»', enBuscar.join(', '));
   const arrq = CORPUS.filter((c) => /^#\/arranque/.test(c.hash) && NO_EMBUTIDOS.test(c.text)).map((c) => c.screen);
