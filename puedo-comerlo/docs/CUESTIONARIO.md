@@ -1,4 +1,9 @@
+Respondido por la clienta el 24-10-2026: aplicado
+
 # Cuestionario: lo que hoy sale «No estoy segura»
+
+> Junto a cada pregunta, **→ Decisión final** cuando cambia o precisa la propuesta. Las demás quedan como se
+> propusieron. Detalles en `docs/DECISIONES.md`, sección «Cuestionario».
 
 He pasado 293 platos y productos habituales por el motor. Estos 90 salen «No estoy segura» porque
 no están en la guía (el 91, «miel», sale mal por un fallo). Al lado va mi propuesta (con la regla nueva: lo cocinado dentro del plato, «Sí»).
@@ -11,21 +16,21 @@ y el nivel, por ejemplo: «OK salvo 7 Sí, 42 Con cuidado». S = Sí · C = Con 
 2. Croquetas caseras → **S**, igual que la anterior.
 3. Anchoas del Cantábrico (en salazón) → **N**, pescado curado sin cocinar, como los boquerones en vinagre.
 4. Gulas al ajillo → **S**, surimi cocinado.
-5. Surimi → **S**, producto cocido.
+5. Surimi → **S**, producto cocido. **→ Decisión final: N** (refrigerado listo para comer, como los loncheados).
 6. Caldo gallego → **S**, guiso cocinado.
 7. Arroz al horno → **S**, todo va al horno.
-8. Espaguetis a la carbonara → **C**, la receta clásica lleva yema casi cruda: preguntar si el huevo va cuajado.
+8. Espaguetis a la carbonara → **C**, la receta clásica lleva yema casi cruda: preguntar si el huevo va cuajado. **→ Decisión final: C**, con la pregunta «¿La carbonara lleva yema cruda o el huevo va cuajado?».
 9. Espaguetis boloñesa → **S**.
 10. Lasaña → **S**.
 11. Canelones → **S**.
 12. Gnocchi → **S**.
-13. Perrito caliente → **S**, si la salchicha llega bien caliente.
+13. Perrito caliente → **S**, si la salchicha llega bien caliente. **→ Decisión final: C**, con la pregunta «¿La salchicha está bien hecha y caliente por dentro?».
 14. Sándwich mixto → **S**, caliente (ya lo arregla la regla nueva).
 15. Bikini → **S**, igual que el mixto.
 16. Montadito de pringá → **S**, carne del cocido.
 17. Oreja a la plancha → **S**.
 18. Morcilla (cocinada) → **S**.
-19. Salchichas (cocinadas) → **S**.
+19. Salchichas (cocinadas) → **S**. **→ Decisión final: S** a secas; «Frankfurt» o «de paquete», C (ver 67).
 20. Butifarra → **S**, a la brasa o cocida.
 21. Gyozas → **S**, si están hechas por dentro.
 22. Rollitos de primavera → **S**.
@@ -41,7 +46,7 @@ y el nivel, por ejemplo: «OK salvo 7 Sí, 42 Con cuidado». S = Sí · C = Con 
 30. Natillas → **S**, cocidas.
 31. Crema catalana → **S**.
 32. Brownie → **S**.
-33. Coulant → **C**, el centro líquido es huevo poco hecho.
+33. Coulant → **C**, el centro líquido es huevo poco hecho. **→ Decisión final: C**, con la pregunta sobre el centro líquido.
 34. Profiteroles → **S**.
 35. Panna cotta → **S** (lleva gelatina: aviso si eres vegetariana).
 36. Torrijas → **S**.
@@ -59,7 +64,7 @@ y el nivel, por ejemplo: «OK salvo 7 Sí, 42 Con cuidado». S = Sí · C = Con 
 46. Rooibos → **S**, sin cafeína.
 47. Infusión de jengibre → **C**, sin pasarse.
 48. Tónica → **C**, lleva quinina.
-49. Horchata → **C**: de brick (pasteurizada), sí; artesana sin pasteurizar, mejor no.
+49. Horchata → **C**: de brick (pasteurizada), sí; artesana sin pasteurizar, mejor no. **→ Decisión final: C** a secas; «pasteurizada» o «de brick», S; «artesana» o «sin pasteurizar», N.
 50. Leche de avena → **S**.
 51. Bebida de soja → **S**.
 52. Leche de almendras → **S**.
@@ -80,7 +85,7 @@ y el nivel, por ejemplo: «OK salvo 7 Sí, 42 Con cuidado». S = Sí · C = Con 
 65. Crema de cacahuete → **S**.
 66. Nata para cocinar → **S**.
 67. Salchichas Frankfurt → **C**, calentarlas bien, no comerlas frías del paquete (listeria).
-68. Huevos → **S**, bien hechos.
+68. Huevos → **S**, bien hechos. **→ Decisión final: S**; la yema líquida (frito, huevos rotos…), N: «nada de mojar la yema». Con la yema hecha o cuajada, S.
 69. Tofu → **S**.
 70. Seitán → **S**.
 71. Gulas → **S**.
@@ -103,16 +108,17 @@ y el nivel, por ejemplo: «OK salvo 7 Sí, 42 Con cuidado». S = Sí · C = Con 
 88. Levadura → **S**.
 89. Gelatina → **S** (aviso si eres vegetariana).
 90. Chicle → **S**.
-91. Miel → **S** (hoy sale «Mejor no» por un fallo que confunde «miel» con «mielga», un pescado; ya lo estamos corrigiendo).
+91. Miel → **S** (hoy sale «Mejor no» por un fallo que confunde «miel» con «mielga», un pescado; ya lo estamos corrigiendo). **→ Decisión final: S**, con ficha propia; «miel» ya no se confunde con «mielga».
 
 ## Dos dudas más
-92. Chuletón → hoy **N**, porque en España se sirve casi siempre poco hecho. ¿Lo dejo así o lo pongo **C**, «solo si lo pides hecho del todo»?
-93. Kombucha → hoy **C**. ¿Lo subo a **N**? Es fermentada y puede tener algo de alcohol.
+92. Chuletón → hoy **N**, porque en España se sirve casi siempre poco hecho. ¿Lo dejo así o lo pongo **C**, «solo si lo pides hecho del todo»? **→ Decisión final: N**, con ficha propia («Suele servirse poco hecho: mejor no. Muy hecho, decides tú.»); «muy hecho», «bien hecho» o «hecho del todo», S.
+93. Kombucha → hoy **C**. ¿Lo subo a **N**? Es fermentada y puede tener algo de alcohol. **→ Decisión final: N**.
 
 ## Una decisión técnica
 94. Modelo que lee las fotos (coste orientativo por foto de carta):
-   - **Opus 5.5:** unos 2 céntimos. El que mejor lee. Va por defecto.
+   - **Opus 5.5:** unos 2 céntimos. El que mejor lee.
    - **Sonnet 5.5:** menos de 1 céntimo. Lee muy bien.
    - **Haiku 5.5:** unas centésimas de céntimo. El más barato; con letra difícil puede fallar más.
    
    Para familia y amigos, la diferencia en euros al mes es mínima. Mi recomendación es Sonnet 5.5: buen equilibrio. Responde «94 Opus», «94 Sonnet» o «94 Haiku».
+   **→ La clienta eligió Sonnet 5.5.** Es el modelo por defecto en `api/leer.js`; se puede cambiar con `VISION_MODEL`.

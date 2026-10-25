@@ -2,3 +2,5 @@ node_modules/
 .vercel/
 test-results/
 tests/e2e/out/
+.vercel
+.env*

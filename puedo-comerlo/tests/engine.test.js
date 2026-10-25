@@ -345,7 +345,9 @@ describe('classifyProduct (Open Food Facts)', () => {
     assert.equal(classifyProduct({ name: 'Mahou Clásica', categories: ['en:beers'] }, BASE).level, 'no');
     assert.equal(classifyProduct({ name: 'Agua mineral natural' }, BASE).foodId, 'agua');
     // «agua» o «zumo de limón» entre los ingredientes no dicen nada del producto.
-    assert.equal(classifyProduct({ name: 'Pan de molde', ingredientsText: 'harina de trigo, agua, sal' }, BASE).level, 'duda');
+    // Tampoco la harina, la sal o el aceite: un producto desconocido no pasa a «Sí» por ellos.
+    assert.equal(classifyProduct({ name: 'Hogaza del obrador', ingredientsText: 'harina de trigo, agua, sal' }, BASE).level, 'duda');
+    assert.equal(classifyProduct({ name: 'Pan de molde', ingredientsText: 'harina de trigo, agua, sal' }, BASE).foodId, 'pan');
     const queso = classifyProduct({ name: 'Queso de cabra', ingredientsText: 'leche pasteurizada de cabra, sal, cuajo' }, BASE);
     assert.equal(queso.level, 'si');
     assert.match(queso.phrase, /Quita la corteza/);
@@ -443,7 +445,7 @@ test('«ostras gratinadas» es marisco hecho; «ostras» a secas, crudo', () => 
 describe('cocinado dentro del plato (decisión de la clienta)', () => {
   test('pizza: base «Sí», con la pregunta del jamón curado', () => {
     const v = expectLevel('pizza barbacoa', 'si');
-    assert.equal(v.question, '¿El jamón curado va al horno o se pone al final, en frío?');
+    assert.equal(v.question, '¿Lo que lleva encima va al horno o se pone al final, en frío?');
     assert.match(v.detail, /después del horno/);
     expectLevel('pizza', 'si');
     expectLevel('pizza de chorizo', 'si');
@@ -572,5 +574,65 @@ describe('regresiones de la revisión con 293 platos', () => {
     for (const t of ['clara de huevo', 'claras montadas', 'tortilla de claras']) {
       assert.ok(!ct(t).foodIds.includes('alcohol'), t);
     }
+  });
+});
+
+describe('cuestionario de la clienta (24-10-2026)', () => {
+  const casos = {
+    si: [
+      'croquetas', 'croquetas congeladas', 'gulas al ajillo', 'caldo gallego', 'arroz al horno', 'espaguetis boloñesa',
+      'lasaña congelada', 'canelones', 'gnocchi', 'cuscús', 'montadito de pringá', 'oreja a la plancha', 'morcilla',
+      'morcilla de burgos', 'salchichas', 'butifarra', 'gyozas', 'pad thai', 'tacos', 'burrito', 'guacamole', 'falafel',
+      'flan', 'crema catalana', 'brownie', 'panna cotta', 'torrijas', 'tarta de santiago', 'cruasán', 'magdalenas',
+      'rooibos', 'leche de avena', 'bebida de soja', 'pan de molde', 'tostadas', 'muesli', 'mantequilla',
+      'aceite de oliva', 'crema de cacahuete', 'huevos', 'tofu', 'seitán', 'aceitunas', 'aceitunas rellenas de anchoa',
+      'kétchup', 'salsa de soja', 'vinagre', 'sal', 'harina', 'levadura de cerveza', 'gelatina', 'chicle', 'miel',
+      'horchata de brick', 'chuletón muy hecho', 'huevo frito con la yema hecha', 'anchoas fritas',
+    ],
+    cuidado: [
+      'espaguetis a la carbonara', 'perrito caliente', 'coulant', 'tila', 'infusión de jengibre', 'tónica', 'horchata',
+      'salchichas frankfurt', 'salchichas de paquete',
+    ],
+    no: [
+      'anchoas del cantábrico', 'surimi', 'poleo menta', 'chuletón', 'kombucha', 'horchata artesana', 'huevo frito',
+      'huevos rotos', 'huevos con patatas', 'clara de limón',
+    ],
+  };
+  for (const [level, textos] of Object.entries(casos)) {
+    test(`nivel «${LEVEL_LABEL[level]}»`, () => {
+      for (const t of textos) expectLevel(t, level);
+    });
+  }
+
+  test('fichas con la frase y la pregunta decididas', () => {
+    assert.equal(ct('huevo frito').phrase, 'La yema líquida, mejor no estos meses: nada de mojar la yema.');
+    assert.equal(ct('chuletón').foodId, 'chuleton');
+    assert.ok(ct('chuletón').phrase.length <= 90);
+    assert.match(FOOD_BY_ID.chuleton.detail, /zapatilla/);
+    assert.equal(ct('espaguetis a la carbonara').question, '¿La carbonara lleva yema cruda o el huevo va cuajado?');
+    assert.equal(ct('perrito caliente').question, '¿La salchicha está bien hecha y caliente por dentro?');
+    assert.equal(ct('horchata artesana').foodId, 'horchata-artesana');
+    assert.equal(ct('horchata de brick').foodId, 'horchata-pasteurizada');
+  });
+
+  test('alergias en los alimentos nuevos', () => {
+    expectLevel('flan', 'no', { alergias: ['huevo'] });
+    expectLevel('pan de molde', 'no', { alergias: ['gluten'] });
+    expectLevel('pad thai', 'no', { alergias: ['frutos_secos'] });
+    expectLevel('tofu', 'no', { alergias: ['soja'] });
+    expectLevel('tarta de santiago', 'no', { alergias: ['frutos_secos'] });
+    expectLevel('falafel', 'no', { alergias: ['sesamo'] });
+    expectLevel('pan de molde sin gluten', 'si', { alergias: ['gluten'] });
+  });
+
+  test('colisiones: palabra completa y perfil de embutido', () => {
+    assert.ok(!ct('panna cotta').foodIds.includes('pan'));
+    assert.ok(!ct('panceta').foodIds.includes('pan'));
+    assert.equal(ct('pan con tomate').foodId, 'pan-tomate');
+    assert.ok(!ct('salsa verde').foodIds.includes('aceite-vinagre-sal'));
+    assert.equal(ct('mielga').foodId, 'pescado-mercurio');
+    assert.ok(!ct('levadura de cerveza').foodIds.includes('alcohol'));
+    assert.equal(expectLevel('croquetas de jamón', 'no', { embutido: 'no' }).phrase, 'Has decidido no comer embutidos.');
+    assert.ok(!ct('morcilla de burgos').foodIds.includes('queso-fresco'));
   });
 });

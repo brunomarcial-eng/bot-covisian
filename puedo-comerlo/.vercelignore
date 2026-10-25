@@ -10,3 +10,4 @@ server.js
 .vercel/
 test-results/
 scripts/
+.env*
