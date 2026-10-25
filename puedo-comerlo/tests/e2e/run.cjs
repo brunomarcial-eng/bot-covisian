@@ -55,7 +55,8 @@ const PROFILE_BASE = { alergias: [], otra: '', dieta: [] };
 // Lo que ya no debe existir en el arranque ni en Ajustes (la pregunta de embutidos se retiró).
 const NO_EMBUTIDOS = /embutid|jam[oó]n|AESAN|toxoplasm|listeria|solo si van cocinados|qu[eé] has decidido/i;
 // Estructura vieja que ya no existe (rediseño N5).
-const LEGACY_SEL = '.card, .chip, .chips, .sheet, .row, .link-btn, .answer .pill, .entry .pill';
+// (`.chip`/`.chips` vuelven en N8, pero solo dentro de «Ver más» como temas neutros; las de grupo siguen prohibidas)
+const LEGACY_SEL = '.card, .sheet, .row, .link-btn, .answer .pill, .entry .pill';
 const LEVEL_WORDS = Object.values(LEVEL_LABEL);
 // N6: la pantalla de UNA respuesta toma el color del veredicto en el fondo del body.
 const TONE_BG = { si: 'rgb(36, 84, 67)', cuidado: 'rgb(176, 79, 16)', no: 'rgb(122, 51, 44)', duda: 'rgb(134, 103, 42)' };
@@ -887,8 +888,9 @@ async function s3(t, browser) {
   const tb = await bodyText(page);
   await t.check(!/En la gu[ií]a/i.test(tb), 'Buscar no contiene «En la guía»', short(tb, 200));
   await t.check(!/No aparece/i.test(tb), 'Buscar no contiene el aviso «No aparece…»', short(tb, 200));
-  const chips = await page.locator('.chip, .chips, [role=tablist], [role=tab]').count();
-  await t.check(chips === 0, 'Buscar no tiene chips de grupo (.chip, .chips, tabs)', String(chips));
+  // Los chips de «Para saber más» (N8) viven dentro de «Ver más»; fuera de él no debe haber chips ni pestañas de grupo
+  const chips = await page.locator('.chip, .chips, [role=tablist], [role=tab]').evaluateAll((els) => els.filter((e) => !e.closest('.more')).length);
+  await t.check(chips === 0, 'Buscar no tiene chips de grupo ni pestañas fuera de «Ver más»', String(chips));
   const grupos = ['Todo', 'Embutidos', 'Lácteos', 'Huevos', 'Carne', 'Pescado', 'En el restaurante', 'Bebidas', 'Supermercado'];
   const filtros = [];
   for (const g of grupos) { if (await page.getByRole('button', { name: new RegExp('^\\s*' + esc(g) + '\\s*$', 'i') }).filter({ visible: true }).count()) filtros.push(g); }
@@ -1247,6 +1249,8 @@ async function s6(t) {
 async function s7(t, browser) {
   const { page } = await t.newPage(browser);
   await seed(page, t, { alergias: ['leche', 'frutos_secos'] });
+  // /api/producto simulado (503: sin búsqueda web): ni en local ni en producción se hace ninguna llamada real
+  await page.context().route('**/api/producto', (route) => route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"sin_vision"}' }));
   await tapNav(page, 'Súper');
   await waitHash(page, /super/, 3000);
   await t.check(await seen(page, TXT.super, { timeout: 3000 }), 'Súper: texto literal «El código consulta Open Food Facts…»');
@@ -1318,8 +1322,10 @@ async function s7(t, browser) {
   const nf = await seen(page, /no (est[aá]|aparece|lo (encuentro|tengo|he encontrado)|figura|hay datos|sale)|sin datos|no encontrad/i, { timeout: 15000 });
   const txtNf = await bodyText(page);
   await t.check(nf, '8410014312203 → dice que no está', short(txtNf, 300));
+  await t.check(txtNf.includes('No lo encuentro. Fotografía los ingredientes y lo miro por ti.') && !/No está en Open Food Facts/.test(txtNf), '…con el texto literal «No lo encuentro. Fotografía los ingredientes y lo miro por ti.»', short(txtNf, 300));
   const offer = await find(page, /etiqueta|ingredientes/i, { timeout: 2000 });
-  await t.check(!!offer && /foto|fotograf|etiqueta/i.test(txtNf), '…y ofrece fotografiar la etiqueta', short(txtNf, 300));
+  await t.check(!!offer && /foto|fotograf|etiqueta/i.test(txtNf), '…y ofrece fotografiar los ingredientes', short(txtNf, 300));
+  await t.check(!!(await find(page, 'Fotografiar los ingredientes', { timeout: 1000, loose: false })), '…con el botón «Fotografiar los ingredientes»');
   await snap(page, t, 'no-encontrado');
   await t.shot('no-encontrado');
 
@@ -1345,7 +1351,8 @@ async function s7(t, browser) {
           const ts = await settledTone(page);
           await t.check(ts.verdict === LEVEL_KEY[lp[0].label] && ts.bg === TONE_BG[ts.verdict], 'Etiqueta de un solo plato: pantalla entera del color de su veredicto', JSON.stringify({ lvl: lp[0].label, v: ts.verdict, bg: ts.bg, meta: ts.meta }));
         }
-        if (!(await seen(page, 'La etiqueta', { timeout: 1000 }))) t.warn('El resultado de la etiqueta no se titula «La etiqueta»');
+        const lc = await page.locator('section.label-check li.check-row').count();
+        t.info('Foto de los ingredientes (sin producto): filas de «Lo que he mirado en la etiqueta»', String(lc));
         if (!(lp[0] && lp[0].label === 'Mejor no' && /Has marcado/.test(lp[0].phrase))) t.warn('Queso fresco con alergia a la leche no sale «Mejor no» con «Has marcado…»', lp.map((x) => x.label + ': ' + short(x.card, 100)).join(' | '));
       } else if (r.outcome !== 'mensaje') t.warn('La lectura de la etiqueta no termina ni en fichas ni en mensaje', r.outcome);
     } catch (e) { t.warn('Flujo de etiqueta (opcional) no completado', e.message); }
@@ -1818,6 +1825,683 @@ async function s10(t, browser) {
   if (mentions.size) t.info('Apariciones en texto corrido (revisar a mano)', [...mentions].slice(0, 15).join(' | '));
 }
 
+// ======================================================================
+// N8: escaneo guiado, claves del embarazo y lista de la compra (escenarios 12–17)
+// ======================================================================
+// Todo lo que toca internet va simulado con page.route: ni en local ni en producción se llama de verdad a
+// /api/producto (salvo UNA vez, en el escenario 17, con el código 8424289001480 como prueba de humo).
+
+const VIEWPORTS = [{ w: 390, h: 844 }, { w: 360, h: 740 }];
+const CODE = {
+  sinIng: '8412345678905',   // OFF lo conoce («Ñoquis de patata») pero sin ingredientes; /api/producto → 503
+  web: '8412345678912',      // OFF no lo tiene; internet: queso fresco con ingredientes (confianza media)
+  webCruda: '8412345678929', // OFF no lo tiene; internet: leche cruda (confianza alta)
+  webBaja: '8412345678936',  // OFF no lo tiene; internet con confianza baja (se ignoran los ingredientes)
+  nada: '8412345678943',     // en ningún sitio: /api/producto → found:false
+  nada503: '8412345678950',  // en ningún sitio: /api/producto → 503
+  webLenta: '8412345678967', // OFF 404 rápido; internet tarda
+  offLento: '8412345678974', // OFF tarda
+};
+const WEB_URL = 'https://www.compraonline.alcampo.es/products/queso-fresco-test';
+const SMOKE_CODE = '8424289001480';
+const MSG = {
+  noLoEncuentro: 'No lo encuentro. Fotografía los ingredientes y lo miro por ti.',
+  sinIng: 'No tengo los ingredientes de este producto. Fotografíalos y lo compruebo.',
+  web: 'Datos encontrados en internet, sin confirmar con la etiqueta.',
+  noLeidos: 'No he podido leer los ingredientes. Acércala, con buena luz.',
+};
+const jsonRoute = (route, body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) }).catch(() => {});
+
+function tagged(t, tag) {
+  return {
+    get id() { return t.id; },
+    get requests() { return t.requests; },
+    get events() { return t.events; },
+    check: (ok, what, d, pg) => t.check(ok, `[${tag}] ${what}`, d, pg),
+    warn: (w, d) => t.warn(`[${tag}] ${w}`, d),
+    info: (w, d) => t.info(`[${tag}] ${w}`, d),
+    shot: (n, pg) => t.shot(`${tag.replace(/[^\d×x]/g, '')}-${n}`, pg),
+    newPage: (b, o) => t.newPage(b, o),
+  };
+}
+
+// Simula Open Food Facts, /api/producto y /api/leer (si state.leerNext no es null).
+async function mockN8(ctx, st) {
+  st.off = []; st.producto = []; st.leerBodies = []; st.leerNext = null;
+  await ctx.route('**/world.openfoodfacts.org/api/v2/product/*', async (route) => {
+    const code = (route.request().url().match(/product\/(\d+)/) || [])[1];
+    st.off.push(code);
+    if (code === CODE.sinIng) return jsonRoute(route, { status: 1, code, product: { code, product_name: 'Ñoquis de patata', brands: 'Marca Test' } });
+    if (code === CODE.offLento) await sleep(4500);
+    return jsonRoute(route, { status: 0, status_verbose: 'product not found', code }, 404);
+  });
+  await ctx.route('**/api/producto', async (route) => {
+    const body = parseJSON(route.request().postData() || '', {}) || {};
+    st.producto.push(body);
+    const web = (name, ingredientsText, confidence, brand = 'Marca Test') => ({ found: true, product: { code: body.code, name, brand, ingredientsText, allergens: [], traces: [], categories: [], labels: [], image: null }, source: 'web', sourceName: 'Alcampo', sourceUrl: WEB_URL, confidence });
+    if (body.code === CODE.web) return jsonRoute(route, web('Queso fresco Test', 'leche pasteurizada de vaca, sal, cuajo', 'media'));
+    if (body.code === CODE.webCruda) return jsonRoute(route, web('Queso de oveja Test', 'leche cruda de oveja, sal, cuajo', 'alta'));
+    if (body.code === CODE.webBaja) return jsonRoute(route, web('Galletas Test', 'harina de trigo, azúcar, huevo', 'baja'));
+    if (body.code === CODE.nada) return jsonRoute(route, { found: false });
+    if (body.code === CODE.webLenta) { await sleep(4500); return jsonRoute(route, { found: false }); }
+    return jsonRoute(route, { error: 'sin_vision' }, 503);
+  });
+  await ctx.route('**/api/leer', async (route) => {
+    if (st.leerNext) { st.leerBodies.push(parseJSON(route.request().postData() || '', null)); return jsonRoute(route, st.leerNext); }
+    return route.continue().catch(() => {});
+  });
+}
+
+async function codeSubmit(page, code) {
+  const inp = page.locator('#codigo');
+  await inp.fill(code);
+  await inp.press('Enter');
+}
+
+// Contraste de todo el texto del bloque `.guided` sobre su fondo efectivo (el del color de la pantalla o el crema de un botón).
+async function guidedContrast(page, sel = '.guided') {
+  const data = await page.evaluate((sel) => {
+    const g = document.querySelector(sel); if (!g) return null;
+    const bodyBg = getComputedStyle(document.body).backgroundColor;
+    const transparent = (c) => !c || c === 'transparent' || /rgba\(\s*0,\s*0,\s*0,\s*0\s*\)/.test(c);
+    const eff = (el) => { for (let n = el; n && n !== document.documentElement; n = n.parentElement) { const bg = getComputedStyle(n).backgroundColor; if (!transparent(bg)) return bg; } return bodyBg; };
+    const out = [];
+    for (const el of g.querySelectorAll('*')) {
+      if (![...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())) continue;
+      const r = el.getBoundingClientRect(); if (!r.width || !r.height) continue;
+      const cs = getComputedStyle(el);
+      out.push({ text: el.textContent.trim().slice(0, 40), color: cs.color, bg: eff(el), op: Number(cs.opacity) });
+    }
+    return { bodyBg, out };
+  }, sel);
+  if (!data) return null;
+  const low = data.out.filter((x) => {
+    const bg = parseRgb(x.bg, parseRgb(data.bodyBg));
+    const fg = parseRgb(x.color, bg);
+    if (!bg || !fg) return false;
+    const [l1, l2] = [lum(fg), lum(bg)].sort((a, b) => b - a);
+    return (l1 + 0.05) / (l2 + 0.05) < 4.5 || x.op < 0.6;
+  });
+  return { n: data.out.length, low: low.map((x) => `${x.text}: ${x.color} sobre ${x.bg}`) };
+}
+
+// Auditoría de maquetación de la pantalla actual: scroll horizontal, controles < 48 px, pie y contenido tapado.
+async function auditScreen(page) {
+  await page.waitForTimeout(TONE_WAIT);
+  const problems = [];
+  const b = await buttonSizes(page);
+  const bad = b.buttons.filter((x) => x.h < 47.5 && x.kind !== 'opcion' && x.kind !== 'enlace-texto');
+  if (b.scrollW > b.innerW + 1) problems.push(`scroll horizontal ${b.scrollW}/${b.innerW}`);
+  if (bad.length) problems.push(`controles < 48 px: ${[...new Set(bad.map((x) => `${x.text} ${x.h}`))].join(', ')}`);
+  await page.evaluate(() => window.scrollTo(0, 0)); await page.waitForTimeout(100);
+  const f = await footerState(page);
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight)); await page.waitForTimeout(250);
+  const f2 = await footerState(page);
+  if (!(f.found && f.ok && f2.found && f2.ok)) problems.push('pie no visible');
+  const over = await page.evaluate(() => {
+    const foot = document.querySelector('footer, [role=contentinfo]'); const top = foot ? foot.getBoundingClientRect().top : innerHeight;
+    const els = [...document.querySelectorAll('main a, main button, main h1, main h2, main p, main li, main label')].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && !e.closest('[hidden]'); });
+    const last = els.map((e) => e.getBoundingClientRect().bottom).reduce((a, c) => Math.max(a, c), 0);
+    const wide = [...document.querySelectorAll('main *')].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.right > innerWidth + 1 && !e.closest('.cover-art, #tone, .tone-marks'); }).map((e) => e.tagName.toLowerCase() + '.' + String(e.className).slice(0, 20));
+    return { lastBottom: Math.round(last), footTop: Math.round(top), wide: wide.slice(0, 4) };
+  });
+  if (over.lastBottom > over.footTop + 1) problems.push(`contenido tapado por el pie (${over.lastBottom} > ${over.footTop})`);
+  if (over.wide.length) problems.push(`desborda por la derecha: ${over.wide.join(', ')}`);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  return problems;
+}
+
+const camaraNoEncontrada = () => {
+  if (!navigator.mediaDevices) return;
+  navigator.mediaDevices.getUserMedia = () => Promise.reject(new DOMException('Requested device not found', 'NotFoundError'));
+  navigator.mediaDevices.enumerateDevices = () => Promise.resolve([]);
+};
+
+// Espera a una de varias cosas visibles: 'label' (section.label-check), 'mensaje' (texto) o 'timeout'.
+async function waitLabelOrMessage(page, message, timeout = OCR_TIMEOUT) {
+  const end = Date.now() + timeout;
+  while (Date.now() < end) {
+    if (await page.locator('section.label-check').count()) return 'label';
+    if ((await bodyText(page)).includes(message)) return 'mensaje';
+    await page.waitForTimeout(400);
+  }
+  return 'timeout';
+}
+
+async function resultInfo(page) {
+  return page.evaluate(() => {
+    const a = document.querySelector('article.answer');
+    const g = document.querySelector('.guided');
+    const q = (s, r = document) => r.querySelector(s);
+    const need = q('section.need-label');
+    const actions = [...document.querySelectorAll('main a.btn, main button.btn')].map((x) => ({ text: x.innerText.replace(/\s+/g, ' ').trim(), cls: x.className, href: x.getAttribute('href') }));
+    const pos = (x, y) => !!(x && y && (x.compareDocumentPosition(y) & Node.DOCUMENT_POSITION_FOLLOWING));
+    return {
+      hash: location.hash,
+      word: a ? (q('.answer-word', a) || {}).textContent : null,
+      name: a ? (q('.answer-name', a) || {}).textContent : null,
+      phrase: a ? (q('.answer-phrase', a) || {}).textContent : null,
+      guided: !!g,
+      order: !!(a && g && pos(q('.answer-phrase', a), g) && pos(g, q('.more-btn', a))),
+      needTitle: need ? (q('.need-label-title', need) || {}).textContent : null,
+      needParas: need ? [...need.querySelectorAll('p')].map((p) => p.textContent.replace(/\s+/g, ' ').trim()) : [],
+      needBtn: need ? (() => { const b = q('a.btn', need); return b ? { text: b.innerText.replace(/\s+/g, ' ').trim(), href: b.getAttribute('href'), cls: b.className, h: Math.round(b.getBoundingClientRect().height) } : null; })() : null,
+      web: (() => { const w = q('.web-notice'); if (!w) return null; const l = q('a.ext-link', w); return { text: w.textContent.replace(/\s+/g, ' ').trim(), link: l ? { href: l.getAttribute('href'), target: l.getAttribute('target'), rel: l.getAttribute('rel'), text: l.textContent.replace(/\s+/g, ' ').trim() } : null }; })(),
+      label: (() => { const s = q('section.label-check'); if (!s) return null; return { title: (q('h2', s) || {}).textContent, rows: [...s.querySelectorAll('li.check-row')].map((r) => ({ topic: r.dataset.topic, status: r.dataset.status, cls: r.className, text: r.innerText.replace(/\s+/g, ' ').trim(), link: (q('a.check-link', r) || {}).getAttribute ? q('a.check-link', r).getAttribute('href') : null, linkText: (q('a.check-link', r) || {}).textContent || null })) }; })(),
+      actions,
+    };
+  });
+}
+
+// ---------- 12. Escaneo guiado: producto sin ingredientes → foto de los ingredientes ----------
+async function s12body(tv, browser, vp) {
+  const { ctx, page } = await tv.newPage(browser, { viewport: { width: vp.w, height: vp.h } });
+  await ctx.addInitScript(camaraNoEncontrada);
+  const st = {}; await mockN8(ctx, st);
+  await seed(page, tv);
+  await go(page, '#/super');
+  await codeSubmit(page, CODE.sinIng);
+  await waitHash(page, /resultado/, 20000);
+  await page.waitForSelector('article.answer', { timeout: 10000 }).catch(() => {});
+  const ts = await settledTone(page);
+  const r = await resultInfo(page);
+  await tv.check(/#\/resultado/.test(r.hash) && r.word === 'No estoy segura' && r.name === 'Ñoquis de patata', 'Producto de OFF sin ingredientes: respuesta «No estoy segura» de «Ñoquis de patata»', JSON.stringify({ h: r.hash, w: r.word, n: r.name }));
+  await tv.check(r.phrase === MSG.sinIng, `La frase es «${MSG.sinIng}»`, r.phrase);
+  await checkTone(tv, page, 'duda', 'Ñoquis sin ingredientes', ts);
+  await tv.check(r.guided && r.order, 'El bloque .guided va bajo la frase y antes de «Ver más»', JSON.stringify({ g: r.guided, o: r.order }));
+  await tv.check(r.needTitle === 'Me faltan los ingredientes', 'Bloque section.need-label con el título «Me faltan los ingredientes»', r.needTitle);
+  await tv.check(r.needParas.includes('He encontrado el producto por su nombre, pero no trae la lista de ingredientes.'), 'Dice «He encontrado el producto por su nombre, pero no trae la lista de ingredientes.»', r.needParas.join(' | '));
+  await tv.check(r.needParas.some((x) => /^Voy a mirar si lleva: .+\.$/.test(x) && /huevo/.test(x)), '«Voy a mirar si lleva: …» nombra el huevo (los ñoquis)', r.needParas.join(' | '));
+  await tv.check(r.needParas.includes('Con la foto de la etiqueta te lo digo mejor.'), 'Dice «Con la foto de la etiqueta te lo digo mejor.»', r.needParas.join(' | '));
+  await tv.check(!!r.needBtn && r.needBtn.text === 'Fotografiar los ingredientes' && r.needBtn.href === '#/super?ingredientes=1' && /btn--primary/.test(r.needBtn.cls) && r.needBtn.h >= 47.5, 'Botón principal «Fotografiar los ingredientes» (#/super?ingredientes=1, ≥ 48 px)', JSON.stringify(r.needBtn));
+  const otro = r.actions.find((x) => x.text === 'Escanear otro código');
+  await tv.check(!!otro && /btn--secondary/.test(otro.cls), '«Escanear otro código» pasa a secundario mientras haya que fotografiar', JSON.stringify(otro));
+  await tv.check(r.web === null, 'Sin aviso de datos de internet (no vino de la web)');
+  const body0 = st.producto[0] || null;
+  await tv.check(!!body0 && body0.code === CODE.sinIng && Object.keys(body0).every((k) => ['code', 'name', 'brand'].includes(k)) && body0.name === 'Ñoquis de patata', '/api/producto recibe solo código, nombre y marca (sin datos de la persona)', JSON.stringify(body0));
+  const gc = await guidedContrast(page);
+  await tv.check(!!gc && gc.n > 3 && gc.low.length === 0, 'Contraste del bloque sobre el ocre ≥ 4,5:1 (texto, enlaces y botón)', gc ? gc.low.join(' | ') + ` · ${gc.n} textos` : 'sin bloque');
+  await snap(page, tv, 'escaneo-sin-ingredientes');
+  const pr = await auditScreen(page);
+  await tv.check(pr.length === 0, 'Maquetación: sin desborde horizontal, controles ≥ 48 px, nada tapado por el pie', pr.join(' | '));
+  await tv.shot('escaneo-sin-ingredientes');
+
+  // «Cancelar» la cámara de los ingredientes vuelve al resultado
+  await tap(page, 'Fotografiar los ingredientes', { loose: false });
+  await waitHash(page, /super/, 5000);
+  await tv.check(await seen(page, 'Cancelar', { timeout: 6000 }), 'La foto de los ingredientes ofrece «Cancelar»');
+  await tv.check(await seen(page, /Elegir una foto de la galer[ií]a/, { timeout: 4000 }), 'Sin cámara, ofrece la galería');
+  await tv.shot('foto-ingredientes');
+  await tap(page, 'Cancelar', { loose: false });
+  await tv.check(/#\/resultado/.test(await waitHash(page, /resultado/, 4000)) && (await seen(page, 'No estoy segura', { timeout: 2000 })), 'Cancelar vuelve al resultado del producto', await getHash(page));
+
+  // Foto de los ingredientes (lectura simulada, para que haya huevo) → comprobación de la etiqueta
+  st.leerNext = { readable: true, items: [{ name: 'Ñoquis', ingredients: ['patata cocida (80%)', 'huevo', 'harina de trigo', 'sal'], uncertain: false }] };
+  await tap(page, 'Fotografiar los ingredientes', { loose: false });
+  await chooseFile(page, 'Elegir una foto', path.join(FIX, 'etiqueta.jpg'));
+  await waitHash(page, /resultado/, 20000);
+  await page.waitForSelector('section.label-check', { timeout: 15000 }).catch(() => {});
+  const ts2 = await settledTone(page);
+  const r2 = await resultInfo(page);
+  await tv.check(!!r2.label && r2.label.title === 'Lo que he mirado en la etiqueta', 'Tras la foto: section.label-check «Lo que he mirado en la etiqueta»', JSON.stringify(r2.label && r2.label.title));
+  await tv.check(!!r2.label && r2.label.rows.length >= 1 && r2.label.rows.every((x) => x.topic && ['aparece', 'no-aparece'].includes(x.status)), 'Filas li.check-row con data-topic y data-status', JSON.stringify(r2.label && r2.label.rows.map((x) => [x.topic, x.status])));
+  const huevo = r2.label && r2.label.rows.find((x) => x.topic === 'huevo-crudo');
+  await tv.check(!!huevo && huevo.status === 'aparece' && /^Aparece: .*huevo/i.test(huevo.text) && /check-row--found/.test(huevo.cls), 'Fila del huevo: «Aparece: …huevo…» (check-row--found)', huevo && huevo.text);
+  await tv.check(!!huevo && huevo.link === '#/claves/huevo-crudo' && huevo.linkText === 'Por qué importa', 'La fila hallada enlaza «Por qué importa» → #/claves/huevo-crudo', JSON.stringify(huevo && [huevo.link, huevo.linkText]));
+  const firstNotFound = r2.label ? r2.label.rows.findIndex((x) => !/found|doubt/.test(x.cls)) : -1;
+  const lastFound = r2.label ? r2.label.rows.map((x) => /found|doubt/.test(x.cls)).lastIndexOf(true) : -1;
+  await tv.check(firstNotFound === -1 || lastFound < firstNotFound, 'Lo hallado va primero; lo tranquilizador y lo que no aparece, después', JSON.stringify(r2.label && r2.label.rows.map((x) => x.cls.replace('check-row ', ''))));
+  await tv.check(r2.name === 'Ñoquis de patata' && r2.needTitle === null, 'El nombre es el del código y ya no se piden los ingredientes', JSON.stringify({ n: r2.name, need: r2.needTitle }));
+  await tv.check(ts2.verdict === LEVEL_KEY[r2.word] && ts2.bg === TONE_BG[ts2.verdict], 'La pantalla toma el color del nuevo veredicto', JSON.stringify({ v: ts2.verdict, bg: ts2.bg, w: r2.word }));
+  const gc2 = await guidedContrast(page);
+  await tv.check(!!gc2 && gc2.n > 2 && gc2.low.length === 0, `Contraste del bloque de etiqueta sobre «${r2.word}» ≥ 4,5:1`, gc2 ? gc2.low.join(' | ') + ` · ${gc2.n} textos` : 'sin bloque');
+  const hist = parseJSON((await storage(page))['pc.v1.history'], []);
+  await tv.check(hist.filter((e) => /Ñoquis de patata/.test(e.title)).length === 1, 'El historial sustituye la entrada anterior del mismo producto (una sola)', JSON.stringify(hist.map((e) => e.title)));
+  const lb = st.leerBodies[0];
+  await tv.check(!!lb && Object.keys(lb).every((k) => ['image', 'mediaType', 'mode'].includes(k)) && lb.mode === 'etiqueta', 'Privacidad: el POST a /api/leer solo lleva image, mediaType y mode («etiqueta»)', lb ? Object.keys(lb).join(', ') + ' ' + lb.mode : 'sin POST');
+  await snap(page, tv, 'tras-foto-ingredientes');
+  const pr2 = await auditScreen(page);
+  await tv.check(pr2.length === 0, 'Maquetación tras la foto: sin desborde, controles ≥ 48 px, nada tapado por el pie', pr2.join(' | '));
+  await tv.shot('tras-foto');
+  // «Por qué importa» abre la clave
+  if (huevo) {
+    await page.locator('section.label-check a.check-link').first().click();
+    await waitHash(page, /claves/, 4000);
+    await page.waitForTimeout(700);
+    const open = await page.evaluate(() => [...document.querySelectorAll('li.clave')].filter((l) => l.querySelector('.clave-head').getAttribute('aria-expanded') === 'true').map((l) => l.dataset.clave));
+    await tv.check(/#\/claves\/huevo-crudo/.test(await getHash(page)) && open.length === 1 && open[0] === 'huevo-crudo', '«Por qué importa» abre #/claves/huevo-crudo con esa clave abierta', JSON.stringify({ h: await getHash(page), open }));
+  }
+
+  // Foto REAL (etiqueta.jpg sin simular la lectura): o filas de etiqueta o el mensaje honesto
+  st.leerNext = null;
+  await go(page, '#/super');
+  await codeSubmit(page, CODE.sinIng);
+  await waitHash(page, /resultado/, 20000);
+  await page.waitForSelector('a.btn[href="#/super?ingredientes=1"]', { timeout: 10000 }).catch(() => {});
+  await page.locator('a.btn[href="#/super?ingredientes=1"]').click();
+  await chooseFile(page, 'Elegir una foto', path.join(FIX, 'etiqueta.jpg'));
+  const outcome = await waitLabelOrMessage(page, MSG.noLeidos);
+  tv.info('etiqueta.jpg real sobre el producto sin ingredientes', outcome);
+  if (outcome === 'label') {
+    const r3 = await resultInfo(page);
+    await tv.check(r3.label.rows.length >= 1 && r3.label.rows.every((x) => x.topic && x.status), 'Foto real: filas li.check-row[data-topic][data-status]', JSON.stringify(r3.label.rows.map((x) => [x.topic, x.status])));
+    await tv.check(r3.name === 'Ñoquis de patata', 'Foto real: se conserva el nombre del código', r3.name);
+    await tv.shot('foto-real-etiqueta');
+  } else if (outcome === 'mensaje') {
+    await tv.check(await seen(page, 'Fotografiar los ingredientes', { timeout: 2000 }), 'Sin leer: mensaje honesto «No he podido leer los ingredientes…» y el botón para repetir');
+    tv.warn('etiqueta.jpg no se pudo leer en esta ejecución (lectura del entorno)');
+  } else await tv.check(false, 'La foto real de los ingredientes termina en filas o en mensaje honesto', outcome);
+}
+
+async function s12(t, browser) {
+  for (const vp of VIEWPORTS) await s12body(tagged(t, `${vp.w}×${vp.h}`), browser, vp);
+}
+
+// ---------- 13. Datos de internet, no encontrado y cancelar ----------
+async function s13body(tv, browser, vp) {
+  const { ctx, page } = await tv.newPage(browser, { viewport: { width: vp.w, height: vp.h } });
+  await ctx.addInitScript(camaraNoEncontrada);
+  const st = {}; await mockN8(ctx, st);
+  await seed(page, tv);
+  const lookupCode = async (code) => { await go(page, '#/super'); await codeSubmit(page, code); await waitHash(page, /resultado/, 15000); await page.waitForSelector('article.answer', { timeout: 8000 }).catch(() => {}); };
+
+  // (2) datos de internet: queso fresco pasteurizado saldría «Sí» → se rebaja a «No estoy segura»
+  await lookupCode(CODE.web);
+  const ts = await settledTone(page);
+  const r = await resultInfo(page);
+  await tv.check(r.word === 'No estoy segura' && r.name === 'Queso fresco Test', 'Datos de internet: el «Sí» se rebaja a «No estoy segura»', JSON.stringify({ w: r.word, n: r.name }));
+  await tv.check(r.phrase === MSG.web, `La frase es «${MSG.web}»`, r.phrase);
+  await tv.check(!!r.web && /^Datos encontrados en internet \(Alcampo.*\)\. Compruébalos con la etiqueta\.$/.test(r.web.text), 'Aviso «Datos encontrados en internet (Alcampo). Compruébalos con la etiqueta.»', r.web && r.web.text);
+  await tv.check(!!r.web && !!r.web.link && r.web.link.href === WEB_URL && r.web.link.target === '_blank' && /noopener/.test(r.web.link.rel || ''), 'a.ext-link con la URL de la fuente, target _blank y rel noopener', JSON.stringify(r.web && r.web.link));
+  await tv.check(!!r.web && /noreferrer/.test(r.web.link.rel || ''), 'El enlace externo lleva también noreferrer', r.web && r.web.link && r.web.link.rel);
+  await tv.check(r.needTitle === 'Compruébalo con la etiqueta' && !r.needParas.some((x) => /He encontrado el producto por su nombre/.test(x)), 'Bloque «Compruébalo con la etiqueta» (sin la frase «He encontrado el producto…»)', JSON.stringify({ t: r.needTitle, p: r.needParas }));
+  await tv.check(!!r.needBtn && r.needBtn.text === 'Fotografiar los ingredientes' && /btn--primary/.test(r.needBtn.cls), 'Botón «Fotografiar los ingredientes»', JSON.stringify(r.needBtn));
+  await checkTone(tv, page, 'duda', 'Datos de internet', ts);
+  const body = st.producto.find((x) => x.code === CODE.web);
+  await tv.check(!!body && Object.keys(body).join() === 'code', '/api/producto sin pista cuando OFF no conoce el producto (solo el código)', JSON.stringify(body));
+  const gc = await guidedContrast(page);
+  await tv.check(!!gc && gc.n > 3 && gc.low.length === 0, 'Contraste del aviso, el enlace y el botón sobre el ocre ≥ 4,5:1', gc ? gc.low.join(' | ') : 'sin bloque');
+  await snap(page, tv, 'web-queso');
+  const pr = await auditScreen(page);
+  await tv.check(pr.length === 0, 'Maquetación (datos de internet): sin desborde, controles ≥ 48 px, nada tapado', pr.join(' | '));
+  await tv.shot('datos-de-internet');
+
+  // Lo que sale «Mejor no» con datos de internet se queda «Mejor no» (y pide comprobar)
+  await lookupCode(CODE.webCruda);
+  const ts2 = await settledTone(page);
+  const r2 = await resultInfo(page);
+  await tv.check(r2.word === 'Mejor no' && !!r2.web && r2.needTitle === 'Compruébalo con la etiqueta', 'Leche cruda de internet: «Mejor no» (no se rebaja) con aviso y «Compruébalo con la etiqueta»', JSON.stringify({ w: r2.word, web: !!r2.web, t: r2.needTitle }));
+  await checkTone(tv, page, 'no', 'Datos de internet «Mejor no»', ts2);
+  const gc2 = await guidedContrast(page);
+  await tv.check(!!gc2 && gc2.low.length === 0, 'Contraste del bloque sobre el vino ≥ 4,5:1', gc2 ? gc2.low.join(' | ') : 'sin bloque');
+
+  // Confianza baja: se ignoran los ingredientes de internet
+  await lookupCode(CODE.webBaja);
+  const r3 = await resultInfo(page);
+  await tv.check(r3.word === 'No estoy segura' && r3.needTitle === 'Me faltan los ingredientes' && r3.phrase === MSG.sinIng, 'Internet con confianza baja: se ignoran los ingredientes («Me faltan los ingredientes»)', JSON.stringify({ w: r3.word, t: r3.needTitle, p: r3.phrase }));
+
+  // (3) No encontrado en ningún sitio
+  for (const [code, how] of [[CODE.nada, 'internet responde «no encontrado»'], [CODE.nada503, 'internet no responde (503)']]) {
+    await go(page, '#/'); // otra pantalla, para que el mensaje anterior no cuente
+    await go(page, '#/super');
+    await codeSubmit(page, code);
+    await tv.check(await seen(page, MSG.noLoEncuentro, { timeout: 15000 }), `No encontrado (${how}): «${MSG.noLoEncuentro}»`, short(await bodyText(page), 200));
+    await page.waitForSelector('.status', { state: 'detached', timeout: 5000 }).catch(() => {});
+    const acts = await page.evaluate(() => [...document.querySelectorAll('main button.btn')].map((x) => ({ text: x.innerText.replace(/\s+/g, ' ').trim(), cls: x.className, h: Math.round(x.getBoundingClientRect().height) })));
+    const ing = acts.find((x) => x.text === 'Fotografiar los ingredientes');
+    const otro = acts.find((x) => x.text === 'Escanear otro código');
+    await tv.check(!!ing && /btn--primary/.test(ing.cls) && !!otro && /btn--secondary/.test(otro.cls) && !acts.some((x) => x.text === 'Fotografiar la etiqueta'), 'El botón principal es «Fotografiar los ingredientes» y «Escanear otro código» es secundario', JSON.stringify(acts));
+    await tv.check(!/No está en Open Food Facts/.test(await bodyText(page)), 'Ya no sale «No está en Open Food Facts…»');
+  }
+  await snap(page, tv, 'no-encontrado');
+  const pr2 = await auditScreen(page);
+  await tv.check(pr2.length === 0, 'Maquetación (no encontrado): sin desborde, controles ≥ 48 px, nada tapado', pr2.join(' | '));
+  await tv.shot('no-encontrado');
+  // Foto de los ingredientes de un producto que no está en ningún sitio
+  st.leerNext = { readable: true, items: [{ name: 'Queso casero', ingredients: ['leche cruda', 'sal', 'cuajo'], uncertain: false }] };
+  await tap(page, 'Fotografiar los ingredientes', { loose: false });
+  await chooseFile(page, 'Elegir una foto', path.join(FIX, 'etiqueta.jpg'));
+  await waitHash(page, /resultado/, 20000);
+  await page.waitForSelector('article.answer', { timeout: 10000 }).catch(() => {});
+  const ts4 = await settledTone(page);
+  const r4 = await resultInfo(page);
+  await tv.check(r4.name === 'Queso casero' && r4.word === 'Mejor no' && !!r4.label && r4.label.rows.length >= 1, 'Sin producto, el nombre sale de la foto: «Queso casero» → «Mejor no» con filas de etiqueta', JSON.stringify({ n: r4.name, w: r4.word, rows: r4.label && r4.label.rows.length }));
+  await checkTone(tv, page, 'no', 'Etiqueta de un producto sin código', ts4);
+  const leche = r4.label && r4.label.rows.find((x) => x.topic === 'listeria');
+  await tv.check(!!leche && leche.status === 'aparece' && leche.link === '#/claves/listeria', 'Leche cruda: fila de listeria hallada con «Por qué importa» → #/claves/listeria', JSON.stringify(leche));
+  const gc4 = await guidedContrast(page);
+  await tv.check(!!gc4 && gc4.low.length === 0, 'Contraste del bloque de etiqueta sobre el vino ≥ 4,5:1', gc4 ? gc4.low.join(' | ') : 'sin bloque');
+  await tv.shot('etiqueta-sin-codigo');
+
+  // (4) Cancelar la búsqueda con la web retrasada
+  const nHist = parseJSON((await storage(page))['pc.v1.history'], []).length;
+  for (const [code, expectText, label] of [[CODE.offLento, /Buscando en Open Food Facts/, 'Open Food Facts'], [CODE.webLenta, /Buscando en internet/, 'internet']]) {
+    await go(page, '#/super');
+    await codeSubmit(page, code);
+    await tv.check(await seen(page, expectText, { timeout: 8000, exact: false }), `Mientras busca en ${label}: «${label === 'internet' ? 'Buscando en internet…' : 'Buscando en Open Food Facts…'}»`, short(await bodyText(page), 200));
+    const ld = await loadingState(page);
+    await tv.check(!!ld && /status--art/.test(ld.cls) && ld.spinners === 0, 'Estado de carga con el plato animado (sin .spinner)', JSON.stringify(ld));
+    const cb = page.getByRole('button', { name: 'Cancelar', exact: true });
+    const box = await cb.boundingBox().catch(() => null);
+    await tv.check(!!box && box.height >= 47.5, 'Botón «Cancelar» visible durante la búsqueda (≥ 48 px)', box ? String(Math.round(box.height)) : 'no está');
+    await tv.shot('buscando-' + (label === 'internet' ? 'web' : 'off'));
+    await cb.click();
+    await page.waitForTimeout(500);
+    await tv.check(await seen(page, 'En el súper', { timeout: 2000 }) && /#\/super/.test(await getHash(page)) && (await page.locator('.status').count()) === 0, 'Cancelar vuelve al Súper', await getHash(page));
+    await page.waitForTimeout(5200); // llega tarde la respuesta retrasada: no debe pasar nada
+    await tv.check(/#\/super/.test(await getHash(page)) && (await page.locator('article.answer').count()) === 0, 'Tras cancelar, la respuesta tardía no abre ningún resultado', await getHash(page));
+  }
+  const nHist2 = parseJSON((await storage(page))['pc.v1.history'], []).length;
+  await tv.check(nHist2 === nHist, 'Cancelar no deja nada en el historial', `${nHist} → ${nHist2}`);
+}
+
+async function s13(t, browser) {
+  for (const vp of VIEWPORTS) await s13body(tagged(t, `${vp.w}×${vp.h}`), browser, vp);
+}
+
+// ---------- 14. Claves del embarazo ----------
+const CLAVE_IDS = ['listeria', 'toxoplasmosis', 'mercurio', 'huevo-crudo', 'pescado-crudo', 'alcohol', 'cafeina', 'hierbas'];
+
+async function s14body(tv, browser, vp) {
+  const { page } = await tv.newPage(browser, { viewport: { width: vp.w, height: vp.h } });
+  await seed(page, tv);
+
+  // (5) «Ver más» de respuestas con temas
+  for (const [q, ids] of [['tiramisu', ['huevo-crudo']], ['sushi', ['pescado-crudo']]]) {
+    await go(page, '#/buscar?q=' + q);
+    await page.waitForSelector('article.answer', { timeout: 6000 }).catch(() => {});
+    await tap(page, 'Ver más');
+    const info = await page.evaluate(() => {
+      const more = document.querySelector('article.answer .more');
+      const chips = [...document.querySelectorAll('article.answer ul.chips a.chip')].map((a) => ({ text: a.textContent.trim(), href: a.getAttribute('href'), h: Math.round(a.getBoundingClientRect().height) }));
+      const label = [...document.querySelectorAll('article.answer .more-label')].map((x) => x.textContent.trim());
+      const links = [...document.querySelectorAll('article.answer .more a.text-link')].filter((a) => /Por qué importa/.test(a.textContent)).map((a) => a.getAttribute('href'));
+      return { chips, label, links, vis: !!more && !more.hidden };
+    });
+    await tv.check(info.vis && info.label.includes('Para saber más'), `«${q}»: «Ver más» tiene «Para saber más»`, JSON.stringify(info.label));
+    await tv.check(info.chips.length >= 1 && info.chips.every((c) => /^#\/claves\/[a-z-]+$/.test(c.href) && CLAVE_IDS.includes(c.href.split('/').pop())), `«${q}»: chips ul.chips a.chip hacia claves válidas`, JSON.stringify(info.chips));
+    await tv.check(ids.every((id) => info.chips.some((c) => c.href === '#/claves/' + id)), `«${q}»: entre los chips está ${ids.join(', ')}`, JSON.stringify(info.chips));
+    await tv.check(info.chips.every((c) => c.h >= 47.5), `«${q}»: los chips miden ≥ 48 px`, JSON.stringify(info.chips.map((c) => c.h)));
+    await tv.check(info.links.length === 1 && info.links[0] === info.chips[0].href, `«${q}»: enlace «Por qué importa» al primer tema`, JSON.stringify(info.links));
+    if (q === 'tiramisu') {
+      await tv.shot('ver-mas-chips');
+      await page.locator('article.answer ul.chips a.chip').first().click();
+      await waitHash(page, /claves\//, 4000);
+      await page.waitForTimeout(600);
+      const open = await page.evaluate(() => [...document.querySelectorAll('li.clave')].filter((l) => l.querySelector('.clave-head').getAttribute('aria-expanded') === 'true').map((l) => l.dataset.clave));
+      await tv.check(open.length === 1 && /#\/claves\/(.+)$/.exec(await getHash(page))[1] === open[0], 'Un chip abre su clave', JSON.stringify({ h: await getHash(page), open }));
+    }
+  }
+  await go(page, '#/ficha/agua');
+  await page.waitForSelector('article.answer', { timeout: 6000 }).catch(() => {});
+  await tap(page, 'Ver más');
+  await tv.check((await page.locator('article.answer ul.chips').count()) === 0 && !/Para saber más/.test(await page.locator('article.answer .more').innerText()), 'Una respuesta «Sí» (agua) no lleva temas ni «Para saber más»');
+
+  // (6) Pantalla de claves
+  await go(page, '#/claves');
+  await page.waitForTimeout(500);
+  const h1 = await page.locator('h1').first().innerText();
+  const claves = await page.evaluate(() => [...document.querySelectorAll('ul.claves > li.clave')].map((l) => ({ id: l.dataset.clave, exp: l.querySelector('.clave-head') ? l.querySelector('.clave-head').getAttribute('aria-expanded') : null, h: Math.round(l.querySelector('.clave-head').getBoundingClientRect().height), title: l.querySelector('.clave-title').textContent.trim(), resumen: l.querySelector('.clave-resumen').textContent.trim() })));
+  await tv.check(h1 === 'Las claves del embarazo', 'Pantalla #/claves: h1 «Las claves del embarazo»', h1);
+  await tv.check(claves.length === 8 && claves.map((c) => c.id).join() === CLAVE_IDS.join(), '8 filas li.clave[data-clave] en el orden de Laura', claves.map((c) => c.id).join());
+  await tv.check(claves.every((c) => c.exp === 'false' && c.h >= 47.5 && c.title && c.resumen), 'Cada fila lleva .clave-head[aria-expanded=false] ≥ 48 px, título y resumen visibles', JSON.stringify(claves.map((c) => [c.id, c.exp, c.h])));
+  await tv.check(await seen(page, 'Si tienes una duda sobre tu caso, pregúntasela a tu matrona.', { timeout: 1000 }), 'Cierre «Si tienes una duda sobre tu caso, pregúntasela a tu matrona.»');
+  await checkTone(tv, page, null, 'Claves', await settledTone(page, 300));
+  await snap(page, tv, 'claves');
+  await tv.shot('claves');
+  const openIds = () => page.evaluate(() => [...document.querySelectorAll('li.clave')].filter((l) => l.querySelector('.clave-head').getAttribute('aria-expanded') === 'true').map((l) => l.dataset.clave));
+  const heads = page.locator('li.clave .clave-head');
+  await heads.nth(0).click();
+  await tv.check(JSON.stringify(await openIds()) === '["listeria"]' && /#\/claves\/listeria$/.test(await getHash(page)), 'Abrir la primera: solo ella abierta y la URL pasa a #/claves/listeria', JSON.stringify({ o: await openIds(), h: await getHash(page) }));
+  await heads.nth(2).click();
+  await tv.check(JSON.stringify(await openIds()) === '["mercurio"]', 'Abrir otra cierra la anterior: una sola abierta a la vez', JSON.stringify(await openIds()));
+  await tv.check(/#\/claves\/mercurio$/.test(await getHash(page)), 'La URL sigue a la abierta sin repintar', await getHash(page));
+  await tv.shot('clave-abierta');
+  await heads.nth(2).click();
+  await tv.check((await openIds()).length === 0 && /#\/claves$/.test(await getHash(page)), 'Cerrar la abierta: ninguna abierta y URL #/claves', JSON.stringify({ o: await openIds(), h: await getHash(page) }));
+
+  // Contenido de las ocho: fuente AESAN / Ministerio de Sanidad; nada de «evitar» ni «seguro/segura»
+  const textos = [];
+  for (let i = 0; i < 8; i++) {
+    await heads.nth(i).click();
+    const li = page.locator('li.clave').nth(i);
+    const txt = (await li.innerText()).replace(/\s+/g, ' ');
+    textos.push({ id: CLAVE_IDS[i], txt, src: await li.locator('.more-source').innerText().catch(() => '') });
+  }
+  await heads.nth(7).click();
+  await tv.check(textos.every((x) => /^Fuente: .*(AESAN|Ministerio de Sanidad)/.test(x.src)), 'Las 8 claves citan a AESAN o al Ministerio de Sanidad como fuente', JSON.stringify(textos.map((x) => [x.id, x.src])));
+  const vetadas = textos.filter((x) => /\bevit(ar|a|e|ando)\b|\bsegur[oa]s?\b/i.test(x.txt)).map((x) => `${x.id}: «${(x.txt.match(/.{0,30}(\bevit\w*|\bsegur[oa]s?\b).{0,30}/i) || [''])[0]}»`);
+  await tv.check(vetadas.length === 0, 'Ninguna de las 8 claves dice «evitar» ni «seguro/segura»', vetadas.join(' | '));
+  await tv.check(textos.every((x) => /Qué mirar en la etiqueta/.test(x.txt) && /Qué preguntar en la carta/.test(x.txt) && /Una alternativa/.test(x.txt) && /Dónde suele aparecer/.test(x.txt)), 'Cada clave abre por qué importa, qué mirar, qué preguntar, dónde aparece y una alternativa', textos.filter((x) => !/Qué mirar/.test(x.txt)).map((x) => x.id).join());
+  const clin = textos.filter((x) => FORBIDDEN.test(x.txt.replace(/toxoplasm\w*/gi, ''))).map((x) => x.id);
+  await tv.check(clin.length === 0, 'Las claves no piden ningún dato clínico', clin.join());
+
+  // #/claves/<id> abre y baja a la clave; un id inventado no abre nada
+  await go(page, '#/claves/huevo-crudo');
+  await page.waitForTimeout(1200);
+  const pos = await page.evaluate(() => { const l = document.querySelector('li.clave[data-clave="huevo-crudo"]'); const r = l.getBoundingClientRect(); return { top: Math.round(r.top), exp: l.querySelector('.clave-head').getAttribute('aria-expanded'), sy: Math.round(scrollY) }; });
+  await tv.check(pos.exp === 'true' && pos.top >= -2 && pos.top < vp.h * 0.5, '#/claves/huevo-crudo abre la clave y baja hasta ella', JSON.stringify(pos));
+  await go(page, '#/claves/inventado');
+  await page.waitForTimeout(600);
+  await tv.check((await openIds()).length === 0 && (await page.locator('li.clave').count()) === 8, '#/claves/inventado: se ven las 8 claves y no se abre ninguna', JSON.stringify(await openIds()));
+  const pa = await auditScreen(page);
+  await tv.check(pa.length === 0, 'Maquetación de las claves: sin desborde, controles ≥ 48 px, nada tapado', pa.join(' | '));
+  await go(page, '#/claves/alcohol'); await page.waitForTimeout(900);
+  await tv.shot('claves-alcohol');
+  const pa2 = await auditScreen(page);
+  await tv.check(pa2.length === 0, 'Maquetación con una clave abierta: sin desborde, controles ≥ 48 px, nada tapado', pa2.join(' | '));
+
+  // Accesos: Inicio y Ajustes; no hay quinto destino en la barra
+  await go(page, '#/');
+  const cl = await page.evaluate(() => { const a = document.querySelector('a.claves-link'); return a ? { href: a.getAttribute('href'), text: a.innerText.replace(/\s+/g, ' ').trim(), h: Math.round(a.getBoundingClientRect().height) } : null; });
+  await tv.check(!!cl && cl.href === '#/claves' && /^Las claves del embarazo: los 8 temas que más se repiten/.test(cl.text), 'Inicio lleva siempre la línea «Las claves del embarazo: los 8 temas que más se repiten» → #/claves', JSON.stringify(cl));
+  await tv.check(!!cl && cl.h >= 47.5, 'La línea de claves de Inicio mide ≥ 48 px', String(cl && cl.h));
+  await go(page, '#/ajustes');
+  await tv.check(!!(await find(page, 'Ver las claves', { timeout: 1000, loose: false })), 'Ajustes: sección «Las claves del embarazo» con «Ver las claves»');
+  await tap(page, 'Ver las claves', { loose: false });
+  await tv.check(/#\/claves$/.test(await waitHash(page, /claves/, 3000)), '«Ver las claves» lleva a #/claves', await getHash(page));
+  for (const hh of ['#/', '#/claves', '#/claves/listeria', '#/lista', '#/ajustes']) {
+    await go(page, hh);
+    const n = await navState(page);
+    const bottom = n.navs.find((x) => x.bottom >= n.innerHeight - 6 && x.top > n.innerHeight * 0.55);
+    await tv.check(!!bottom && JSON.stringify(bottom.items) === JSON.stringify(NAV), `Barra inferior en ${hh}: exactamente Inicio, Fuera, Súper, Lista (sin quinto destino)`, JSON.stringify(bottom && bottom.items));
+  }
+}
+
+async function s14(t, browser) {
+  for (const vp of VIEWPORTS) await s14body(tagged(t, `${vp.w}×${vp.h}`), browser, vp);
+}
+
+// ---------- 15. Lista de la compra ----------
+async function s15body(tv, browser, vp) {
+  const { ctx, page } = await tv.newPage(browser, { viewport: { width: vp.w, height: vp.h }, permissions: ['clipboard-read', 'clipboard-write'] });
+  await seed(page, tv);
+  const addFromBuscar = async (q) => {
+    await go(page, '#/buscar?q=' + encodeURIComponent(q));
+    await page.waitForSelector('article.answer', { timeout: 6000 }).catch(() => {});
+    await tap(page, 'Añadir a la lista', { loose: false });
+  };
+  const state = () => page.evaluate(() => ({
+    h1: (document.querySelector('h1') || {}).innerText,
+    count: (document.querySelector('.shop-count') || {}).innerText || null,
+    pend: [...document.querySelectorAll('ul.shop-list--pend > li.entry--shop')].map((li) => ({ name: li.querySelector('.entry-name').innerText.trim(), level: li.dataset.level, done: li.dataset.done })),
+    carro: [...document.querySelectorAll('ul.shop-list--carro > li.entry--shop')].map((li) => ({ name: li.querySelector('.entry-name').innerText.trim(), level: li.dataset.level, done: li.dataset.done })),
+    toggle: (document.querySelector('.carro-toggle') || {}).innerText || null,
+    toggleExp: (document.querySelector('.carro-toggle') || { getAttribute: () => null }).getAttribute('aria-expanded'),
+    share: !!document.querySelector('button[data-action=compartir]'),
+    vaciar: !!document.querySelector('button[data-action=vaciar-comprado]'),
+    msg: (document.querySelector('.share-msg') || {}).innerText || '',
+  })).then((s) => ({ ...s, toggle: s.toggle && s.toggle.replace(/\s+/g, ' ').trim() }));
+  const box = (name) => page.locator('li.entry--shop', { has: page.locator('.entry-name', { hasText: new RegExp('^' + esc(name) + '$') }) }).locator('input.buy-box[data-action=comprado]');
+
+  // Añadir cuatro respuestas de distinto nivel
+  for (const q of ['sushi', 'tortilla', 'lubina a la plancha', 'xyzzy']) await addFromBuscar(q);
+  await go(page, '#/lista');
+  await page.waitForTimeout(500);
+  let s = await state();
+  await tv.check(s.h1 === 'Lista de la compra', 'h1 «Lista de la compra»', s.h1);
+  await tv.check(await seen(page, 'Lo que vas a comprar. Márcalo cuando lo metas en el carro y compártela con quien vaya a la tienda.', { timeout: 1000 }), 'Entradilla «Lo que vas a comprar. Márcalo cuando lo metas en el carro y compártela con quien vaya a la tienda.»');
+  await tv.check(s.count === '4 pendientes' && s.share, 'Barra: «4 pendientes» y «Compartir la lista»', JSON.stringify({ c: s.count, s: s.share }));
+  await tv.check(s.pend.map((x) => x.level).join() === 'si,cuidado,duda,no' && s.pend.map((x) => x.name).join() === 'Lubina a la plancha,Tortilla,Xyzzy,Sushi', 'Pendiente ordenado Sí → Con cuidado → No estoy segura → Mejor no', JSON.stringify(s.pend));
+  await tv.check(s.carro.length === 0 && s.toggle === null, 'Sin nada comprado no hay sección «En el carro»', JSON.stringify(s.toggle));
+  const sec = await page.evaluate(() => [...document.querySelectorAll('h2')].map((h) => h.innerText.replace(/\s+/g, ' ').trim()));
+  await tv.check(sec.includes('Pendiente'), 'Sección «Pendiente»', JSON.stringify(sec));
+  const sizes = await page.evaluate(() => [...document.querySelectorAll('li.entry--shop')].map((li) => { const b = li.querySelector('input.buy-box').getBoundingClientRect(); const l = li.querySelector('label.buy').getBoundingClientRect(); return { box: Math.round(b.height), label: Math.round(l.height), w: Math.round(l.width), text: li.querySelector('.buy-text').innerText }; }));
+  await tv.check(sizes.every((x) => x.box >= 23 && x.label >= 47.5 && x.w >= 47.5 && x.text === 'Comprado'), 'Casilla con «Comprado» debajo y zona de toque ≥ 48 px', JSON.stringify(sizes));
+  await snap(page, tv, 'lista-compra');
+  const pr = await auditScreen(page);
+  await tv.check(pr.length === 0, 'Maquetación de la lista: sin desborde, controles ≥ 48 px, nada tapado por el pie', pr.join(' | '));
+  await tv.shot('lista-compra');
+
+  // Marcar comprado → baja a «En el carro (1)»
+  await box('Lubina a la plancha').click();
+  await page.waitForTimeout(400);
+  s = await state();
+  await tv.check(s.count === '3 pendientes' && s.toggle === 'En el carro (1)' && s.carro.length === 1 && s.carro[0].name === 'Lubina a la plancha' && s.carro[0].done === 'true', 'Marcar «Lubina» → «3 pendientes» y baja a «En el carro (1)»', JSON.stringify(s));
+  const st1 = parseJSON((await storage(page))['pc.v1.list'], []);
+  await tv.check(st1.filter((x) => x.done === true).map((x) => x.title).join() === 'lubina a la plancha' || st1.some((x) => /lubina/i.test(x.title) && x.done === true), 'pc.v1.list guarda done:true solo en la lubina', JSON.stringify(st1.map((x) => [x.title, x.done])));
+  await tv.check(s.toggleExp === 'true' && s.vaciar, '«En el carro» se ve abierto y con «Vaciar lo comprado»', JSON.stringify({ e: s.toggleExp, v: s.vaciar }));
+  await tv.shot('lista-en-el-carro');
+  await page.reload({ waitUntil: 'load' });
+  await appReady(page);
+  s = await state();
+  await tv.check(s.toggle === 'En el carro (1)' && s.carro[0] && s.carro[0].name === 'Lubina a la plancha' && s.pend.length === 3, 'Tras recargar, la lubina sigue «En el carro (1)»', JSON.stringify(s));
+  // Plegar «En el carro»
+  await page.locator('.carro-toggle').click();
+  await tv.check((await page.locator('.carro-panel').isHidden()) && (await page.locator('.carro-toggle').getAttribute('aria-expanded')) === 'false', '«En el carro» se pliega (aria-expanded=false)');
+  await page.locator('.carro-toggle').click();
+  // Desmarcar
+  await box('Lubina a la plancha').click();
+  await page.waitForTimeout(400);
+  s = await state();
+  await tv.check(s.count === '4 pendientes' && s.carro.length === 0 && s.pend[0].name === 'Lubina a la plancha', 'Desmarcar devuelve la lubina a pendiente (y a su sitio en el orden)', JSON.stringify(s.pend.map((x) => x.name)));
+
+  // Vaciar lo comprado
+  await box('Lubina a la plancha').click(); await page.waitForTimeout(200);
+  await box('Tortilla').click(); await page.waitForTimeout(300);
+  s = await state();
+  await tv.check(s.toggle === 'En el carro (2)' && s.count === '2 pendientes', 'Dos comprados: «En el carro (2)» y «2 pendientes»', JSON.stringify({ t: s.toggle, c: s.count }));
+  const vb = await page.locator('button[data-action=vaciar-comprado]').boundingBox();
+  await tv.check(!!vb && vb.height >= 47.5, '«Vaciar lo comprado» mide ≥ 48 px', vb ? String(Math.round(vb.height)) : 'no está');
+  await page.locator('button[data-action=vaciar-comprado]').click();
+  await page.waitForTimeout(400);
+  s = await state();
+  const st2 = parseJSON((await storage(page))['pc.v1.list'], []);
+  await tv.check(s.carro.length === 0 && s.toggle === null && s.pend.map((x) => x.name).join() === 'Xyzzy,Sushi' && st2.length === 2, '«Vaciar lo comprado» borra los comprados y deja Xyzzy y Sushi', JSON.stringify({ s: s.pend, n: st2.length }));
+
+  // Compartir: portapapeles (sin navigator.share)
+  await page.evaluate(() => Object.defineProperty(navigator, 'share', { value: undefined, configurable: true }));
+  await page.locator('button[data-action=compartir]').click();
+  await page.waitForTimeout(500);
+  const clip = await page.evaluate(() => navigator.clipboard.readText()).catch((e) => 'ERROR ' + e.message);
+  await tv.check(clip === 'Mi lista de la compra\n- Xyzzy\n- Sushi', 'Compartir copia «Mi lista de la compra» y «- Nombre» de lo pendiente', JSON.stringify(clip));
+  await tv.check(!/S[ií]\b|Con cuidado|Mejor no|No estoy segura|embarazo|semáforo|listeria/i.test(clip.replace(/Sushi/g, '')), 'El texto compartido no lleva semáforo, frases ni «embarazo»', JSON.stringify(clip));
+  s = await state();
+  await tv.check(s.msg === 'Lista copiada.', 'Aviso «Lista copiada.»', s.msg);
+  // Con navigator.share
+  await page.evaluate(() => Object.defineProperty(navigator, 'share', { value: async (d) => { window.__shared = d; }, configurable: true }));
+  await box('Xyzzy').click(); await page.waitForTimeout(300);
+  await page.locator('button[data-action=compartir]').click();
+  await page.waitForTimeout(400);
+  const shared = await page.evaluate(() => window.__shared || null);
+  await tv.check(!!shared && shared.title === 'Mi lista de la compra' && shared.text === 'Mi lista de la compra\n- Sushi', 'Con navigator.share se comparte solo lo pendiente (Xyzzy ya está en el carro)', JSON.stringify(shared));
+  s = await state();
+  await tv.check(s.msg === 'Lista compartida.', 'Aviso «Lista compartida.»', s.msg);
+  // Sin pendientes no hay «Compartir la lista»
+  await box('Sushi').click(); await page.waitForTimeout(300);
+  s = await state();
+  await tv.check(!s.share && s.count === '0 pendientes', 'Sin nada pendiente se oculta «Compartir la lista»', JSON.stringify({ c: s.count, sh: s.share }));
+  await tv.check(await seen(page, 'No queda nada pendiente.', { timeout: 1000 }), 'Y dice «No queda nada pendiente.»');
+
+  // Quitar todo → vacío con plato y la línea literal
+  for (let i = 0; i < 3; i++) { const q = page.locator('button.quiet-btn[aria-label^="Quitar"]').first(); if (await q.count()) { await q.click(); await page.waitForTimeout(250); } }
+  const ea = await emptyArt(page);
+  await tv.check(!!ea && ea.artHidden === 'true' && ea.svgBad === 0 && ea.text.includes(TXT.listaVacia), 'Lista vacía: plato decorativo y la línea literal «Todavía no hay nada…»', JSON.stringify(ea));
+  s = await state();
+  await tv.check(!s.share && s.count === null, 'Lista vacía: sin barra de compartir', JSON.stringify(s));
+  await tv.shot('lista-vacia');
+
+  // Datos antiguos (sin `done`): cuentan como pendientes
+  await page.evaluate(() => localStorage.setItem('pc.v1.list', JSON.stringify([
+    { id: 'old1', via: 'busqueda', title: 'sushi', level: 'no', phrase: 'Crudo, mejor no.', foodId: 'pescado-crudo', at: Date.now() - 86400000, payload: { kind: 'texto', text: 'sushi' } },
+    { id: 'old2', via: 'guia', title: 'Agua', level: 'si', phrase: 'Sí: agua.', foodId: 'agua', at: Date.now() - 1000 },
+  ])));
+  await page.reload({ waitUntil: 'load' }); await appReady(page);
+  s = await state();
+  await tv.check(s.count === '2 pendientes' && s.pend.length === 2 && s.pend.every((x) => x.done === 'false') && s.pend.map((x) => x.level).join() === 'si,no', 'Datos antiguos sin `done`: dos pendientes (Sí antes que Mejor no), ninguno marcado', JSON.stringify(s.pend));
+  await box('Sushi').click(); await page.waitForTimeout(300);
+  const st3 = parseJSON((await storage(page))['pc.v1.list'], []);
+  await tv.check(st3.find((x) => x.id === 'old1').done === true && st3.find((x) => x.id === 'old2').done !== true, 'Marcar un dato antiguo escribe done:true solo en él', JSON.stringify(st3.map((x) => [x.id, x.done])));
+
+  // Borrar todos los datos: lista (con comprados) y todo lo demás fuera
+  await go(page, '#/ajustes');
+  await tap(page, TXT.borrar);
+  await tap(page, 'Borrar todo', { loose: false });
+  await waitHash(page, /arranque\/1/, 5000);
+  const keys = Object.keys(await storage(page)).filter((k) => k.startsWith('pc.'));
+  await tv.check(keys.length === 0, 'Borrar los datos con lista, comprados y favoritos: no queda ninguna clave pc.*', keys.join(', '));
+  void ctx;
+}
+
+async function s15note(tv, browser, vp) {
+  // La nota «Sale «Mejor no» con tus ajustes» solo en «Mejor no» sin tema detrás (motivo personal).
+  // Perfil: «Otra cosa que no quieras comer» = agua (la guía dice «Sí»: el único motivo es lo que ella marcó).
+  const { page } = await tv.newPage(browser, { viewport: { width: vp.w, height: vp.h } });
+  await seed(page, tv, { otra: 'agua', alergias: ['huevo'] });
+  for (const id of ['agua', 'pescado-crudo', 'tortilla-patata']) { await go(page, '#/ficha/' + id); await page.waitForSelector('article.answer', { timeout: 6000 }).catch(() => {}); await tap(page, 'Añadir a la lista', { loose: false }); }
+  await go(page, '#/lista');
+  await page.waitForTimeout(500);
+  const notes = await page.evaluate(() => [...document.querySelectorAll('li.entry--shop')].map((li) => ({ name: li.querySelector('.entry-name').innerText.trim(), level: li.dataset.level, note: (li.querySelector('.entry-note') || {}).innerText || null, phrase: (li.querySelector('.entry-phrase') || {}).innerText || '' })));
+  const agua = notes.find((x) => /^Agua$/.test(x.name)); const pez = notes.find((x) => /Pescado crudo/.test(x.name)); const tort = notes.find((x) => /Tortilla/.test(x.name));
+  await tv.check(!!agua && agua.level === 'no' && agua.note === 'Sale «Mejor no» con tus ajustes', 'Agua marcada como «otra cosa que no quiero»: «Mejor no» sin tema → nota «Sale «Mejor no» con tus ajustes»', JSON.stringify(notes));
+  await tv.check(!!pez && pez.level === 'no' && pez.note === null, 'Pescado crudo (tiene tema): sin esa nota', JSON.stringify(pez));
+  await tv.check(!!tort && tort.level === 'no' && /Has marcado huevo/.test(tort.phrase), 'Tortilla con alergia al huevo: «Mejor no» y la propia frase dice «Has marcado huevo.»', JSON.stringify(tort));
+  tv.info('Tortilla con alergia al huevo: nota «con tus ajustes»', tort && tort.note ? 'sí' : 'no (tiene tema huevo-crudo y la frase ya lo explica)');
+  await snap(page, tv, 'lista-nota');
+}
+
+async function s15(t, browser) {
+  for (const vp of VIEWPORTS) {
+    const tv = tagged(t, `${vp.w}×${vp.h}`);
+    await s15body(tv, browser, vp);
+    await s15note(tv, browser, vp);
+  }
+}
+
+// ---------- 16. Prueba de humo de /api/producto real (UNA llamada) ----------
+async function s16(t, browser) {
+  const { page } = await t.newPage(browser);
+  await seed(page, t);
+  await go(page, '#/super');
+  const before = t.requests.filter((r) => /\/api\/producto/.test(r.url)).length;
+  await codeSubmit(page, SMOKE_CODE);
+  const t0 = Date.now();
+  let outcome = 'timeout';
+  while (Date.now() - t0 < 70000) {
+    const h = await getHash(page);
+    const txt = await bodyText(page);
+    if (/resultado/.test(h) && (await page.locator('article.answer').count())) { outcome = 'resultado'; break; }
+    if (txt.includes(MSG.noLoEncuentro)) { outcome = 'no-encontrado'; break; }
+    if (/No he podido consultar/.test(txt)) { outcome = 'red'; break; }
+    await page.waitForTimeout(500);
+  }
+  const reqs = t.requests.filter((r) => /\/api\/producto/.test(r.url));
+  t.info('Humo 8424289001480', `${outcome} en ${Math.round((Date.now() - t0) / 1000)} s; peticiones a /api/producto: ${reqs.length - before}`);
+  await t.check(outcome === 'resultado' || outcome === 'no-encontrado', 'Prueba de humo con 8424289001480: la app termina en una respuesta o en «No lo encuentro…», sin colgarse', outcome);
+  await t.check(reqs.length - before <= 1, 'Como mucho UNA llamada a /api/producto', String(reqs.length - before));
+  if (outcome === 'resultado') {
+    const r = await resultInfo(page);
+    t.info('Humo: resultado', JSON.stringify({ n: r.name, w: r.word, web: r.web && r.web.text, need: r.needTitle, label: r.label && r.label.title }));
+    await t.check(!!r.word && LEVEL_WORDS.includes(r.word) && !!r.name, 'El producto del humo muestra nombre y palabra de nivel exacta', JSON.stringify({ n: r.name, w: r.word }));
+    if (r.web) {
+      await t.check(!!r.web.link && /^https?:\/\//.test(r.web.link.href) && /noopener/.test(r.web.link.rel || ''), 'Si vino de internet, enlace externo con rel noopener', JSON.stringify(r.web.link));
+      await t.check(r.word === 'No estoy segura' || r.word === 'Mejor no' || r.word === 'Con cuidado', 'Los datos de internet nunca dan «Sí»', r.word);
+    }
+  }
+  await snap(page, t, 'humo');
+  await t.shot('humo-' + outcome);
+}
+
 function s11(t, list) {
   const problems = []; const third = []; const expected = [];
   for (const s of list) {
@@ -1826,8 +2510,9 @@ function s11(t, list) {
       const line = `${tag}: ${short(e.text, 200)}${e.url ? ' @ ' + short(e.url, 120) : ''}`;
       if (e.type === 'pageerror') { problems.push(line); continue; }
       const url = e.url || '';
-      if (/\/api\/leer/.test(url) && (e.status === 503 || /503/.test(e.text))) { expected.push(line); continue; }
+      if (/\/api\/(leer|producto)/.test(url) && (e.status === 503 || /503/.test(e.text))) { expected.push(line); continue; }
       if (/openfoodfacts/.test(url) && (e.status === 404 || /404/.test(e.text))) { expected.push(line); continue; }
+      if (/\/api\/producto/.test(url) && (e.status === 404 || /404/.test(e.text))) { expected.push(line); continue; }
       if (e.type === 'http') { if (!isThirdParty(url)) problems.push(line); else third.push(line); continue; }
       if (url && isThirdParty(url)) { third.push(line); continue; }
       if (e.type === 'console.error' && /Failed to load resource/.test(e.text) && !url) { third.push(line); continue; }
@@ -1929,6 +2614,11 @@ const SCENARIOS = [
   [8, 'Persistencia y borrado', s8],
   [9, 'Diseño verificable', s9],
   [10, 'Lenguaje del semáforo y fichas de la guía', s10],
+  [12, 'Escaneo guiado: producto sin ingredientes y foto de los ingredientes', s12],
+  [13, 'Datos de internet, no encontrado y cancelar la búsqueda', s13],
+  [14, 'Claves del embarazo', s14],
+  [15, 'Lista de la compra', s15],
+  [16, 'Prueba de humo de /api/producto (una llamada real)', s16],
 ];
 
 async function main() {
