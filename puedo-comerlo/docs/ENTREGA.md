@@ -1,6 +1,6 @@
 # Entrega — «¿Puedo comerlo?»
 
-**Dirección:** https://puedo-comerlo.vercel.app (25-10-2026)
+**Dirección:** https://puedo-comerlo.vercel.app (25-10-2026, última publicación: pantalla entera de color, portada con la mesa y clave de Anthropic activa)
 
 **Última versión:** 25-10-2026, rediseño de la interfaz y arranque de 4 pasos (sin la pregunta de embutidos). `docs/GUIA-DE-USO.md` y sus capturas están al día con esa versión.
 
@@ -29,3 +29,8 @@
 ## Decisiones
 Todas en `docs/DECISIONES.md`. Las principales: lo cocinado dentro del plato sale «Sí»; el york frío de
 bandeja, «Mejor no»; modelo de lectura Sonnet 5.5; límite de 20 fotos cada 10 minutos por persona.
+
+## Actualización 25-10-2026 (tarde)
+- Clave `ANTHROPIC_API_KEY` activa en Vercel (Production y Preview). Comprobado en la dirección pública: la carta de ejemplo se lee con Claude Sonnet 5.5 en unos 4 s, 11 platos, sin lectura aproximada y sin colar el nombre del local.
+- 11 escenarios e2e y 396 comprobaciones en verde contra la dirección publicada; 125 tests del motor y la captura en verde.
+- Pendiente de la dueña: probarla en un iPhone y un Android reales (solo probada con pantallas de móvil simuladas).
