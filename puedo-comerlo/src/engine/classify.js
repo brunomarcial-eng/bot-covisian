@@ -567,14 +567,19 @@ function finish(base, { title, foodIds, profile, allergyFound, otraFound, traces
   let level = base.level;
   const prefixes = [];
   const allergyHits = ALLERGY_IDS.filter((a) => profile.alergias.includes(a) && allergyFound.has(a));
+  const allergyLabels = allergyHits.map((a) => ALLERGY_LABEL[a]);
+  const otraLabels = otraFound.map((x) => `«${x}»`);
   if (allergyHits.length) {
     level = 'no';
-    prefixes.push(`Has marcado ${joinList(allergyHits.map((a) => ALLERGY_LABEL[a]))}.`);
+    prefixes.push(`Has marcado ${joinList(allergyLabels)}.`);
   }
   if (otraFound.length) {
     level = 'no';
-    prefixes.push(`Has marcado ${joinList(otraFound.map((x) => `«${x}»`))}.`);
+    prefixes.push(`Has marcado ${joinList(otraLabels)}.`);
   }
+  // El nivel «Mejor no» lo pone solo lo que la persona ha marcado: la frase de la guía (y su pregunta y
+  // alternativa) hablaban de otro riesgo y se contradirían.
+  const byProfileOnly = level === 'no' && base.level !== 'no';
   const traceHits = ALLERGY_IDS.filter((a) => profile.alergias.includes(a) && traces.includes(a) && !allergyFound.has(a));
   if (traceHits.length && level === 'si') {
     level = 'cuidado';
@@ -584,14 +589,31 @@ function finish(base, { title, foodIds, profile, allergyFound, otraFound, traces
     level = 'duda';
     prefixes.push(PHRASES.lecturaIncierta);
   }
+  let phrase = [...prefixes, phraseFor(base.phrase, base.level, level)].filter(Boolean).join(' ');
+  let { detail, question, alternative } = base;
+  if (byProfileOnly) {
+    phrase = prefixes.join(' ');
+    const marked = [];
+    if (allergyLabels.length) marked.push(`Lleva ${joinList(allergyLabels)}, que has marcado en tus ajustes.`);
+    if (otraLabels.length) marked.push(`Has marcado ${joinList(otraLabels)} entre lo que no quieres comer en tus ajustes.`);
+    const tail =
+      base.level === 'si'
+        ? 'aunque en general este alimento no tenga un riesgo especial en el embarazo'
+        : base.level === 'cuidado'
+          ? 'aunque en general este alimento solo pida algo de cuidado en el embarazo'
+          : 'aunque la app no reconoce del todo este plato';
+    detail = `${marked.join(' ')} Por eso sale «Mejor no», ${tail}.`;
+    question = null;
+    alternative = null;
+  }
   return {
     title,
     level,
     label: LEVEL_LABEL[level],
-    phrase: [...prefixes, phraseFor(base.phrase, base.level, level)].filter(Boolean).join(' '),
-    detail: base.detail,
-    question: base.question,
-    alternative: base.alternative,
+    phrase,
+    detail,
+    question,
+    alternative,
     source: base.source,
     foodId: base.id || null,
     foodIds,

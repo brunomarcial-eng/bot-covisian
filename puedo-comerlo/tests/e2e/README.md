@@ -1,15 +1,16 @@
 # Pruebas de aceptación e2e — «¿Puedo comerlo?»
 
 Batería de extremo a extremo que recorre la app como lo haría la usuaria, en un Chromium móvil
-(390×844, `isMobile`, `hasTouch`, `es-ES`), y comprueba el «Criterio de hecho» de `docs/especificacion.md`
-y las rutas, atajos y almacenamiento de `docs/CONTRATO.md`.
+(390×844, `isMobile`, `hasTouch`, `es-ES`), y comprueba el «Criterio de hecho» de `docs/especificacion.md`,
+las rutas, atajos y almacenamiento de `docs/CONTRATO.md` y los cambios deliberados de la interfaz rediseñada
+(`docs/DECISIONES.md`, «Interfaz» · N5: arranque de 4 pasos, Buscar sin «En la guía», respuestas y filas nuevas).
 
 ## Ejecutar
 
 ```sh
 cd puedo-comerlo
 node tests/e2e/fixtures/make-fixtures.cjs   # solo si faltan las imágenes (ya están en el repo)
-node tests/e2e/run.cjs                      # todos los escenarios (5–10 min; el OCR local es lo lento)
+node tests/e2e/run.cjs                      # todos los escenarios (unos 3–5 min; el recorrido de las 140 fichas y el OCR local son lo más lento)
 node tests/e2e/run.cjs 3 4                  # solo los escenarios 3 y 4 (el 11, consola, resume lo ejecutado)
 ```
 
@@ -50,20 +51,20 @@ Chromium con `proxy: { server: HTTPS_PROXY, bypass: 'localhost,127.0.0.1' }` y `
 
 | # | Escenario | Comprobaciones principales |
 |---|---|---|
-| 1 | Arranque | Textos literales de la portada; el paso 2 explica (AESAN, toxoplasmosis, listeria, fiambre, alternativas) y «Seguir» no avanza sin elegir; «Solo si van cocinados»; marca embutidos y «Leche»; «Empezar» → «¿Qué vas a comer?»; perfil en `pc.v1.profile`. Recoge todos los labels, placeholders, legends y preguntas (arranque + Ajustes) y falla si alguno pide semana, parto, toxoplasmosis, diabetes, analítica, glucosa, peso o edad, o si hay inputs de fecha/número. |
+| 1 | Arranque de 4 pasos | `#/arranque/1…4` con `.steps-count` («Paso n de 4») y `.back-btn` (no en la portada). Portada con los textos literales y el pie; paso 2 «Alergias e intolerancias» (las 8 alergias, «Otra cosa que no quieras comer», máx. 200); paso 3 «Dietas y restricciones» (vegetariana, vegana, sin cerdo, «Sin lactosa (intolerancia)»); paso 4 privacidad con «Empezar». «Seguir» nunca se desactiva; «Atrás» vuelve; no existe el paso 5; el pie se ve en los cuatro. Ni el arranque ni Ajustes contienen «embutido», «jamón», «AESAN», toxoplasmosis ni «¿Qué has decidido?». Perfil guardado en `pc.v1.profile` (alergias, otra, dieta) tras cada paso; «Empezar» → «¿Qué vas a comer?» con `a.tile` «Comer fuera» y «En el súper». Recoge todos los labels, placeholders, legends y preguntas (arranque + Ajustes) y falla si alguno pide semana, parto, toxoplasmosis, diabetes, analítica, glucosa, peso o edad, o si hay inputs de fecha/número. |
 | 2 | Pie y navegación | En Inicio, Fuera, Súper, Lista, Ajustes, Buscar, una ficha e Historial: el pie literal dentro del viewport y no tapado (arriba y tras hacer scroll); navegación inferior con exactamente Inicio, Fuera, Súper, Lista; sin hamburguesa; nombre y acceso a Ajustes arriba. |
-| 3 | Búsqueda | «sushi» → «Mejor no»; «tortilla» → «Con cuidado» como respuesta principal; queda en el historial; filtros de Buscar; búsqueda sin tildes («cesar», «jamon»); «En la guía». |
-| 4 | Ficha y lista | Atajos de Fuera; atajo «tortilla» → `#/ficha/tortilla-patata`; ficha mínima y «Ver más» con detalle, pregunta y fuente; «Añadir a la lista» → Lista; sigue tras recargar; «Quitar»; texto literal de lista vacía. |
-| 5 | Foto de carta | `carta.jpg` por «Elegir una foto»: acepta fichas con «La carta» o el mensaje honesto, y registra cuál y los niveles de Sushi, Tortilla, Tiramisú, Tinto de verano y Cerveza 0,0 (y el resto). Con OCR (lectura incierta) ningún plato puede quedar en «Sí». Privacidad del POST a `/api/leer` (solo `image`, `mediaType`, `mode`; JPEG ≤ 1280 px). `ilegible.jpg` → mensaje honesto literal y ninguna ficha. |
-| 6 | Cámara | Chromium con cámara falsa: «Hacer una foto» → vídeo en reproducción con `facingMode: environment`, botón de disparo, «Usar esta foto», lectura. Sin cámara (`getUserMedia` rechaza con `NotFoundError`): lo dice y ofrece la galería. |
-| 7 | Súper por código | Alergias leche + frutos secos. 3017620422003 → «Nutella», «Mejor no», «Has marcado…»; petición a `world.openfoodfacts.org/api/v2/product/…` sin datos del perfil. 8410014312203 → no está y ofrece fotografiar la etiqueta (opcional: sube `etiqueta.jpg`). 12345 → validación sin petición. |
-| 8 | Persistencia y borrado | Lista, favoritos e historial tras recargar («Lo último», Historial). Ajustes muestra todo el perfil; marcar «Huevo» cambia la ficha de tortilla a «Mejor no» con «Has marcado huevo.». «Borrar los datos de este móvil» (con `confirm()` o confirmación propia) → `#/arranque/1` y ninguna clave `pc.*`. |
-| 9 | Diseño | body 18 px y Source Sans 3; h1 Fraunces; fondo #f3eee6 y tinta #241f1a; botón principal salvia; botones y enlaces-botón ≥ 48 px en todas las pantallas (también el arranque); sin scroll horizontal; colores de las pastillas «Sí» #245443, «Con cuidado» #8d4324, «Mejor no» #7a332c; a 1280 px la columna ≤ 32rem y centrada. |
-| 10 | Lenguaje y guía | Abre todas las fichas de `src/engine/foods.js`: una pastilla, su nivel base con perfil neutro, su nombre, y fuente AESAN / Ministerio de Sanidad tras «Ver más». Plato desconocido → «No estoy segura». En todo lo recorrido por la batería, ninguna pastilla dice «evitar», «seguro» o «segura» a secas (avisa de títulos con esas palabras). |
+| 3 | Buscar | Solo campo y respuesta: `article.answer.lv-<nivel>[data-level]` con `.answer-word`, `.answer-name`, `.answer-phrase`, `.more-btn`/`.more`. «sushi» → «Mejor no» con URL `#/buscar?q=sushi` (sin `g`); «tortilla» → «Con cuidado»; «sushi flameado» → «Mejor no» sin «Ver la ficha»; «xyzzy» → «No estoy segura»; «cesar», «jamon» (sin tildes), «café», «cerveza 0,0». «Añadir a la lista» visible sin abrir «Ver más»; «Ver la ficha» solo con un único alimento. Sin «En la guía», «No aparece», chips, filtros por grupo ni contador. Campo vacío: ayuda y los 10 atajos. Queda en el historial. |
+| 4 | Ficha y lista | Atajos de Fuera (`ul.shortcuts a`, ≥ 48 px); atajo «tortilla» → `#/ficha/tortilla-patata`; ficha mínima y «Ver más» con detalle, pregunta y fuente; «Añadir a la lista» → Lista (`li.entry` con `.lvl` y frase); sigue tras recargar; «Quitar» = `button.quiet-btn` con `aria-label="Quitar Tortilla de patata"`; texto literal de lista vacía. |
+| 5 | Foto de carta | `carta.jpg` por «Elegir una foto»: acepta filas `li.entry` con «La carta» (y resumen `.summary .pill` con «7 mejor no»…, que suma las filas) o el mensaje honesto, y registra cuál y los niveles de Sushi, Tortilla, Tiramisú, Tinto de verano y Cerveza 0,0 (y el resto). Pie visible en el resultado. Con OCR (lectura incierta) ningún plato puede quedar en «Sí». Privacidad del POST a `/api/leer` (solo `image`, `mediaType`, `mode`; JPEG ≤ 1280 px). `ilegible.jpg` → mensaje honesto literal y ninguna fila. |
+| 6 | Cámara | Chromium con cámara falsa: «Hacer una foto» → vídeo en reproducción con `facingMode: environment`, botón de disparo («Hacer la foto»), «Usar esta foto», lectura. Sin cámara (`getUserMedia` rechaza con `NotFoundError`): lo dice y ofrece la galería. |
+| 7 | Súper por código | Alergias leche + frutos secos. Atajos (`ul.shortcuts a`). 3017620422003 → `article.answer.lv-no` «Nutella», «Mejor no», frase «Has marcado…», «Añadir a la lista» visible; petición a `world.openfoodfacts.org/api/v2/product/…` sin datos del perfil. 8410014312203 → no está y ofrece fotografiar la etiqueta (opcional: sube `etiqueta.jpg`). 12345 → validación sin petición. |
+| 8 | Persistencia y borrado | Lista, favoritos e historial tras recargar («Lo último» con filas-enlace, Historial con «Ficha ·» y no «Guía ·»). Ajustes: alergias, «Otra cosa…», dietas, h2 «Historial», «En la pantalla de inicio», «Tus datos», leyenda «Dietas y restricciones» y «Guardado. Las respuestas ya usan estos ajustes.»; marcar «Huevo» cambia la ficha, Buscar «tortilla» y la Lista a «Mejor no» con «Has marcado huevo.». «Borrar los datos de este móvil» (con `confirm()` o confirmación propia) → `#/arranque/1` y ninguna clave `pc.*`. |
+| 9 | Diseño | body 18 px y Source Sans 3; h1 Fraunces; fondo #f3eee6 y tinta #241f1a; botón principal salvia; botones y enlaces-botón ≥ 48 px en todas las pantallas (también el arranque, atajos y filas); sin scroll horizontal; `.answer-word` en Fraunces grande y en el color de la especificación («Sí» #245443, «Con cuidado» #8d4324, «Mejor no» #7a332c) y lo mismo con `.lvl` en las filas del Historial; a 1280 px la columna ≤ 32rem y centrada. Los enlaces en línea (`.text-link`) y las casillas < 48 px solo avisan. |
+| 10 | Lenguaje y guía | Abre las 140 fichas de `src/engine/foods.js` por `#/ficha/:id`: una sola respuesta, palabra de nivel exacta y en su color, su nivel base con perfil neutro (palabra, `lv-*` y `data-level`), nombre, frase que no repite la palabra del nivel, y fuente AESAN / Ministerio de Sanidad tras «Ver más». Plato desconocido → «No estoy segura» con fuente «la propia app». Sobre todo lo recorrido por la batería: ninguna fila ni respuesta empieza la frase con la palabra del nivel; ninguna pantalla usa `.card`, `.chip`, `.chips`, `.sheet`, `.row`, `.link-btn` ni `.pill` por respuesta; Buscar sin «En la guía»/«No aparece»; el arranque sin embutidos; ninguna pastilla dice «evitar», «seguro» o «segura» a secas (avisa de títulos con esas palabras). |
 | 11 | Consola | `pageerror`, `console.error`, peticiones fallidas y respuestas ≥ 400 del propio origen en todos los escenarios. Se separan los esperados (503 de `/api/leer` sin clave, 404 de OFF para el código inexistente) y la red de terceros. |
 
 Cada escenario usa un contexto nuevo (localStorage vacío). Salvo el 1 y el 9, que hacen el arranque por la
-interfaz, el resto siembra el perfil en `pc.v1.profile` + `pc.v1.onboarded` (formato de `src/store.js`) y,
+interfaz, el resto siembra el perfil en `pc.v1.profile` + `pc.v1.onboarded` (formato de `src/store.js`: `alergias`, `otra`, `dieta`; ya no hay campos de embutidos) y,
 si la app no lo respeta, lo avisa y hace el arranque por la interfaz.
 
 Leyenda del informe: **FALLO** incumple la especificación o el contrato; *Aviso* es algo que conviene
@@ -80,7 +81,7 @@ del sistema, PRNG con semilla):
 
 ## Límites conocidos
 
-- El OCR local (tesseract por CDN) es lento y su resultado varía; por eso el escenario 5 acepta fichas o el
+- El OCR local (tesseract por CDN) es lento y su resultado varía; por eso el escenario 5 acepta filas o el
   mensaje honesto, y solo marca FALLO cuando un plato sale con un nivel incompatible con la guía.
 - La cámara falsa de Chromium da un patrón animado: lo normal es el mensaje honesto.
 - Open Food Facts es un servicio externo: si cae, el escenario 7 fallará por red (se ve en la consola).

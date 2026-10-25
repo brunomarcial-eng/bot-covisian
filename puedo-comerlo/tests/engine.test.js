@@ -636,3 +636,94 @@ describe('cuestionario de la clienta (24-10-2026)', () => {
     assert.ok(!ct('morcilla de burgos').foodIds.includes('queso-fresco'));
   });
 });
+
+describe('alergias y «otra cosa»: la frase no se contradice con la guía', () => {
+  test('Nutella con frutos secos: solo «Has marcado…», detalle coherente, sin pregunta ni alternativa', () => {
+    const v = ct('Nutella', { alergias: ['frutos_secos'] });
+    assert.equal(v.level, 'no');
+    assert.equal(v.phrase, 'Has marcado frutos secos.');
+    assert.doesNotMatch(v.phrase, /moderación|cafeína/);
+    assert.match(v.detail, /^Lleva frutos secos, que has marcado en tus ajustes\. Por eso sale «Mejor no»/);
+    assert.match(v.detail, /no tenga un riesgo especial/);
+    assert.doesNotMatch(v.detail, /se puede tomar con normalidad/);
+    assert.equal(v.question, null);
+    assert.equal(v.alternative, null);
+  });
+
+  test('base «Con cuidado» y base desconocida', () => {
+    const c = ct('café con leche', { alergias: ['leche'] });
+    assert.equal(c.phrase, 'Has marcado leche.');
+    assert.match(c.detail, /solo pida algo de cuidado/);
+    assert.equal(c.question, null);
+    const d = ct('plato misterioso con soja', { alergias: ['soja'] });
+    assert.equal(d.level, 'no');
+    assert.equal(d.phrase, 'Has marcado soja.');
+    assert.match(d.detail, /no reconoce del todo/);
+  });
+
+  test('«otra cosa» sobre una base que no era «Mejor no»', () => {
+    const v = ct('tortilla con cebolla', { otra: 'cebolla' });
+    assert.equal(v.level, 'no');
+    assert.equal(v.phrase, 'Has marcado «cebolla».');
+    assert.match(v.detail, /^Has marcado «cebolla» entre lo que no quieres comer en tus ajustes\. Por eso sale «Mejor no»/);
+    assert.equal(v.question, null);
+    assert.equal(v.alternative, null);
+  });
+
+  test('si la base ya era «Mejor no», se mantiene frase, detalle, pregunta y alternativa de la guía', () => {
+    const base = ct('ceviche con cilantro');
+    const v = ct('ceviche con cilantro', { otra: 'cilantro' });
+    assert.equal(v.phrase, `Has marcado «cilantro». ${base.phrase}`);
+    assert.equal(v.detail, base.detail);
+    assert.equal(v.question, base.question);
+    assert.equal(v.alternative, base.alternative);
+    assert.ok(base.question);
+  });
+
+  test('vale igual para productos (alérgenos declarados) y para fichas', () => {
+    const p = classifyProduct(
+      { name: 'Yogur natural', ingredientsText: 'leche pasteurizada', allergens: ['en:milk'], categories: ['en:yogurts'] },
+      profile({ alergias: ['leche'] }),
+    );
+    assert.equal(p.level, 'no');
+    assert.equal(p.phrase, 'Has marcado leche.');
+    assert.match(p.detail, /^Lleva leche, que has marcado/);
+    assert.equal(p.question, null);
+    const f = verdictForFood('chocolate', profile({ otra: 'chocolate' }));
+    assert.equal(f.phrase, 'Has marcado «chocolate».');
+    assert.match(f.detail, /entre lo que no quieres comer/);
+    assert.equal(f.alternative, null);
+    // Sin alergia, la ficha no cambia.
+    assert.equal(verdictForFood('chocolate', BASE).detail, FOOD_BY_ID.chocolate.detail);
+  });
+
+  test('el perfil de embutido «no» conserva su frase (la base ya era «Mejor no»)', () => {
+    const v = ct('croquetas de jamón', { embutido: 'no', alergias: ['gluten'] });
+    assert.equal(v.phrase, 'Has marcado gluten. Has decidido no comer embutidos.');
+  });
+});
+
+describe('fiambre en frío y plato combinado', () => {
+  test('bocadillo, sándwich o mixto en frío → fiambre de bandeja, Mejor no', () => {
+    for (const t of ['bocadillo de pavo', 'pavo en frío', 'sándwich de pavo', 'sándwich mixto frío', 'mixto frío', 'bocadillo de jamón cocido', 'bocadillo de jamón york']) {
+      const v = expectLevel(t, 'no');
+      assert.equal(v.foodId, 'fiambre-loncheado', t);
+    }
+  });
+  test('caliente o carne hecha → Sí', () => {
+    for (const t of ['sándwich mixto', 'bikini', 'sándwich mixto caliente', 'pavo', 'pechuga de pavo a la plancha', 'pechuga de pavo asada', 'bocadillo de pavo asado']) {
+      expectLevel(t, 'si');
+    }
+    assert.equal(ct('pavo').foodId, 'carne-bien-hecha');
+  });
+  test('«plato combinado» no es alcohol; «combinado» a secas, sí', () => {
+    for (const t of ['plato combinado', 'platos combinados']) {
+      const v = ct(t);
+      assert.ok(!v.foodIds.includes('alcohol'), t);
+      assert.notEqual(v.level, 'no', t);
+    }
+    for (const t of ['combinado', 'combinados', 'combinado de ginebra', 'plato combinado con copa de vino']) {
+      assert.equal(expectLevel(t, 'no').foodId, 'alcohol', t);
+    }
+  });
+});

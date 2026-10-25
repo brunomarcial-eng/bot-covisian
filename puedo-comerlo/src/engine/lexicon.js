@@ -300,7 +300,7 @@ export const CTX = {
   rawMarker: wordRe(
     alt(
       'al final', 'en crudo', 'sin hornear', 'despues del horno', 'despues de hornear', 'tras el horno', 'tras hornear',
-      'a la salida del horno', 'al salir del horno', 'fuera del horno', 'al servir', 'en frio',
+      'a la salida del horno', 'al salir del horno', 'fuera del horno', 'al servir', 'en frio', 'fri[oa]s?',
       `(?:${EMBUTIDO_CURADO_WORDS})(?: [a-z]+){0,2} crud[oa]s?`,
     ),
     '',
@@ -562,7 +562,7 @@ const RULE_DEFS = [
   // 14. Fiambre de bandeja (antes que el jamón curado).
   rule(
     'fiambre-loncheado',
-    'jamon(?:es)? (?:de )?(?:cocido|york|dulce|en dulce|de pavo)(?: extra)?|(?<!new )york|pechugas? de pavo(?! (?:a la|al|asad|frit|empanad|rellen|guisad|en salsa|en su jugo|estofad))|pavo (?:loncheado|en lonchas|cocido|braseado)|fiambres?(?: de [a-z]+)?|chopped|mortadela|lonchas? de (?:pavo|pollo|york)|pollo (?:loncheado|en lonchas)|(?<!(?:jamon|serrano|iberico|curado|bellota|chorizo|salchichon|lomo|embuchado|fuet|salami|queso|cecina|sobrasada)(?: [a-z0-9]+){0,2} )loncheados?',
+    '(?:bocadillos?|bocatas?|sandwich(?:es)?|tostas?|tostadas?|montaditos?|bagels?|pulgas?) (?:de |con )?(?:pechugas? de )?pavo(?! (?:a la|al|asad|frit|empanad|rellen|guisad|en salsa|en su jugo|estofad))|pavo (?:en frio|fiambre)|(?:sandwich(?:es)? )?mixtos? fri[oa]s?|jamon(?:es)? (?:de )?(?:cocido|york|dulce|en dulce|de pavo)(?: extra)?|(?<!new )york|pechugas? de pavo(?! (?:a la|al|asad|frit|empanad|rellen|guisad|en salsa|en su jugo|estofad))|pavo (?:loncheado|en lonchas|cocido|braseado)|fiambres?(?: de [a-z]+)?|chopped|mortadela|lonchas? de (?:pavo|pollo|york)|pollo (?:loncheado|en lonchas)|(?<!(?:jamon|serrano|iberico|curado|bellota|chorizo|salchichon|lomo|embuchado|fuet|salami|queso|cecina|sobrasada)(?: [a-z0-9]+){0,2} )loncheados?',
   ),
   // 15. Embutidos curados.
   rule(
@@ -597,6 +597,8 @@ const RULE_DEFS = [
     any('sin-alcohol', 'cerveza-sin'),
     '(?:vinos?|cava|sidras?|vermut|vermu|vermouth|mojitos?|sangrias?|tinto de verano|cocktails?|coctel(?:es)?|coctail|combinados?|gin tonic|espumosos?|champan|champagne|bebidas?|lambrusco|moscatel)(?: [a-z]+){0,2}? (?:sin alcohol|desalcoholizad[oa]s?)',
   ),
+  // «Plato combinado» es un plato, no una bebida.
+  block('platos? combinad[oa]s?'),
   block(
     'vinagres?(?: (?:de )?(?:vino|jerez|modena|sidra|cava|manzana|arroz|balsamico|blanco|tinto|pedro ximenez|frambuesa))*|vinagreta|aceto(?: balsamico)?|balsamico',
   ),
