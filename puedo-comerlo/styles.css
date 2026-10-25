@@ -16,15 +16,24 @@
   --salvia: #245443;      /* «Sí» y acción principal */
   --salvia-hover: #1b4336;
   --salvia-tint: #e4ece6;
-  --arcilla: #8d4324;     /* «Con cuidado» */
+  --arcilla: #8d4324;     /* texto «Con cuidado» sobre crema (7:1) */
+  --naranja: #b04f10;     /* «Con cuidado»: terracota anaranjado, el color de la pantalla (crema 5,2:1) */
   --vino: #7a332c;        /* «Mejor no» */
   --vino-tint: #f6e9e6;
   --arena: #e6d8bd;       /* «No estoy segura»: fondo de la pastilla */
   --arena-ink: #5a4524;   /* texto sobre arena: 6,5:1 */
   --arena-line: #cdb88f;
-  --arena-bar: #a8894a;   /* marca lateral de «No estoy segura» (≥ 3:1 sobre la hoja) */
+  --arena-bar: #a8894a;   /* marca lateral antigua; avisos neutros */
+  --ocre: #86672a;        /* «No estoy segura»: ocre apagado, el color de la pantalla (crema 5,2:1) */
   --on-dark: #fffdf8;
   --focus: #241f1a;
+
+  /* Colores del veredicto cuando la pantalla entera los toma (ver «Pantalla entera» al final) */
+  --c-si: var(--salvia);
+  --c-cuidado: var(--naranja);
+  --c-no: var(--vino);
+  --c-duda: var(--ocre);
+  --tone: var(--bg);
 
   /* Espaciado: múltiplos de 4 px */
   --s1: 0.25rem;
@@ -64,7 +73,7 @@ html {
   scroll-padding-bottom: calc(var(--dock-h) + 1rem);
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
-  background: var(--bg);
+  /* Sin fondo propio: el del body se propaga al lienzo entero, también al rebotar el scroll. */
 }
 
 body {
@@ -79,6 +88,7 @@ body {
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
   overflow-x: hidden;
+  transition: background-color 0.3s ease;
 }
 
 img, video, svg { display: block; max-width: 100%; }
@@ -135,8 +145,9 @@ h1[tabindex="-1"]:focus-visible,
 }
 
 .topbar {
+  position: relative;
+  z-index: 1;
   padding-top: env(safe-area-inset-top);
-  background: var(--bg);
 }
 .topbar-inner {
   display: flex;
@@ -156,6 +167,7 @@ h1[tabindex="-1"]:focus-visible,
   letter-spacing: -0.01em;
   color: var(--ink);
   text-decoration: none;
+  transition: color 0.2s ease;
 }
 .icon-btn {
   display: inline-grid;
@@ -167,12 +179,14 @@ h1[tabindex="-1"]:focus-visible,
   background: transparent;
   border: 0;
   cursor: pointer;
-  transition: color 0.12s var(--ease);
+  transition: color 0.2s ease;
 }
 .icon-btn:hover { color: var(--ink); }
 .icon-btn[aria-current="page"] { color: var(--salvia); }
 
 .screen {
+  position: relative;
+  z-index: 1;
   padding-top: 0;
   padding-bottom: calc(var(--dock-h) + var(--s6));
 }
@@ -192,6 +206,7 @@ h1[tabindex="-1"]:focus-visible,
   background: var(--surface);
   border-top: 1px solid var(--line);
   padding-bottom: env(safe-area-inset-bottom);
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 .disclaimer {
   margin: 0 auto;
@@ -202,6 +217,7 @@ h1[tabindex="-1"]:focus-visible,
   color: var(--muted);
   text-align: center;
   text-wrap: balance;
+  transition: color 0.3s ease;
 }
 .tabbar-list {
   list-style: none;
@@ -210,6 +226,7 @@ h1[tabindex="-1"]:focus-visible,
   border-top: 1px solid var(--line);
   display: grid;
   grid-template-columns: repeat(4, 1fr);
+  transition: border-color 0.3s ease;
 }
 .tab {
   position: relative;
@@ -225,7 +242,7 @@ h1[tabindex="-1"]:focus-visible,
   font-size: 0.8125rem;
   font-weight: 600;
   line-height: 1.1;
-  transition: color 0.12s var(--ease);
+  transition: color 0.2s ease;
 }
 .tab-icon { display: grid; place-items: center; height: 1.375rem; }
 .tab[aria-current="page"] { color: var(--salvia); }
@@ -236,6 +253,7 @@ h1[tabindex="-1"]:focus-visible,
   width: 1.5rem; height: 2px;
   margin-left: -0.75rem;
   background: var(--salvia);
+  transition: background-color 0.2s ease;
 }
 
 /* Modo arranque: sin barra superior ni navegación; el pie sigue abajo */
@@ -422,35 +440,36 @@ button.text-link { padding: 0; background: none; border: 0; font-family: inherit
 
 /* ---------- Respuesta única: la palabra manda ---------- */
 
-.answer { margin-top: var(--s5); }
+.answer { margin-top: var(--s6); }
 .answer > .eyebrow { margin-bottom: var(--s3); }
 .answer-word {
   margin: 0;
   font-family: var(--font-title);
-  font-weight: 560;
-  font-size: clamp(2.75rem, 14vw, 3.5rem);
-  line-height: 0.98;
-  letter-spacing: -0.03em;
-  color: var(--lv);
+  font-weight: 580;
+  font-size: clamp(3.75rem, 20vw, 5rem);
+  line-height: 0.96;
+  letter-spacing: -0.035em;
+  color: var(--ink);
   text-wrap: balance;
 }
-.lv-duda .answer-word { font-size: clamp(2.25rem, 11vw, 2.875rem); }
+.lv-cuidado .answer-word,
+.lv-duda .answer-word { font-size: clamp(3.25rem, 16.5vw, 4.5rem); }
 .answer-name {
-  margin: var(--s3) 0 0;
+  margin: var(--s4) 0 0;
   font-family: var(--font-title);
   font-weight: 500;
-  font-size: 1.5rem;
-  line-height: 1.2;
-  letter-spacing: -0.01em;
+  font-size: 1.75rem;
+  line-height: 1.15;
+  letter-spacing: -0.012em;
   color: var(--ink);
   overflow-wrap: break-word;
   hyphens: manual;
 }
 h1.answer-name { text-wrap: balance; }
 .answer-phrase {
-  margin: var(--s4) 0 0;
-  font-size: 1.25rem;
-  line-height: 1.45;
+  margin: var(--s3) 0 0;
+  font-size: 1.3125rem;
+  line-height: 1.42;
   text-wrap: pretty;
 }
 .answer-actions {
@@ -458,18 +477,10 @@ h1.answer-name { text-wrap: balance; }
   flex-wrap: wrap;
   align-items: center;
   gap: var(--s1) var(--s5);
-  margin-top: var(--s4);
+  margin-top: var(--s5);
 }
 .answer-wrap { margin-top: var(--s5); }
 .answer-wrap .answer { margin-top: 0; }
-
-/* Hoja: solo para la respuesta de Buscar */
-.answer--sheet {
-  padding: var(--s5) var(--s5) var(--s2);
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sheet);
-}
 
 /* «Ver más» */
 .more-bar {
@@ -529,37 +540,58 @@ h1.answer-name { text-wrap: balance; }
   margin-top: var(--s4);
 }
 
-/* ---------- Filas de lista: filetes y marca lateral, sin cajas ---------- */
+/* ---------- Filas de lista: banda suave del color del nivel, a sangre dentro de la columna ---------- */
 
-.lv-si { --lv: var(--salvia); --lv-bar: var(--salvia); }
-.lv-cuidado { --lv: var(--arcilla); --lv-bar: var(--arcilla); }
-.lv-no { --lv: var(--vino); --lv-bar: var(--vino); }
-.lv-duda { --lv: var(--arena-ink); --lv-bar: var(--arena-bar); }
+/* --lv: texto del nivel sobre su banda (≥ 4,5:1) · --lv-bar: marca lateral · --lv-tint: banda de fondo */
+.lv-si { --lv: var(--salvia); --lv-bar: var(--salvia); --lv-tint: #e0eae3; }
+.lv-cuidado { --lv: var(--arcilla); --lv-bar: var(--naranja); --lv-tint: #f8e2d0; }
+.lv-no { --lv: var(--vino); --lv-bar: var(--vino); --lv-tint: #f2dfdb; }
+.lv-duda { --lv: var(--arena-ink); --lv-bar: var(--ocre); --lv-tint: #efe6c8; }
 
 .entries {
   list-style: none;
-  margin: 0;
+  margin: 0 calc(var(--gutter) * -1);
   padding: 0;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid rgba(36, 31, 26, 0.12);
 }
 .entry {
   position: relative;
-  border-bottom: 1px solid var(--line);
+  background: var(--lv-tint);
+  border-bottom: 1px solid rgba(36, 31, 26, 0.12);
 }
 .entry::before {
   content: '';
   position: absolute;
-  left: 0; top: var(--s4); bottom: var(--s4);
-  width: 3px;
-  border-radius: 2px;
+  left: 0; top: 0; bottom: 0;
+  width: 4px;
   background: var(--lv-bar);
 }
 .entry-body {
   display: block;
-  padding: var(--s4) 0 var(--s3) var(--s4);
+  padding: var(--s4) var(--gutter) var(--s3);
   color: inherit;
   text-decoration: none;
 }
+/* «?» pequeño y decorativo en las dudosas (no entra en el texto: contenido alternativo vacío) */
+.entry.lv-duda::after,
+.entry.lv-cuidado::after {
+  content: '?';
+  content: '?' / '';
+  position: absolute;
+  top: var(--s3); right: var(--gutter);
+  font-family: var(--font-title);
+  font-weight: 600;
+  font-size: 2.5rem;
+  line-height: 1;
+  color: var(--lv-bar);
+  opacity: 0.3;
+  pointer-events: none;
+}
+.entry.lv-cuidado::after { opacity: 0.2; }
+.entry.lv-duda .entry-body,
+.entry.lv-cuidado .entry-body { padding-right: calc(var(--gutter) + 2.5rem); }
+.entry.lv-duda .more-bar,
+.entry.lv-cuidado .more-bar { margin-right: -2.5rem; }
 .entry-body > * + * { margin-top: var(--s1); }
 .lvl {
   display: block;
@@ -896,9 +928,9 @@ legend { padding: 0; }
 }
 .pill svg { width: 0.8125rem; height: 0.8125rem; flex: none; }
 .pill--si { background: var(--salvia); color: var(--on-dark); }
-.pill--cuidado { background: var(--arcilla); color: var(--on-dark); }
+.pill--cuidado { background: var(--naranja); color: var(--on-dark); }
 .pill--no { background: var(--vino); color: var(--on-dark); }
-.pill--duda { background: var(--arena); color: var(--arena-ink); border-color: var(--arena-line); }
+.pill--duda { background: var(--ocre); color: var(--on-dark); }
 .pill--sm { font-size: 0.875rem; padding: 0.25rem 0.75rem 0.25rem 0.5rem; gap: 0.375rem; }
 .pill--sm svg { width: 0.6875rem; height: 0.6875rem; }
 .summary { display: flex; flex-wrap: wrap; gap: var(--s2); margin: 0 0 var(--s5); }
@@ -1104,6 +1136,167 @@ legend { padding: 0; }
 .install-status { margin: var(--s3) 0 0; color: var(--salvia); font-weight: 600; }
 .install-status:empty { margin: 0; }
 
+/* ---------- Pantalla entera del color del veredicto ---------- */
+
+/* Una pantalla de una sola respuesta (Buscar con respuesta, ficha, producto, etiqueta) toma el color
+   del semáforo a sangre. tone.js pone body[data-verdict] = si | cuidado | no | duda; aquí se redefinen
+   los tokens (tinta, secundario, filetes, botones…) para que todo el contenido se lea sobre el color.
+   Pares texto/fondo: crema #fffdf8 sobre cada color ≥ 5,2:1 (secundario #f6f1e9 ≥ 4,6:1); en la
+   tabla del informe de Michi (docs/DECISIONES.md, N6). */
+
+body[data-verdict="si"] { --tone: var(--c-si); }
+body[data-verdict="cuidado"] { --tone: var(--c-cuidado); }
+body[data-verdict="no"] { --tone: var(--c-no); }
+body[data-verdict="duda"] { --tone: var(--c-duda); }
+
+body[data-verdict] {
+  background-color: var(--tone);
+  --ink: #fffdf8;
+  --muted: #f6f1e9;
+  --line: rgba(255, 253, 248, 0.42);
+  --line-strong: rgba(255, 253, 248, 0.8);
+  --salvia: #fffdf8;           /* acentos y botón principal: crema */
+  --salvia-hover: #f3eee6;
+  --salvia-tint: rgba(255, 253, 248, 0.14);
+  --on-dark: var(--tone);      /* texto sobre el botón crema: el color del fondo */
+  --focus: #fffdf8;
+}
+
+/* Capa fija bajo el contenido: la «iluminación» y los «?» decorativos */
+.tone {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.tone-ripple { position: absolute; inset: 0; }
+.tone-marks {
+  position: absolute;
+  top: 0; bottom: 0;
+  left: 50%;
+  width: min(100%, 34rem);
+  transform: translateX(-50%);
+  transition: opacity 0.22s ease;
+}
+.tone-marks.is-out { opacity: 0; }
+.tm {
+  position: absolute;
+  font-family: var(--font-title);
+  font-weight: 600;
+  font-size: var(--size);
+  line-height: 0.8;
+  color: var(--mark, #1b1612);
+  opacity: var(--o);
+  transform: rotate(var(--rot));
+  -webkit-user-select: none;
+  user-select: none;
+  animation: tm-in 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) var(--d, 0.3s) both;
+}
+@keyframes tm-in {
+  from { opacity: 0; transform: translateY(1.75rem) rotate(var(--rot)) scale(0.94); }
+  to { opacity: var(--o); transform: translateY(0) rotate(var(--rot)) scale(1); }
+}
+
+/* Barras: la superior sobre el color; la inferior, del mismo color y con filete */
+body[data-verdict] .dock { background: var(--tone); border-top-color: var(--line); }
+body[data-verdict] .tab[aria-current="page"] { font-weight: 700; }
+body[data-verdict] .tab[aria-current="page"]::before { height: 3px; }
+
+/* Encendido: de crema a color. El fondo de la página espera a que acabe la expansión (420 ms) y las
+   barras se tiñen mientras pasa; después el texto aparece, escalonado. */
+body.is-igniting { transition: background-color 0s linear 0.42s; }
+body.is-igniting .dock { transition: background-color 0.2s ease 0.04s, border-color 0.2s ease 0.04s; }
+body.is-igniting .brand,
+body.is-igniting .icon-btn,
+body.is-igniting .tab,
+body.is-igniting .disclaimer { transition: color 0.2s ease 0.04s; }
+body.is-igniting .tab[aria-current="page"]::before { transition: none; }
+
+body.is-igniting .answer-word,
+body.is-igniting .answer > .eyebrow,
+body.is-igniting .answer-name,
+body.is-igniting .answer-phrase,
+body.is-igniting .answer-actions,
+body.is-igniting .answer .more-bar,
+body.is-igniting .screen > .actions,
+body.is-igniting .screen > .help {
+  animation: tone-text 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation-delay: 0.3s;
+}
+body.is-igniting .answer-name { animation-delay: 0.38s; }
+body.is-igniting .answer-phrase { animation-delay: 0.44s; }
+body.is-igniting .answer-actions { animation-delay: 0.5s; }
+body.is-igniting .answer .more-bar { animation-delay: 0.54s; }
+body.is-igniting .screen > .actions { animation-delay: 0.6s; }
+@keyframes tone-text {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Salida sin destellos: al navegar, todo a crema de golpe */
+body.tone-instant,
+body.tone-instant *,
+body.tone-instant *::before,
+body.tone-instant *::after { transition: none !important; }
+
+/* En Buscar, lo fijo (título, etiqueta) cambia de tinta con el fondo, no antes */
+body[data-screen="buscar"] :is(h1, .label, .field-go) { transition: color 0.3s ease; }
+body:not([data-verdict]) #buscar-resultados > * { animation: soft-in 0.3s ease both; }
+@keyframes soft-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* Botones sobre el color: principal = crema con texto del color; secundario = contorno crema */
+body[data-verdict] .btn--primary { background: #fffdf8; color: var(--tone); }
+body[data-verdict] .btn--secondary { color: #fffdf8; border-color: #fffdf8; }
+@media (hover: hover) {
+  body[data-verdict] .btn--primary:hover { background: #f3eee6; }
+  body[data-verdict] .btn--secondary:hover { background: rgba(255, 253, 248, 0.14); }
+}
+body[data-verdict] .btn[aria-disabled="true"] { background: transparent; color: var(--muted); border-color: var(--line-strong); }
+body[data-verdict] .text-link:hover,
+body[data-verdict] .more-btn:hover { color: #f3eee6; }
+body[data-verdict] a:not([class]) { color: #fffdf8; }
+body[data-verdict] .notice,
+body[data-verdict] .notice--problem { border-left-color: var(--line-strong); }
+
+/* El campo de Buscar sigue siendo una hoja crema con tinta; su foco, un anillo crema por fuera */
+body[data-verdict] .field-box {
+  --ink: #241f1a;
+  --muted: #5c564e;
+  --salvia: #245443;
+  --line: #e3dacd;
+  --line-strong: #857a6d;
+  --focus: #241f1a;
+  border-color: #fffdf8;
+}
+body[data-verdict] .field-box:focus-within { border-color: #fffdf8; box-shadow: 0 0 0 3px #fffdf8; }
+
+/* «Ver más»: una hoja crema con texto tinta dentro de la pantalla de color (≥ 12:1) */
+body[data-verdict] .more {
+  --ink: #241f1a;
+  --muted: #5c564e;
+  --line: #e3dacd;
+  --line-strong: #857a6d;
+  --salvia: #245443;
+  --salvia-hover: #1b4336;
+  --salvia-tint: #e4ece6;
+  --on-dark: #fffdf8;
+  --focus: #241f1a;
+  margin-top: var(--s3);
+  padding: var(--s2) var(--s4) var(--s3);
+  background: var(--surface);
+  color: var(--ink);
+  border-radius: var(--r-control);
+}
+body[data-verdict] .more > :first-child { margin-top: var(--s2); }
+
+/* Ficha y producto: la respuesta empieza más abajo, para que la palabra se vea sola, de lejos */
+.screen > .answer { padding-top: clamp(0px, 5svh, 2.5rem); }
+body[data-verdict] .more .btn--secondary { color: #245443; border-color: #245443; }
+@media (hover: hover) {
+  body[data-verdict] .more .btn--secondary:hover { background: #e4ece6; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -1114,4 +1307,8 @@ legend { padding: 0; }
     scroll-behavior: auto !important;
   }
   .spinner { animation: none; border-top-color: var(--salvia); border-right-color: var(--salvia); }
+  body.is-igniting .answer > *,
+  body.is-igniting .answer-word { animation: none !important; }
+  .tm { animation: none !important; }
+  .tone-marks, .tone-marks.is-out { transition: none !important; }
 }

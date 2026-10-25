@@ -15,6 +15,7 @@ import * as lista from './ui/lista.js';
 import * as historial from './ui/historial.js';
 import * as ajustes from './ui/ajustes.js';
 import * as instalar from './ui/instalar.js';
+import { beginNavigation, endNavigation } from './ui/tone.js';
 
 const SCREENS = {
   '': home,
@@ -93,6 +94,7 @@ function render() {
   const controller = new AbortController();
   const main = document.getElementById('main');
   main.replaceChildren();
+  window.scrollTo(0, 0); // antes de pintar: la iluminación mide dónde queda la palabra
   // Entrada breve de cada pantalla (la anula prefers-reduced-motion).
   main.classList.remove('is-entering');
   void main.offsetWidth;
@@ -111,6 +113,8 @@ function render() {
     setTab,
   };
 
+  // Una pantalla de respuesta pide su color (tone.js); si ninguna lo pide, todo vuelve a crema.
+  beginNavigation();
   let cleanup = null;
   try {
     cleanup = screen.render(ctx);
@@ -118,6 +122,7 @@ function render() {
     console.error('Error al pintar la pantalla:', err);
     errorView(main);
   }
+  endNavigation();
   current = { controller, cleanup };
 
   // Título del documento y foco en el h1.

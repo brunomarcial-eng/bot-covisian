@@ -4,6 +4,7 @@ import { verdictForFood, FOOD_BY_ID, GROUPS } from '../engine/index.js';
 import { addHistory, isFavorite, toggleFavorite } from '../store.js';
 import { h, icon, announce, fill } from './dom.js';
 import { verdictAnswer, addToListButton } from './components.js';
+import { setTone } from './tone.js';
 
 export function render({ main, segs, profile }) {
   const id = segs[1] || '';
@@ -51,4 +52,5 @@ export function render({ main, segs, profile }) {
       favBtn,
     ),
   );
+  setTone(v.level, { anchor: main.querySelector('.answer-word') });
 }

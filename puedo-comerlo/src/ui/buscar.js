@@ -7,6 +7,7 @@ import { h, icon, debounce, fill } from './dom.js';
 import { verdictAnswer, addToListButton, shortcutList, sectionHead } from './components.js';
 import { ATAJOS_FUERA } from './fuera.js';
 import { buildHash, replaceQuietly } from './router.js';
+import { setTone, clearTone } from './tone.js';
 
 // Apunta una búsqueda enviada en el historial. Devuelve el veredicto.
 export function recordSearch(q, profile) {
@@ -78,6 +79,7 @@ export function render({ main, params, profile }) {
         ),
       );
       live.textContent = '';
+      clearTone();
       return;
     }
 
@@ -90,6 +92,7 @@ export function render({ main, params, profile }) {
     if (!v) {
       fill(results, h('p', { class: 'help' }, 'No he podido responder a esto. Prueba con otra palabra.'));
       live.textContent = '';
+      clearTone();
       return;
     }
 
@@ -118,12 +121,13 @@ export function render({ main, params, profile }) {
         verdictAnswer(v, {
           level: 2,
           title: text.charAt(0).toLocaleUpperCase('es-ES') + text.slice(1),
-          sheet: true,
           fichaLink: false,
           actions,
         }),
       ),
     );
+    // Toda la pantalla toma el color de la respuesta (de crema a color se «enciende»; de un color a otro, fundido).
+    setTone(v.level, { anchor: results.querySelector('.answer-word') });
     live.textContent = `Tu respuesta: ${LEVEL_LABEL[v.level] || ''}.`;
   }
 

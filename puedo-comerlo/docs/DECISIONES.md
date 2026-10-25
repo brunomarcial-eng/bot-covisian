@@ -38,6 +38,43 @@ Cada agente anota aquí, en su sección, lo que decidió sin preguntar.
 - **Se mantienen** paleta, tipografías, 18 px de cuerpo, controles ≥ 48 px, columna de ~32 rem, cuatro destinos, Ajustes arriba, palabras del semáforo, pie literal y una acción principal por pantalla.
 - **Pendiente conocido:** el enlace en línea de «Tenla a mano: ponla en la pantalla de inicio» mide 44 px de alto (es parte de una frase; el botón de cerrar sí mide 48).
 
+### N6 · Pantalla entera del color del veredicto (Michi, UX/UI)
+
+Petición de la clienta: que al llegar la respuesta se «ilumine» toda la pantalla (verde, rojo, anaranjado) y luego se escriba la palabra; para lo dudoso, signos de interrogación.
+
+**Qué es una «pantalla de respuesta»** (se colorea entera): Buscar con respuesta, Ficha, Producto escaneado y Etiqueta fotografiada de un solo plato. La carta (varias respuestas), Lista, Historial y «Lo último» se quedan en crema y llevan el color en cada fila.
+
+**Colores finales.** Sí `#245443` (salvia, sin cambio) · Mejor no `#7a332c` (vino, sin cambio) · **Con cuidado `#b04f10`** (terracota anaranjado; la arcilla `#8d4324` era marrón. Es el naranja más vivo que aguanta texto crema a 5,2:1; más claro ya no llega a 4,5:1) · **No estoy segura `#86672a`** (ocre apagado; sustituye a la arena, que era demasiado clara para fondo de pantalla). La arcilla `#8d4324` se queda solo como color de *texto* de «Con cuidado» sobre las bandas claras de las listas (7:1). Texto principal crema `#fffdf8`, secundario `#f6f1e9`; no uso tinta sobre naranja (más vivo, pero rompe la coherencia: crema en las cuatro).
+
+**Cómo se distingue «Con cuidado» de «No estoy segura»** (de un vistazo y sin depender del color): el naranja es rojizo y saturado (matiz 24°, 83 %), el ocre es amarillento y apagado (40°, 52 %); la segunda lleva cinco «?» grandes (hasta 21 rem) y la primera solo dos, más pequeños y a menos opacidad (13 % y 10 %, porque suele haber una pregunta para el camarero). «Sí» y «Mejor no» no llevan adornos.
+
+**Cómo está hecho.** `src/ui/tone.js` (nuevo) pone `document.body.dataset.verdict` = `si|cuidado|no|duda`, actualiza `<meta name="theme-color">` y orquesta la animación; el router llama a `beginNavigation()`/`endNavigation()`: si ninguna pantalla pidió color, todo vuelve a crema al instante (sin fundido, sin destellos; también con atrás/adelante). Los estilos viven en `styles.css` (sección «Pantalla entera…»): `body[data-verdict]` redefine los tokens (tinta, secundario, filetes, acento, foco) para que todo el contenido se lea sobre el color; el fondo del body se propaga al lienzo, así que el color llega también a la zona de rebote del scroll. `index.html` lleva una capa fija `#tone` (iluminación + «?») bajo el contenido; la barra inferior (pie + navegación) toma el mismo color.
+- **Iluminación** (de crema a color): un círculo del color nace en la palabra y se expande en 420 ms (Web Animations, `clip-path`); el fondo real de la página toma el color justo al acabar (transición de 0 s con retraso de 0,42 s) y la capa se retira después. El texto aparece escalonado a partir de 300 ms (palabra, nombre, frase, acciones, «Ver más») y los «?» surgen a los 340 ms (fundido + desplazamiento de 1,75 rem, escalonados 130 ms).
+- **De un color a otro** (Buscar mientras se escribe; el debounce es el de antes, 180 ms): fundido de 300 ms del fondo y de las barras, sin repetir la animación del texto ni de los «?» si el nivel no cambia. **Sin respuesta** (campo vacío): vuelve a crema con otro fundido de 300 ms.
+- **`prefers-reduced-motion`**: cambio instantáneo, sin círculo, sin fundidos y «?» quietos.
+- **Los «?»** son `span.tm[aria-hidden]` dentro de `#tone` (no en el artículo, para que no se repitan al reescribir la respuesta), en Fraunces 600, **oscuros** (`#1b1612`) con 10–20 % de opacidad, no crema: un «?» claro bajo el texto le quitaba contraste (3,6:1 en el naranja) y uno oscuro solo se lo da. Quedan asimétricos, con giros de ±6–14°, recortados por los bordes y a escalas de 4 a 21 rem.
+- **Botones sobre el color**: principal = relleno crema con texto del color del fondo («Añadir a la lista» en Ficha, «Escanear otro código», «Hacer otra foto»…); secundarios = contorno crema; «Añadir a la lista» en Buscar y Producto sigue siendo secundario (la principal es la de abajo). `:hover` solo en dispositivos con ratón (en el móvil se quedaba pegado tras tocar).
+- **«Ver más»**: hoja crema (`--surface`) con texto tinta dentro de la pantalla de color; se prefiere a «mismo fondo con filete» porque el detalle puede ser largo (≥ 12:1) y porque el color del fondo queda como marco. El resto de «Ver más» (filas de listas) no cambia.
+- **Buscar con respuesta**: se quita la hoja blanca (ya no hace falta, el color separa el campo de la respuesta). El campo es una hoja crema con tinta; su foco es un anillo crema de 3 px por fuera. Ficha y Producto bajan la respuesta un 5 % de la altura de la pantalla para que la palabra quede sola.
+- **Palabra del veredicto**: Fraunces 580, de 3,75 a 5 rem («Sí», «Mejor no»); «Con cuidado» y «No estoy segura» a 3,25–4,5 rem (en 360 px «Con cuidado» cabe en una línea; «No estoy segura» baja a dos).
+- **Listas**: cada fila tiene una banda de fondo suave del nivel, a sangre dentro de la columna (compensa el margen lateral de 16 px), con texto tinta, marca lateral de 4 px pegada al borde y, en «No estoy segura» y «Con cuidado», un «?» pequeño decorativo (pseudoelemento con contenido alternativo vacío, no entra en el texto). Tintes: `#e0eae3` sí, `#f8e2d0` con cuidado, `#f2dfdb` mejor no, `#efe6c8` no estoy segura. Se separan con un filete de tinta al 12 %. Texto del nivel sobre la banda: salvia, arcilla, vino y arena oscura (≥ 4,5:1, verificado). Los contadores del resumen de la carta se conservan; sus pastillas usan los nuevos naranja y ocre con texto crema.
+- **Se mantiene** todo lo demás: tipografías, 18 px, controles ≥ 48 px (comprobado en 390 y 360), columna de 32 rem, cuatro destinos, Ajustes arriba, palabras, pie literal (12 px, `#f6f1e9` sobre cada color ≥ 4,5:1), sin datos clínicos.
+
+**Para las pruebas (Alfred).** El color ya no está en `.answer-word` (ahora es crema `rgb(255,253,248)` en las cuatro): se comprueba `document.body.dataset.verdict` (`si|cuidado|no|duda`, ausente fuera de las pantallas de respuesta) y, si hace falta el color, `getComputedStyle(document.body).backgroundColor` **esperando ≥ 0,5 s** tras llegar de una pantalla crema (el fondo toma el color al acabar la iluminación; el atributo y la meta `theme-color` cambian al instante). Colores: sí `rgb(36,84,67)`, cuidado `rgb(176,79,16)`, no `rgb(122,51,44)`, duda `rgb(134,103,42)`. `article.answer.lv-*[data-level]`, `.answer-word` (texto exacto), los textos de botones y `ul.entries > li.entry.lv-*[data-level] .lvl` no cambian; se quitan la clase `answer--sheet` (ya no se usa) y el fondo blanco de Buscar. `.entries` ahora tiene margen lateral negativo (bandas a sangre) y `.entry` tiene fondo: cualquier prueba que mida el ancho de las filas verá 32 rem de columna más 2 × gutter.
+
+**Contraste (razón WCAG calculada con script).** Todos los pares ≥ 4,5:1 en texto y ≥ 3:1 en componentes; ninguno falla. Resumen (66 pares comprobados con un script; la tabla completa se entregó en el informe de Michi):
+
+| Par | Sí | Con cuidado | Mejor no | No estoy segura |
+|---|---|---|---|---|
+| Crema `#fffdf8` sobre el color | 8,5 | 5,2 | 8,8 | 5,2 |
+| Secundario `#f6f1e9` sobre el color | 7,7 | 4,7 | 8,0 | 4,7 |
+| Botón principal (texto del color sobre crema) | 8,5 | 5,2 | 8,8 | 5,2 |
+| Texto crema sobre un «?» oscuro (peor caso) | — | 6,1 | — | 6,7 |
+| Palabra del nivel sobre su banda (listas) | 7,0 | 5,7 | 7,0 | 7,3 |
+| Marca lateral sobre la banda (componente) | 7,0 | 4,2 | 7,0 | 4,2 |
+
+**No verificado:** sin dispositivo real (solo Chromium emulando 390×844 y 360×740); la meta `theme-color` se comprueba por su valor, no en la barra de estado de un móvil; no he probado Safari ni Firefox (`clip-path` animado y `@media (hover: hover)` son estándar, pero no consta). La lectura de la carta con foto en este entorno usa OCR local (sin clave de visión: `/api/leer` responde 503, esperado).
+
 ## Publicación
 
 ### N3 · Publicar en Vercel y proteger /api/leer (Beto-infra)

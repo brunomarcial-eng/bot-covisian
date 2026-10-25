@@ -5,6 +5,7 @@ import { h } from './dom.js';
 import { verdictAnswer, entryItem, entries, notice, pill, addToListButton } from './components.js';
 import { verdictsForPayload, platosLeidos } from './recalc.js';
 import { LEVEL_LABEL } from '../engine/levels.js';
+import { setTone } from './tone.js';
 
 // Resumen de la carta: cuántos platos hay de cada nivel, del peor al mejor.
 function summary(items) {
@@ -121,6 +122,11 @@ export function render({ main, profile, setTab }) {
       ),
     );
   }
+
+  // Una sola respuesta (producto o etiqueta): toda la pantalla toma el color del veredicto.
+  // La carta, que son varias, se queda en crema y lleva el color en cada fila.
+  const single = main.querySelector('.answer');
+  if (single) setTone(single.dataset.level, { anchor: single.querySelector('.answer-word') });
 
   let action = null;
   if (kind === 'carta') action = ['#/fuera?camara=1', 'Hacer otra foto'];
