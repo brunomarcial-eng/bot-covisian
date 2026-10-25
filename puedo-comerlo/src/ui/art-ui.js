@@ -14,10 +14,10 @@ function svgNode(markup) {
   return t.content.firstElementChild;
 }
 
-// Portada: la mesa a sangre, recortada por los bordes. Se alinea arriba; la persona sentada asoma por abajo; el borde de arriba se funde con el crema.
+// Portada: la mesa a sangre, recortada por los bordes y alineada abajo (xMidYMax), para que asome la
+// servilleta de lino con el perfil bordado. El borde de arriba se funde con el crema (máscara en CSS).
 export function coverArt() {
-  const svg = svgNode(mesaSvg({ animada: false, decorativa: true }));
-  svg.setAttribute('preserveAspectRatio', 'xMidYMax slice');
+  const svg = svgNode(mesaSvg({ animada: false, decorativa: true, encuadre: 'xMidYMax' }));
   return h('div', { class: 'cover-art', 'aria-hidden': 'true' }, svg);
 }
 
