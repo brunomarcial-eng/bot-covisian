@@ -205,8 +205,9 @@ h1[tabindex="-1"]:focus-visible,
 }
 .tabbar-list {
   list-style: none;
-  margin: 0 auto;
+  margin: var(--s2) auto 0;
   padding-block: 0;
+  border-top: 1px solid var(--line);
   display: grid;
   grid-template-columns: repeat(4, 1fr);
 }
@@ -288,6 +289,12 @@ h2 {
   font-variant-caps: all-small-caps;
   letter-spacing: 0.07em;
   line-height: 1.2;
+}
+/* «Sí» lleva tilde: la «í» no tiene versalita y se vería en minúscula. Mayúsculas a tamaño de versalita. */
+.lv-si .lvl {
+  font-variant-caps: normal;
+  text-transform: uppercase;
+  font-size: 0.82em;
 }
 .eyebrow {
   margin: 0 0 var(--s3);
