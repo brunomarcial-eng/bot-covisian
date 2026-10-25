@@ -7,7 +7,7 @@ Para quien la va a usar y para quien la va a probar. Se lee en el móvil en unos
 ## Índice
 
 1. [Qué es y qué no es](#1-qué-es-y-qué-no-es)
-2. [Qué significa cada respuesta](#2-qué-significa-cada-respuesta)
+2. [Los colores](#2-los-colores)
 3. [El primer arranque](#3-el-primer-arranque)
 4. [Cómo trata la app los embutidos y los fiambres](#4-cómo-trata-la-app-los-embutidos-y-los-fiambres)
 5. [Comer fuera](#5-comer-fuera)
@@ -37,29 +37,43 @@ durante el embarazo. Primero la respuesta; el motivo, solo si lo abres.
 
 ---
 
-## 2. Qué significa cada respuesta
+## 2. Los colores
 
-Lo primero que ves es una palabra grande, con su color. Hay cuatro:
+Cuando la app te contesta sobre **un plato o un producto**, se pinta **la pantalla entera** del color de la
+respuesta, también la barra de arriba y la de abajo, y la palabra aparece grande. Hay cuatro:
 
-| Respuesta | Color | Qué quiere decir |
+| Respuesta | Color de la pantalla | Qué quiere decir |
 |---|---|---|
 | **Sí** | verde salvia | Se puede tomar, con las precauciones normales. |
-| **Con cuidado** | arcilla (teja) | Depende de cómo esté hecho. La respuesta dice qué preguntar o mirar. |
-| **Mejor no** | vino (granate) | Mejor no tomarlo en el embarazo. Si hay una alternativa, la propone. |
-| **No estoy segura** | arena | La app no lo tiene claro y no lo da por seguro. Pregunta qué lleva. |
+| **Con cuidado** | naranja terroso | Depende de cómo esté hecho. La respuesta dice qué preguntar o mirar. |
+| **Mejor no** | rojo vino | Mejor no tomarlo en el embarazo. Si hay una alternativa, la propone. |
+| **No estoy segura** | ocre | La app no lo tiene claro y no lo da por seguro. Pregunta qué lleva. |
 
-En las listas (la carta, tu lista, el historial) cada plato es una fila con una **marca de color a la
-izquierda** y la palabra pequeña encima del nombre. No hay tarjetas: solo filas.
+![Mejor no: pantalla de color vino para «sushi»](capturas/06-respuesta-mejor-no.png)
 
-**Gana el peor.** Si un plato junta varias cosas, se queda con la respuesta más prudente:
-«Mejor no» manda sobre «Con cuidado», que manda sobre «No estoy segura», que manda sobre «Sí».
-Por ejemplo, una ensalada con salmón ahumado sale «Mejor no» por el ahumado, aunque la ensalada sola
-fuera «Con cuidado».
+![Sí: pantalla verde para «lubina a la plancha»](capturas/07-respuesta-si.png)
 
-**Ver más.** Primero ves la palabra, el nombre y una frase. Si tocas **Ver más** se despliega el resto: el
-motivo, la pregunta para el camarero o lo que hay que mirar en la etiqueta, una alternativa y la fuente.
+![Con cuidado: pantalla naranja para «tortilla»](capturas/08-respuesta-con-cuidado.png)
 
-![Ficha de la tortilla de patata con «Ver más» abierto: motivo, qué preguntar, alternativa y fuente](capturas/08-ficha-ver-mas.png)
+![No estoy segura: pantalla ocre con signos de interrogación para un texto que la app no entiende](capturas/09-respuesta-no-estoy-segura.png)
+
+- **No te fíes solo del color.** Siempre hay una **palabra** grande («Sí», «Con cuidado», «Mejor no», «No
+  estoy segura») y una frase. «Con cuidado» y «No estoy segura» llevan además signos de interrogación de
+  fondo (más grandes y numerosos en «No estoy segura»), para distinguirlos de un vistazo, incluso si no
+  distingues bien los colores.
+- **Gana el peor.** Si un plato junta varias cosas, se queda con la respuesta más prudente:
+  «Mejor no» manda sobre «Con cuidado», que manda sobre «No estoy segura», que manda sobre «Sí».
+  Por ejemplo, una ensalada con salmón ahumado sale «Mejor no» por el ahumado, aunque la ensalada sola
+  fuera «Con cuidado».
+- **Las listas no se pintan enteras.** La carta, tu lista, el historial y «Lo último» van sobre fondo crema:
+  cada plato es una fila con una **banda suave del color** de su respuesta, una marca de color en el borde
+  y la palabra pequeña encima del nombre. Solo las respuestas sueltas pintan toda la pantalla.
+
+**Ver más.** Primero ves la palabra, el nombre y una frase. Si tocas **Ver más** se despliega una hoja con el
+resto: el motivo, la pregunta para el camarero o lo que hay que mirar en la etiqueta, una alternativa y la
+fuente.
+
+![Ficha de la tortilla de patata con «Ver más» abierto: motivo, qué preguntar, alternativa y fuente](capturas/10-ficha-ver-mas.png)
 
 ---
 
@@ -69,9 +83,10 @@ La primera vez que la abres te hace tres pantallas cortas, una sola vez (cuatro 
 Lo que contestes se puede cambiar después en Ajustes. Arriba verás siempre «Paso 1 de 4» y una barra de
 progreso; con **Atrás** vuelves al paso anterior.
 
-**Paso 1. Portada.** Explica qué es la app y que es orientativa. Toca **Seguir**.
+**Paso 1. Portada.** Explica qué es la app, con una mesa de platos vista desde arriba (en una esquina, una servilleta con una
+silueta bordada de embarazada). Toca **Seguir**; debajo del botón está el aviso de que es orientativa.
 
-![Portada del arranque: título, aviso de que es orientativa y el botón Seguir](capturas/01-arranque-portada.png)
+![Portada del arranque: título, la mesa con doce platos y el botón Seguir](capturas/01-arranque-portada.png)
 
 **Paso 2. Alergias e intolerancias.** Opcional: leche, huevo, gluten, frutos secos, pescado, marisco, soja y
 sésamo. Debajo hay un campo corto (hasta 200 letras) para **otra cosa que no quieras comer**, por ejemplo
@@ -80,7 +95,7 @@ sésamo. Debajo hay un campo corto (hasta 200 letras) para **otra cosa que no qu
 ![Paso 2: alergias e intolerancias, con frutos secos marcado, y el campo «Otra cosa que no quieras comer»](capturas/02-arranque-alergias.png)
 
 **Paso 3. Dietas y restricciones.** Opcional y se pueden marcar varias: vegetariana, vegana, sin cerdo, sin
-lactosa (intolerancia). **No cambia el color**; solo añade una nota en la respuesta, como «No encaja con
+lactosa (intolerancia). **No cambia la respuesta ni su color**; solo añade una nota en la respuesta, como «No encaja con
 vegana» o «Lleva cerdo».
 
 ![Paso 3: dietas y restricciones](capturas/03-arranque-dietas.png)
@@ -92,8 +107,9 @@ semáforo lo calculan reglas fijas. Toca **Empezar**.
 ![Paso 4: tu privacidad y el botón Empezar](capturas/04-arranque-privacidad.png)
 
 Llegas a **Inicio**: «¿Qué vas a comer?». Hay dos accesos grandes, **Comer fuera** y **En el súper**, y
-debajo un campo para escribir el plato directamente. Un aviso discreto te ofrece ponerla en la pantalla de
-inicio del móvil; lo puedes cerrar con la «x».
+debajo un campo para escribir el plato directamente. Más abajo, «Lo último» (vacío al principio, con un plato
+dibujado) y un aviso discreto que te ofrece ponerla en la pantalla de inicio del móvil; lo puedes cerrar con
+la «x».
 
 ![Inicio: «¿Qué vas a comer?», con Comer fuera, En el súper y el campo para escribir el plato](capturas/05-inicio.png)
 
@@ -126,7 +142,7 @@ Si tu matrona o tu médico te han dicho algo distinto para tu caso, haz lo que e
 
 En **Fuera** (o «Comer fuera» desde Inicio) tienes tres maneras de preguntar:
 
-![Pantalla Comer fuera: Hacer una foto, Elegir una foto, Buscar un plato y atajos](capturas/09-comer-fuera.png)
+![Pantalla Comer fuera: Hacer una foto, Elegir una foto, Buscar un plato y atajos](capturas/11-comer-fuera.png)
 
 **Hacer una foto.** Abre la cámara de atrás. Encuadra la carta, con buena luz, y toca **Hacer la foto**.
 Verás la foto congelada: si se lee bien, toca **Usar esta foto**; si no, **Repetir**. La primera vez, el
@@ -136,24 +152,28 @@ ofrece elegir una foto de la galería.
 **Elegir una foto.** Para una foto que ya tengas en el móvil (por ejemplo, la carta que te han mandado
 por WhatsApp).
 
-**Quién lee la foto.** Cuando está activa la lectura con Claude (el modelo Sonnet 5.5), la foto se lee con
-él: es lo más fino. Si no está activa, o se ha pasado el límite de fotos, la foto se lee en el propio móvil.
-Es más lenta (unos segundos más) y menos fina, y la app te lo avisa con «He leído la carta de forma
-aproximada».
+**Quién lee la foto.** La lee Claude (el modelo Sonnet 5.5): tarda unos 4 segundos y es lo más fino. Solo si
+no puede (por ejemplo, si te has pasado del límite de fotos o falla la conexión con él), la foto se lee en
+el propio móvil. Entonces tarda unos segundos más, es menos fina y la app te lo avisa con «He leído la
+carta de forma aproximada» (más abajo).
 
-Mientras lee, verás la foto y un mensaje:
+Mientras lee, verás la foto y un plato con tenedor y cuchillo que gira, con un mensaje («Leyendo la carta…»):
 
-![Leyendo la carta: la foto y el mensaje de progreso](capturas/10-carta-leyendo.png)
+![Leyendo la carta: la foto, el plato que gira y el mensaje de progreso](capturas/12-carta-leyendo.png)
 
 Después sale **«La carta»**: cuántos platos ha leído (hasta 12), un resumen por colores y una fila por plato.
 Toca **Ver más** en el que te interese. Abajo del todo, **Hacer otra foto**.
 
-![Resultado de la carta: «12 platos leídos», el resumen por colores, el aviso de lectura aproximada y las primeras filas](capturas/11-carta-resultado.png)
+![Resultado de la carta: «12 platos leídos», el resumen por colores y las primeras filas con su banda de color](capturas/13-carta-resultado.png)
 
-![Más platos de la misma carta: tortilla, lubina, sushi y entrecot poco hecho](capturas/11b-carta-resultado-mas.png)
+![Más platos de la misma carta: tortilla, lubina, sushi y entrecot poco hecho](capturas/13b-carta-resultado-mas.png)
 
-**El aviso «He leído la carta de forma aproximada. Revisa los nombres.»** Sale cuando la foto se ha leído en
-el propio móvil. En ese caso:
+*Estas capturas se hicieron sin la lectura de Claude, con el lector del propio móvil: por eso salen el aviso
+de lectura aproximada y varios «No estoy segura». En tu móvil, con Claude, la lectura sale más limpia: sin
+aviso y con los nombres de los platos mejor leídos.*
+
+**El aviso «He leído la carta de forma aproximada. Revisa los nombres.»** Solo sale cuando la foto se ha
+leído en el propio móvil (no cuando la lee Claude). En ese caso:
 
 - Revisa que los nombres de los platos estén bien escritos.
 - Ningún plato sale «Sí» a secas: lo que habría sido «Sí» baja a **«No estoy segura»**, con la frase
@@ -166,17 +186,13 @@ el propio móvil. En ese caso:
 el plato.» Prueba otra foto más cerca y con más luz, o escríbelo.
 
 **Buscar un plato.** Con **Buscar un plato**, o escribiendo en Inicio en «O escribe el plato», sale una
-pantalla con el campo y **solo la respuesta**: la palabra grande, el nombre, una frase, **Añadir a la
-lista** y **Ver más**. Escribe el plato como lo dirías: «sushi», «tortilla», «pizza de jamón york»,
-«lentejas con chorizo»… No hace falta poner tildes. La respuesta se va actualizando mientras escribes.
+pantalla con el campo y **solo la respuesta**, con la pantalla del color de la respuesta: la palabra grande, el nombre, una frase,
+**Añadir a la lista** y **Ver más**. Escribe el plato como lo dirías: «sushi», «tortilla», «pizza de jamón york»,
+«lentejas con chorizo»… No hace falta poner tildes. La respuesta (y el color) se van actualizando mientras escribes.
 Cuando la respuesta sale de un único alimento conocido, aparece también **Ver la ficha**.
 
 Si escribes algo que la app no entiende, sale **«No estoy segura»**, y en **Ver más** te dice qué
 preguntar (si lleva huevo crudo, embutido, queso sin pasteurizar, alcohol o pescado sin hacer).
-
-![Respuesta para «sushi»: Mejor no](capturas/06-respuesta-sushi.png)
-
-![Respuesta para «pizza de jamón york»: Sí, porque va horneada](capturas/07-respuesta-pizza-jamon-york.png)
 
 **Atajos.** Debajo de los botones hay una lista de texto con lo más habitual: jamón curado, pescado crudo,
 tortilla, ensalada César, ensaladilla, tarta de queso, gazpacho, mayonesa casera, queso blando y paella.
@@ -188,7 +204,7 @@ Tocas uno y se abre su ficha, con su respuesta. También salen en Buscar cuando 
 
 En **Súper** (o «En el súper» desde Inicio):
 
-![Pantalla En el súper: escanear, escribir el código, fotografiar la etiqueta y atajos](capturas/12-super.png)
+![Pantalla En el súper: escanear, escribir el código, fotografiar la etiqueta y atajos](capturas/14-super.png)
 
 **Escanear el código.** Abre la cámara; apunta al código de barras y lo lee solo. La app lo busca en
 **Open Food Facts**, una base de datos abierta de productos.
@@ -196,17 +212,17 @@ En **Súper** (o «En el súper» desde Inicio):
 **Escribir el código.** Si la cámara no lo coge, teclea los números de debajo de las barras (de 8 a 14
 cifras) y toca **Consultar**.
 
-Sale el producto con su código, la palabra grande, su nombre y la frase. En **Ver más** verás los
+Sale el producto, con la pantalla del color de su respuesta: el código, la palabra grande, su nombre y la frase. En **Ver más** verás los
 ingredientes que figuran en Open Food Facts.
 
-![Producto encontrado por código: Nutella, «Mejor no» porque se marcó frutos secos](capturas/13-super-producto.png)
+![Producto encontrado por código: Nutella, «Mejor no» porque se marcó frutos secos](capturas/15-super-producto.png)
 
-![El mismo producto con «Ver más» abierto: motivo e ingredientes leídos](capturas/13b-super-producto-ver-mas.png)
+![El mismo producto con «Ver más» abierto: motivo e ingredientes leídos](capturas/15b-super-producto-ver-mas.png)
 
 **Si no está en Open Food Facts**, te lo dice («No está en Open Food Facts. Haz una foto de los
 ingredientes.») y te ofrece **Fotografiar la etiqueta**. Haz la foto de la lista de ingredientes, no del
 frente del paquete. Si el producto no tiene código, usa **«¿Sin código? Fotografía la etiqueta»**. La foto
-de la etiqueta se lee igual que la de la carta (con Claude o, si no, en el propio móvil con el aviso de
+de la etiqueta se lee igual que la de la carta (con Claude o, si no puede, en el propio móvil con el aviso de
 lectura aproximada).
 
 **Cómo se aplican tus alergias:**
@@ -225,21 +241,26 @@ lectura aproximada).
 
 ## 7. Lista, favoritos e historial
 
-**Lista.** Para guardar lo que te interesa: en una respuesta, toca **Añadir a la lista**; en una fila de la
+**Lista.** Al principio está vacía, con un plato dibujado y «Todavía no hay nada…».
+
+![Lista vacía, con un plato de ensalada dibujado](capturas/16-lista-vacia.png)
+
+Para guardar lo que te interesa: en una respuesta, toca **Añadir a la lista**; en una fila de la
 carta, abre **Ver más** y toca **Añadir a la lista**. En la pestaña **Lista** lo verás todo con su color,
 recalculado con tus ajustes de ahora (si mañana marcas una alergia, la lista se pone al día). **Quitar** lo
 borra de la lista.
 
-![Lista con un producto y la tortilla de patata, y debajo Favoritos](capturas/14-lista.png)
+![Lista con un producto y la tortilla de patata, y debajo Favoritos](capturas/17-lista.png)
 
 **Favoritos.** En la ficha de un alimento (por ejemplo, al tocar un atajo), **Guardar en favoritos**.
 Aparecen debajo de la lista.
 
 **Historial.** Guarda tus últimas 40 consultas (búsquedas, fotos, códigos y fichas abiertas). En Inicio
 verás las tres últimas en **«Lo último»**; el historial completo, en **Ver el historial** (en Inicio o
-en Ajustes). Desde ahí puedes **Borrar el historial** sin tocar la lista ni los favoritos.
+en Ajustes). Desde ahí puedes **Borrar el historial** sin tocar la lista ni los favoritos. El historial vacío también
+lleva un plato dibujado.
 
-![Inicio con «Lo último»: las tres últimas consultas](capturas/15-inicio-lo-ultimo.png)
+![Inicio con «Lo último»: las tres últimas consultas](capturas/18-inicio-lo-ultimo.png)
 
 Todo esto se queda en tu móvil y sigue ahí aunque cierres o recargues la app.
 
@@ -249,7 +270,7 @@ Todo esto se queda en tu móvil y sigue ahí aunque cierres o recargues la app.
 
 Toca la **ruedecita** de arriba a la derecha.
 
-![Ajustes: alergias, otra cosa que no quieras comer y dietas](capturas/16-ajustes.png)
+![Ajustes: alergias, otra cosa que no quieras comer y dietas](capturas/19-ajustes.png)
 
 - **Cambiar tus decisiones.** Arriba está todo lo del arranque: alergias, otra cosa que no quieras comer y
   dietas y restricciones. Cambia lo que quieras y toca **Guardar**. Verás «Guardado. Las respuestas ya usan
@@ -261,7 +282,7 @@ Toca la **ruedecita** de arriba a la derecha.
   historial. Te pide confirmación (**Borrar todo**), no se puede deshacer y vuelves al arranque, como el
   primer día.
 
-![Final de Ajustes: Historial, En la pantalla de inicio y Tus datos](capturas/16b-ajustes-final.png)
+![Final de Ajustes: Historial, En la pantalla de inicio y Tus datos](capturas/19b-ajustes-final.png)
 
 ---
 
@@ -290,7 +311,7 @@ la app, en **Ajustes → Instalar en el móvil**, con tu tipo de móvil primero 
 
 En algunos Android la pantalla de Instalar muestra directamente un botón **Instalar**: basta con tocarlo.
 
-![Pantalla Instalar en el móvil en un Android: los pasos de Chrome y la etiqueta «Tu móvil»](capturas/17-instalar.png)
+![Pantalla Instalar en el móvil en un Android: los pasos de Chrome y la etiqueta «Tu móvil»](capturas/20-instalar.png)
 
 Una vez instalada, **sigue necesitando internet** para abrirse, igual que en el navegador.
 
@@ -304,8 +325,8 @@ Una vez instalada, **sigue necesitando internet** para abrirse, igual que en el 
   móvil.
 - **No te pide datos de salud.** Ni semana de embarazo, ni fecha de parto, ni analíticas.
 - **La foto solo se lee.** Cuando haces una foto de una carta o de una etiqueta, se usa únicamente para
-  sacar el texto (los nombres de los platos y los ingredientes) y **no se guarda**. Si la lectura con
-  Claude está activa, la foto viaja para que él la lea; si no, se lee en el propio móvil y no sale de él.
+  sacar el texto (los nombres de los platos y los ingredientes) y **no se guarda**. La foto viaja a Claude
+  para que la lea; solo si no puede, se lee en el propio móvil y no sale de él.
   Quien la lee no decide nada: solo copia lo que ve.
 - **El semáforo lo calculan reglas fijas** que van dentro de la app, en tu móvil, a partir de ese texto
   y de tus ajustes. La misma pregunta con los mismos ajustes da siempre la misma respuesta.
@@ -328,25 +349,25 @@ cualquier cosa que te extrañe y en qué paso.
    - *Deberías ver:* «¿Qué vas a comer?». En ningún paso te ha pedido semana, fecha ni analíticas, ni te ha
      preguntado por embutidos.
 2. **Sushi.** En «O escribe el plato», escribe `sushi` y toca la lupa.
-   - *Deberías ver:* **Mejor no** (granate), «Crudo, mejor no: puede llevar listeria y anisakis.»
+   - *Deberías ver:* **Mejor no**, con la pantalla entera de color vino, «Crudo, mejor no: puede llevar listeria y anisakis.»
 3. **Tortilla.** Vuelve a Inicio y escribe `tortilla`.
-   - *Deberías ver:* **Con cuidado** (teja), «Solo si está cuajada hasta el centro.» Toca **Ver más**:
+   - *Deberías ver:* **Con cuidado**, con la pantalla naranja y signos de interrogación de fondo, «Solo si está cuajada hasta el centro.» Toca **Ver más**:
      sale qué preguntar, una alternativa y «Fuente: AESAN».
 4. **Pizza de jamón york.** Escribe `pizza de jamón york`.
-   - *Deberías ver:* **Sí** (verde), «Va horneada, y el horno cocina lo que lleva encima.»
+   - *Deberías ver:* **Sí**, con la pantalla verde, «Va horneada, y el horno cocina lo que lleva encima.»
    - (Si escribes solo `jamón york`, sale **Mejor no**: en frío, de bandeja.)
 5. **Jamón serrano.** Escribe `jamón serrano`.
    - *Deberías ver:* **Mejor no**, «Curado y sin cocinar, mejor no: AESAN lo señala por toxoplasmosis.»
 6. **Foto de una carta.** Ve a **Fuera** → **Hacer una foto** (o **Elegir una foto** si la tienes en la
    galería). Dale permiso a la cámara si te lo pide.
-   - *Deberías ver:* unos segundos de «Leyendo…» y luego «La carta», con una fila de color por plato.
-     Si sale el aviso «He leído la carta de forma aproximada», es normal: revisa que los nombres estén
-     bien. Si no se puede leer, debe decir «No he podido leer la carta. Acércala, o escribe el plato.»,
+   - *Deberías ver:* unos segundos (unos 4) de «Leyendo la carta…» con un plato que gira, y luego «La carta»,
+     con una fila de color por plato. Si sale el aviso «He leído la carta de forma aproximada», quiere decir
+     que se ha leído en el propio móvil: es normal, pero cuéntanoslo y revisa que los nombres estén bien. Si no se puede leer, debe decir «No he podido leer la carta. Acércala, o escribe el plato.»,
      sin inventarse platos.
 7. **Código de barras.** Ve a **Súper** → **Escanear el código** y apunta al código de algo de la
    despensa (o escribe los números y toca **Consultar**; si no tienes nada a mano, prueba con
    `3017620422003`).
-   - *Deberías ver:* el código, una palabra de color y el nombre del producto. Si no está en Open Food
+   - *Deberías ver:* la pantalla del color de la respuesta, con el código, la palabra y el nombre del producto. Si no está en Open Food
      Facts, debe decírtelo y ofrecerte **Fotografiar la etiqueta**: prueba con la lista de ingredientes.
 8. **Lista y recarga.** Vuelve a buscar `tortilla` y toca **Añadir a la lista**. Ve a **Lista**.
    - *Deberías ver:* «Tortilla», «Con cuidado».
@@ -356,7 +377,7 @@ cualquier cosa que te extrañe y en qué paso.
 **Extra, si te sobra un minuto:** en Ajustes marca la alergia **Huevo** → **Guardar**, y vuelve a la
 Lista. La tortilla debería pasar a **Mejor no** con «Has marcado huevo.»
 
-Cuando acabes, cuéntanos: qué te ha resultado confuso, si algún color te ha sorprendido (y con qué plato
+Cuando acabes, cuéntanos: qué te ha resultado confuso, si algún color o signo de interrogación te ha sorprendido (y con qué plato
 o producto), y si se te ha tapado algo en la pantalla.
 
 ---
@@ -388,7 +409,7 @@ copia, porque no se guarda en ningún otro sitio. La próxima vez que la abras, 
 mismo ocurre si usas **Borrar los datos de este móvil** en Ajustes.
 
 **¿Cuántas fotos puedo hacer?**
-Hasta **20 fotos cada 10 minutos** con la lectura de Claude. Si te pasas, la app no se rompe: lee la foto
+Hasta **20 fotos cada 10 minutos**. Si te pasas, la app no se rompe: lee la foto
 con el lector del propio móvil, que es más lento y menos fino (verás el aviso de lectura aproximada).
 Buscar un plato, escanear un código o abrir una ficha no cuenta.
 
