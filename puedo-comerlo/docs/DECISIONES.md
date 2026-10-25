@@ -156,6 +156,59 @@ Decisión de la clienta (manda sobre la especificación original): lo que se coc
 - **Alérgenos y forma de comer**: «sándwich mixto», «bikini», «croque monsieur» cuentan como leche y cerdo (y gluten); «san jacobo», «cachopo», «provoleta», «fondue de queso» como leche.
 - **Contrato**: `docs/CONTRATO.md` dice «Fiambre de bandeja: siempre «Mejor no»» y «cocinado dentro del plato → «Con cuidado»». Ya no es así; no he tocado ese archivo (no es mío): queda anotado aquí y en el informe.
 
+### N3 · Temas y comprobación de etiqueta (Beto, Lead Developer)
+
+Petición de la clienta: que el código de barras y la foto de los ingredientes se correspondan («si no está segura porque son ñoquis y duda del huevo, en los ingredientes vendrá»), y educar a la usuaria en los temas que se repiten durante todo el embarazo. Archivos nuevos: `src/engine/temas.js` (ids y tablas) y `src/engine/etiqueta.js` (`checkLabel`); `index.js` los exporta (`checkLabel`, `LABEL_TOPICS`, `CLAVE_IDS`, `topicsForFood`, `missingForFood`). No hay dependencia de `claves.js`: el motor usa su propia constante `CLAVE_IDS` (un test comprueba que, si existe, coincide con los ids de `CLAVES`). `index.js` no reexporta `CLAVES`; que lo añada quien escribe `claves.js`.
+
+**Campos nuevos del Verdict (siempre presentes, arrays de ids, sin repetir):**
+- `topics`: los temas por los que sale «Con cuidado» o «Mejor no». «Sí» y «No estoy segura» llevan `[]`. Salen de los alimentos emparejados (tabla por id en `temas.js`; un alimento nuevo sin entrada cae a sus etiquetas `listeria`, `toxoplasma`, `mercurio`, `alcohol`, `cafeina`, `crudo`+`huevo`/`pescado`), solo de los que de verdad pesan: el nivel de la pieza es cuidado/no tras pasteurizar y aplicar el perfil, y el alimento lo es en la guía. Así «croquetas de jamón» con «no quiero embutidos» sale «Mejor no» sin tema (el motivo es la decisión de la persona, no la toxoplasmosis), pero «jamón serrano» con el mismo perfil sí lleva `toxoplasmosis`. Lo cocinado de verdad (pizza al horno, queso gratinado) ya es «Sí» y no lleva tema. No uso el texto suelto para añadir temas (daría falsos: «pizza con jamón al horno» tiene «jamón» y es «Sí»): el texto ya decide qué alimentos se emparejan. Orden: lo más grave primero, luego el orden de reglas, luego el orden de la tabla.
+- `missing`: lo que no se puede descartar sin ver la etiqueta. Se rellena si el nivel final es «No estoy segura» (plato o producto no reconocido, o lectura incierta) o si es un producto sin ingredientes o con ingredientes de internet (aunque el nivel sea «Con cuidado» o «Mejor no»). Máximo 5, ordenados por relevancia (primero el alimento más grave). No reconocido: `['huevo-crudo','listeria','toxoplasmosis','alcohol','pescado-crudo']` (regla 7). Reconocido sin nada que mirar (agua, fruta, bebidas vegetales, zumo, croquetas): `[]`.
+
+**Rebaja a «No estoy segura» en `classifyProduct`** (solo cuando el nivel sería «Sí»; «Con cuidado» y «Mejor no» se quedan, con `missing`):
+- `ingredientsText` vacío o en blanco → «No tengo los ingredientes de este producto. Fotografíalos y lo compruebo.» (sin «No estoy segura de la lectura»). Fuente «La propia app: faltan los ingredientes».
+- `ingredientsSource === 'web'` o `product.source === 'web'` → «Datos encontrados en internet, sin confirmar con la etiqueta.». Fuente «La propia app: datos de internet sin confirmar». Si además no hay ingredientes, manda la primera frase.
+- Ingredientes de OFF o de foto de etiqueta (`ingredientsSource` ausente, `'off'` o `'etiqueta'`) no se rebajan.
+- En los dos casos `question` y `alternative` pasan a `null`, `detail` explica que se fotografíe la etiqueta y `foodId/foodIds` se conservan (enlace a la ficha). Alergias y trazas mandan: una alergia marcada sigue dando «Mejor no» y las trazas «Con cuidado» (ya eran más graves que «Sí»).
+- `classifyText` acepta `{ source: 'web' }` o `{ ingredientsSource: 'web' }` en sus opciones y aplica la segunda rebaja; sin ingredientes no rebaja (un nombre de plato escrito no es un producto).
+- **Decisión mía, sin exención:** un producto sin ingredientes se rebaja siempre, también el agua o el pan, porque la lista de ingredientes es lo único que protege a quien ha marcado una alergia que la guía no deduce del nombre (pan de molde con leche o huevo). El coste es que «Agua mineral» sin ingredientes sale «No estoy segura» con `missing: []`; si la clienta lo quiere distinto, es una excepción de una línea en `finish()`. **Cambio en tests existentes:** los productos de prueba «Mahou 0,0» y «Mahou Clásica» llevaban solo categorías; ahora llevan ingredientes.
+
+**`checkLabel(ingredientsText, topicIds, profile)`** → `[{ topic, status: 'aparece'|'no-aparece', evidence: string[≤3], matiz? }]`, en el orden pedido, sin repetir y sin ids desconocidos (sin `topicIds`, todos los temas). `profile` se acepta y por ahora no cambia nada. Léxico propio, por palabra completa sobre texto normalizado, con unos pocos términos en inglés por las listas de OFF. `evidence` son fragmentos literales de la lista (el ingrediente tal como está escrito, con paréntesis; si pasa de 80 caracteres, el trozo que habla del tema). `matiz` solo está cuando procede y vale para todos los fragmentos (uno sin matiz lo quita; si se mezclan, manda el menos tranquilizador, `duda` > `poca` > `pasteurizado`):
+- `pasteurizado`: huevo u ovoproducto pasteurizado (sigue siendo `aparece`) y, en listeria, queso azul o brie de leche pasteurizada (`aparece`). Aparte, **lácteo pasteurizado sin ningún otro riesgo** da `no-aparece` con `matiz: 'pasteurizado'` y esos fragmentos como `evidence` (señal tranquilizadora).
+- `duda`: la palabra no basta: «alcohol de caña», «atún» (sin «rojo»), «carne picada», «lomo» a secas, «anchoas», y quesos frescos (fresco, requesón, burrata, mozzarella, feta, ricotta…) que no dicen «pasteurizada». Un queso fresco que sí lo dice pasa a señal tranquilizadora.
+- `poca`: cacao y chocolate (cafeína), hinojo y tila (hierbas).
+- Negaciones: «sin/libre de/exento de/no contiene/cero X» con hasta tres palabras en medio (no cruzan «con»: «sin lactosa con huevo» sí lleva huevo), «cerveza/vino sin alcohol», «desalcoholizado», «0,0», «descafeinado», «sin cafeína».
+- No cuentan: vinagre (de vino, de alcohol…), levadura de cerveza, alcoholes de azúcar, manteca de cacao, chocolate blanco, infusiones de menta/tila/manzanilla/jengibre (cafeína), cola de pescado, jamón cocido/york (no es toxoplasmosis; es fiambre y sale en listeria). «Ahumado» y «crudo» solo cuentan junto a una palabra de pescado o marisco («pimentón ahumado», «jamón crudo» y «leche cruda» no son pescado crudo; «leche cruda» sí es listeria).
+- Además de lo pedido añadí a listeria: germinados, fiambres (jamón cocido, mortadela, chopped), surimi y salchichas Frankfurt; a toxoplasmosis: sobrasada, chistorra, cecina, longaniza, tartar y carpaccio; a hierbas: glicirricina y los nombres ingleses de regaliz y poleo. Poleo y regaliz no llevan matiz.
+
+**Tabla: qué temas salen y qué se pide mirar** (`topics` solo con «Con cuidado» o «Mejor no»; `missing` solo con duda, producto sin ingredientes o datos de internet; entre paréntesis, el orden)
+| Categoría | `topics` | `missing` |
+|---|---|---|
+| Quesos, leche, yogur, mantequilla, horchata | listeria | listeria |
+| Huevo crudo o poco hecho: mayonesa casera, tortilla, revuelto, huevo frito, tiramisú, mousse, coulant, carbonara, César, ensaladilla, paella | huevo-crudo (tiramisú: + cafeina; tarta de queso y helado: + listeria) | huevo-crudo (César, tarta de queso, helado, tiramisú y lasaña: + listeria) |
+| Pasta, ñoquis, gyozas, salsas de bote, repostería y postres con huevo | — (son «Sí») | huevo-crudo (pasta «rellena»: + listeria) |
+| Embutido curado | toxoplasmosis | listeria, toxoplasmosis |
+| Fiambre de bandeja | listeria | listeria, toxoplasmosis |
+| Paté, salchichas Frankfurt, perrito caliente | listeria | paté y Frankfurt: toxoplasmosis, listeria; perrito: listeria |
+| Carne poco hecha, carpaccio, chuletón, hamburguesa | toxoplasmosis | toxoplasmosis |
+| Steak tartar | toxoplasmosis, huevo-crudo | huevo-crudo, toxoplasmosis |
+| Pescado crudo, marisco crudo, boquerones en vinagre, anchoas | pescado-crudo (crudo: + listeria) | mercurio, pescado-crudo, listeria |
+| Pescado ahumado | listeria, pescado-crudo | mercurio, pescado-crudo, listeria |
+| Pez espada, emperador, atún, tiburón | mercurio | mercurio, pescado-crudo, listeria |
+| Surimi y gulas | listeria (surimi) | listeria |
+| Germinados | listeria | listeria |
+| Ensaladas y gazpacho | toxoplasmosis (verdura mal lavada) | ensalada: listeria, toxoplasmosis; gazpacho: toxoplasmosis |
+| Pizza | — (es «Sí») | listeria, toxoplasmosis |
+| Alcohol, cerveza sin alcohol, salsa al vino | alcohol | alcohol |
+| Kombucha | alcohol, cafeina | alcohol, cafeina |
+| Café, té, cola, energética, chocolate | cafeina | cafeina |
+| Poleo, sen/ruda/regaliz, tila, jengibre, rooibos | hierbas (rooibos es «Sí») | hierbas |
+| Bebida no reconocida | — | alcohol, cafeina, hierbas |
+| Nada reconocido | — | huevo-crudo, listeria, toxoplasmosis, alcohol, pescado-crudo |
+| Hígado, caza, tónica, edulcorantes, zumo | — (el motivo es otro: vitamina A, plomo, quinina, azúcar) | — |
+| Agua, fruta, verdura, legumbres, pan, cereales, bebidas vegetales, croquetas | — | — |
+
+**Pendiente / avisos.** (1) Las frases nuevas son literales de la petición; la interfaz decide cómo enseñar `topics`, `missing` y el matiz. (2) `checkLabel` con texto vacío devuelve «no-aparece» en todo: quien lo llame debe comprobar antes que hay texto. (3) El e2e 10 falla solo en «Ningún SVG … contiene <text>» (cuenta 0 ilustraciones grandes visibles; es de la interfaz, no del motor).
+
 ## Cuestionario
 
 ### Respuestas de la clienta del 24-10-2026 (Laura, contenido, y Beto, motor)

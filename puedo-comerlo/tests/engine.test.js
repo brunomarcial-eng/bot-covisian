@@ -14,7 +14,12 @@ import {
   verdictForFood,
   classifyText,
   classifyProduct,
+  checkLabel,
+  CLAVE_IDS,
+  topicsForFood,
+  missingForFood,
 } from '../src/engine/index.js';
+import { NO_TOPIC_FOODS, MISSING_UNKNOWN } from '../src/engine/temas.js';
 
 const BASE = Object.freeze({ embutido: 'cocinados', embutidos: [], alergias: [], otra: '', dieta: [] });
 const profile = (over = {}) => ({ ...BASE, ...over });
@@ -22,7 +27,7 @@ const ct = (text, over = {}, opts = {}) => classifyText(text, opts, profile(over
 
 const VERDICT_KEYS = [
   'title', 'level', 'label', 'phrase', 'detail', 'question', 'alternative', 'source', 'foodId', 'foodIds', 'notes',
-  'uncertain', 'ingredients',
+  'uncertain', 'ingredients', 'topics', 'missing',
 ].sort();
 
 function expectLevel(text, level, over = {}) {
@@ -341,8 +346,8 @@ describe('classifyProduct (Open Food Facts)', () => {
     assert.equal(classifyProduct({ name: 'Leche entera UHT', ingredientsText: 'leche entera de vaca' }, BASE).level, 'si');
     assert.equal(classifyProduct({ name: 'Mayonesa', ingredientsText: 'aceite, agua, yema de huevo, zumo de limón' }, BASE).foodId, 'mayonesa-bote');
     assert.equal(classifyProduct({ name: 'Chorizo extra', ingredientsText: 'carne de cerdo, pimentón, sal' }, BASE).level, 'no');
-    assert.equal(classifyProduct({ name: 'Mahou 0,0 Tostada', categories: ['en:beers', 'en:non-alcoholic-beers'] }, BASE).level, 'si');
-    assert.equal(classifyProduct({ name: 'Mahou Clásica', categories: ['en:beers'] }, BASE).level, 'no');
+    assert.equal(classifyProduct({ name: 'Mahou 0,0 Tostada', ingredientsText: 'agua, malta de cebada, lúpulo', categories: ['en:beers', 'en:non-alcoholic-beers'] }, BASE).level, 'si');
+    assert.equal(classifyProduct({ name: 'Mahou Clásica', ingredientsText: 'agua, malta de cebada, lúpulo', categories: ['en:beers'] }, BASE).level, 'no');
     assert.equal(classifyProduct({ name: 'Agua mineral natural' }, BASE).foodId, 'agua');
     // «agua» o «zumo de limón» entre los ingredientes no dicen nada del producto.
     // Tampoco la harina, la sal o el aceite: un producto desconocido no pasa a «Sí» por ellos.
@@ -725,5 +730,470 @@ describe('fiambre en frío y plato combinado', () => {
     for (const t of ['combinado', 'combinados', 'combinado de ginebra', 'plato combinado con copa de vino']) {
       assert.equal(expectLevel(t, 'no').foodId, 'alcohol', t);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// N3 · Temas («claves») y comprobación de etiqueta
+// ---------------------------------------------------------------------------
+
+const isTopicList = (list) => Array.isArray(list) && list.every((t) => CLAVE_IDS.includes(t)) && new Set(list).size === list.length;
+const prod = (over = {}) => ({ name: 'Producto', ingredientsText: 'agua, sal', ...over });
+const SIN_INGREDIENTES = 'No tengo los ingredientes de este producto. Fotografíalos y lo compruebo.';
+const DATOS_WEB = 'Datos encontrados en internet, sin confirmar con la etiqueta.';
+
+describe('temas: topics en el veredicto', () => {
+  test('los ids fijos', () => {
+    assert.deepEqual(
+      [...CLAVE_IDS],
+      ['listeria', 'toxoplasmosis', 'mercurio', 'huevo-crudo', 'pescado-crudo', 'alcohol', 'cafeina', 'hierbas'],
+    );
+  });
+
+  test('topics y missing salen siempre, como arrays de ids sin repetir, por los tres caminos', () => {
+    const vs = [
+      ct('sushi'), ct('agua'), ct('plato misterioso'), ct('tarta de queso'),
+      verdictForFood('cafe', BASE), verdictForFood('agua', BASE),
+      classifyProduct({ name: 'Queso fresco' }, BASE), classifyProduct(prod({ name: 'Yogur' }), BASE), classifyProduct(null, BASE),
+    ];
+    for (const v of vs) {
+      assert.ok(isTopicList(v.topics), `${v.title}: ${v.topics}`);
+      assert.ok(isTopicList(v.missing), `${v.title}: ${v.missing}`);
+      assert.ok(v.missing.length <= 5);
+    }
+  });
+
+  test('sushi → pescado-crudo (y listeria); tinto de verano → alcohol; café → cafeina; pez espada → mercurio', () => {
+    assert.deepEqual(ct('sushi').topics, ['pescado-crudo', 'listeria']);
+    assert.deepEqual(ct('tinto de verano').topics, ['alcohol']);
+    assert.deepEqual(ct('café').topics, ['cafeina']);
+    assert.deepEqual(ct('pez espada a la plancha').topics, ['mercurio']);
+    assert.deepEqual(ct('atún en lata').topics, ['mercurio']);
+  });
+
+  test('listeria, toxoplasmosis, huevo-crudo y hierbas', () => {
+    for (const t of ['queso azul', 'roquefort', 'brie', 'queso fresco', 'paté', 'salmón ahumado', 'jamón cocido', 'brotes de alfalfa', 'leche cruda']) {
+      assert.ok(ct(t).topics.includes('listeria'), t);
+    }
+    for (const t of ['jamón serrano', 'chorizo', 'carpaccio de ternera', 'steak tartar', 'hamburguesa', 'chuletón']) {
+      assert.ok(ct(t).topics.includes('toxoplasmosis'), t);
+    }
+    for (const t of ['mayonesa casera', 'tiramisú', 'mousse casera', 'huevo frito', 'tortilla de patata', 'ensaladilla', 'steak tartar']) {
+      assert.ok(ct(t).topics.includes('huevo-crudo'), t);
+    }
+    for (const t of ['poleo menta', 'infusión de regaliz', 'tila', 'infusión de jengibre']) {
+      assert.deepEqual(ct(t).topics, ['hierbas'], t);
+    }
+    for (const t of ['boquerones en vinagre', 'ostras', 'ceviche', 'anchoas']) {
+      assert.ok(ct(t).topics.includes('pescado-crudo'), t);
+    }
+  });
+
+  test('un «Sí» no lleva temas; los temas solo salen con «Con cuidado» o «Mejor no»', () => {
+    for (const t of ['merluza a la plancha', 'agua', 'pizza de jamón york', 'croquetas de jamón', 'pollo asado', 'fruta', 'queso gratinado', 'huevo duro', 'yogur', 'cerveza 0,0']) {
+      const v = ct(t);
+      assert.equal(v.level, 'si', t);
+      assert.deepEqual(v.topics, [], t);
+    }
+    for (const f of FOODS) {
+      const v = verdictForFood(f.id, BASE);
+      if (v.level === 'si' || v.level === 'duda') assert.deepEqual(v.topics, [], f.id);
+      else if (!NO_TOPIC_FOODS.includes(f.id)) assert.ok(v.topics.length > 0, `${f.id} sin temas`);
+    }
+    // Lo que el calor arregla ya no es un tema.
+    assert.deepEqual(ct('pizza de jamón al horno').topics, []);
+    assert.deepEqual(ct('queso pasteurizado').topics, []);
+  });
+
+  test('los temas son del motivo, no del perfil: embutido cocinado con «no quiero embutidos» no lleva tema', () => {
+    const v = ct('croquetas de jamón', { embutido: 'no' });
+    assert.equal(v.level, 'no');
+    assert.deepEqual(v.topics, []);
+    // El crudo sí: ahí el motivo es de verdad la toxoplasmosis.
+    assert.deepEqual(ct('jamón serrano', { embutido: 'no' }).topics, ['toxoplasmosis']);
+  });
+
+  test('la alergia no añade ni quita temas; una alergia sobre un «Sí» no inventa ninguno', () => {
+    assert.deepEqual(ct('merluza a la plancha', { alergias: ['pescado'] }).topics, []);
+    const v = ct('tarta de queso', { alergias: ['leche', 'huevo'] });
+    assert.equal(v.level, 'no');
+    assert.ok(v.phrase.startsWith('Has marcado leche y huevo.'), v.phrase);
+    assert.ok(!/Con cuidado/.test(v.phrase + v.detail), 'sin contradicciones con la alergia');
+    assert.ok(isTopicList(v.topics));
+    assert.deepEqual(v.topics, ct('tarta de queso').topics);
+  });
+
+  test('orden por relevancia: lo más grave primero', () => {
+    assert.deepEqual(ct('tinto de verano con café').topics, ['alcohol', 'cafeina']);
+    const v = ct('pizza de jamón al final y café');
+    assert.deepEqual(v.topics, ['toxoplasmosis', 'cafeina']);
+  });
+
+  test('topicsForFood: tabla y etiquetas', () => {
+    assert.deepEqual(topicsForFood(FOOD_BY_ID['pescado-ahumado']), ['listeria', 'pescado-crudo']);
+    assert.deepEqual(topicsForFood(FOOD_BY_ID['agua']), []);
+    // Un alimento nuevo sin entrada propia cae a sus etiquetas.
+    assert.deepEqual(topicsForFood({ id: 'x', level: 'no', tags: ['crudo', 'huevo', 'listeria'] }), ['listeria', 'huevo-crudo']);
+    assert.deepEqual(topicsForFood({ id: 'x', level: 'si', tags: ['listeria'] }), []);
+    assert.deepEqual(topicsForFood(null), []);
+  });
+});
+
+describe('temas: missing y producto sin ingredientes', () => {
+  test('ñoquis sin ingredientes → duda con la frase nueva y missing con huevo-crudo', () => {
+    const v = classifyProduct({ name: 'Ñoquis de patata' }, BASE);
+    assert.equal(v.level, 'duda');
+    assert.equal(v.label, 'No estoy segura');
+    assert.equal(v.phrase, SIN_INGREDIENTES);
+    assert.ok(!v.phrase.includes('lectura'));
+    assert.ok(v.missing.includes('huevo-crudo'));
+    assert.deepEqual(v.topics, []);
+    assert.equal(v.question, null);
+    assert.equal(v.alternative, null);
+    assert.equal(v.source, 'La propia app: faltan los ingredientes');
+    assert.ok(v.foodIds.includes('pasta'));
+    // Lo mismo con ingredientes en blanco.
+    assert.equal(classifyProduct({ name: 'Ñoquis de patata', ingredientsText: '  \n ' }, BASE).phrase, SIN_INGREDIENTES);
+  });
+
+  test('ñoquis con ingredientes → Sí, sin missing; la etiqueta confirma que no hay huevo', () => {
+    const ingredientsText = 'patata, harina de trigo, sal';
+    const v = classifyProduct({ name: 'Ñoquis de patata', ingredientsText }, BASE);
+    assert.equal(v.level, 'si');
+    assert.deepEqual(v.missing, []);
+    assert.deepEqual(v.topics, []);
+    assert.deepEqual(checkLabel(ingredientsText, ['huevo-crudo'], BASE), [{ topic: 'huevo-crudo', status: 'no-aparece', evidence: [] }]);
+    const con = checkLabel('patata, harina de trigo, huevo, sal', ['huevo-crudo'], BASE);
+    assert.deepEqual(con, [{ topic: 'huevo-crudo', status: 'aparece', evidence: ['huevo'] }]);
+  });
+
+  test('sin ingredientes: «Con cuidado» y «Mejor no» se quedan, con missing', () => {
+    const fresco = classifyProduct({ name: 'Queso fresco' }, BASE);
+    assert.equal(fresco.level, 'cuidado');
+    assert.ok(fresco.phrase.startsWith('Con cuidado'));
+    assert.ok(fresco.missing.includes('listeria'));
+    assert.deepEqual(fresco.topics, ['listeria']);
+    const jamon = classifyProduct({ name: 'Jamón serrano' }, BASE);
+    assert.equal(jamon.level, 'no');
+    assert.ok(jamon.missing.includes('toxoplasmosis'));
+    assert.deepEqual(jamon.topics, ['toxoplasmosis']);
+  });
+
+  test('con ingredientes de OFF, de etiqueta o sin fuente no se rebaja ni hay missing', () => {
+    for (const ingredientsSource of [undefined, 'off', 'etiqueta']) {
+      const v = classifyProduct(prod({ name: 'Yogur natural', ingredientsText: 'leche pasteurizada, fermentos', ingredientsSource }), BASE);
+      assert.equal(v.level, 'si', String(ingredientsSource));
+      assert.deepEqual(v.missing, []);
+    }
+  });
+
+  test('ingredientes de internet sin confirmar: Sí → duda con la frase nueva; cuidado y no se quedan', () => {
+    const yogur = classifyProduct(prod({ name: 'Yogur natural', ingredientsText: 'leche, fermentos', ingredientsSource: 'web' }), BASE);
+    assert.equal(yogur.level, 'duda');
+    assert.equal(yogur.phrase, DATOS_WEB);
+    assert.deepEqual(yogur.missing, ['listeria']);
+    assert.equal(yogur.source, 'La propia app: datos de internet sin confirmar');
+    // También con product.source === 'web'.
+    assert.equal(classifyProduct(prod({ name: 'Yogur natural', source: 'web' }), BASE).phrase, DATOS_WEB);
+    const queso = classifyProduct(prod({ name: 'Queso fresco', ingredientsSource: 'web' }), BASE);
+    assert.equal(queso.level, 'cuidado');
+    assert.ok(queso.missing.includes('listeria'));
+    const jamon = classifyProduct(prod({ name: 'Jamón serrano', ingredientsSource: 'web' }), BASE);
+    assert.equal(jamon.level, 'no');
+    assert.ok(jamon.missing.includes('toxoplasmosis'));
+    // Sin ingredientes y de internet: manda que faltan.
+    assert.equal(classifyProduct({ name: 'Yogur natural', ingredientsSource: 'web' }, BASE).phrase, SIN_INGREDIENTES);
+  });
+
+  test('la rebaja respeta alergias y trazas (que ya eran más graves que «Sí»)', () => {
+    const v = classifyProduct({ name: 'Yogur natural', allergens: ['en:milk'] }, profile({ alergias: ['leche'] }));
+    assert.equal(v.level, 'no');
+    assert.ok(v.phrase.startsWith('Has marcado leche.'));
+    const tr = classifyProduct(prod({ name: 'Yogur natural', traces: ['en:nuts'] }), profile({ alergias: ['frutos_secos'] }));
+    assert.equal(tr.level, 'cuidado');
+  });
+
+  test('plato o producto no reconocido → missing por defecto (regla 7)', () => {
+    assert.deepEqual([...MISSING_UNKNOWN], ['huevo-crudo', 'listeria', 'toxoplasmosis', 'alcohol', 'pescado-crudo']);
+    for (const v of [ct('plato misterioso del chef'), classifyProduct({ name: 'Zzxq' }, BASE), classifyProduct(prod({ name: 'Zzxq' }), BASE)]) {
+      assert.equal(v.level, 'duda');
+      assert.deepEqual(v.missing, MISSING_UNKNOWN);
+      assert.deepEqual(v.topics, []);
+    }
+  });
+
+  test('lectura incierta de algo reconocido → duda con missing de su categoría', () => {
+    const v = classifyText('Pizza', { uncertain: true }, BASE);
+    assert.equal(v.level, 'duda');
+    assert.deepEqual(v.missing, ['listeria', 'toxoplasmosis']);
+    assert.deepEqual(classifyText('Zumo', { uncertain: true }, BASE).missing, []);
+  });
+
+  test('classifyText con datos de internet', () => {
+    const v = classifyText('Yogur natural', { ingredients: ['leche'], source: 'web' }, BASE);
+    assert.equal(v.level, 'duda');
+    assert.equal(v.phrase, DATOS_WEB);
+    assert.equal(classifyText('Yogur natural', { ingredientsSource: 'web' }, BASE).level, 'duda');
+    assert.equal(classifyText('Yogur natural', {}, BASE).level, 'si');
+  });
+
+  test('un «Sí» de texto y de ficha nunca lleva missing', () => {
+    for (const t of ['merluza a la plancha', 'yogur', 'agua', 'pollo asado']) assert.deepEqual(ct(t).missing, [], t);
+    assert.deepEqual(verdictForFood('yogur', BASE).missing, []);
+  });
+
+  test('missing por categoría (producto sin ingredientes)', () => {
+    const miss = (name) => classifyProduct({ name }, BASE);
+    assert.ok(miss('Salmón ahumado').level === 'no' && miss('Salmón ahumado').missing.includes('listeria'));
+    assert.deepEqual(miss('Yogur natural').missing, ['listeria']);
+    assert.deepEqual(miss('Huevos camperos').missing, ['huevo-crudo']);
+    assert.deepEqual(miss('Flan de huevo').missing, ['huevo-crudo']);
+    assert.deepEqual(miss('Chorizo').missing, ['listeria', 'toxoplasmosis']);
+    assert.deepEqual(miss('Atún en lata').missing, ['mercurio', 'pescado-crudo', 'listeria']);
+    assert.deepEqual(miss('Cerveza').missing, ['alcohol']);
+    assert.deepEqual(miss('Infusión de poleo').missing, ['hierbas']);
+    assert.deepEqual(miss('Café soluble').missing, ['cafeina']);
+    assert.deepEqual(miss('Hamburguesa').missing, ['toxoplasmosis']);
+    assert.deepEqual(miss('Gnocchi rellenos').missing, ['huevo-crudo', 'listeria']);
+    assert.deepEqual(miss('Gnocchi de patata').missing, ['huevo-crudo']);
+    assert.deepEqual(miss('Gnocchi rellenos de queso').missing, ['listeria', 'huevo-crudo']);
+    assert.deepEqual(miss('Agua mineral natural').missing, []);
+    assert.deepEqual(missingForFood(null), []);
+  });
+
+  test('missing sin duplicados y como mucho 5', () => {
+    const v = classifyProduct({ name: 'Plato combinado de pescado, huevo, embutido y café' }, BASE);
+    assert.ok(isTopicList(v.missing));
+    assert.ok(v.missing.length <= 5);
+  });
+});
+
+describe('checkLabel', () => {
+  const one = (text, topic) => checkLabel(text, [topic], BASE)[0];
+
+  test('forma del resultado y orden de los temas pedidos', () => {
+    const r = checkLabel('harina, huevo, vino', ['alcohol', 'huevo-crudo', 'alcohol', 'inventado'], BASE);
+    assert.deepEqual(r.map((x) => x.topic), ['alcohol', 'huevo-crudo']);
+    for (const x of r) {
+      assert.ok(['aparece', 'no-aparece'].includes(x.status));
+      assert.ok(Array.isArray(x.evidence) && x.evidence.length <= 3);
+    }
+    assert.equal(checkLabel('x', [], BASE).length, 0);
+    assert.equal(checkLabel('x', undefined, BASE).length, CLAVE_IDS.length);
+  });
+
+  test('entradas raras no lanzan', () => {
+    for (const t of [undefined, null, '', '   ', 42, {}]) {
+      const r = checkLabel(t, ['huevo-crudo', 'alcohol'], BASE);
+      assert.ok(r.every((x) => x.status === 'no-aparece' && x.evidence.length === 0));
+    }
+    assert.deepEqual(checkLabel('huevo', 'huevo-crudo', BASE).map((x) => x.status), ['aparece']);
+  });
+
+  test('huevo: huevo, yema, clara, ovoproducto, mayonesa, albúmina', () => {
+    for (const t of ['Huevo', 'yema de huevo', 'clara', 'ovoproductos', 'mayonesa', 'albúmina', 'huevo en polvo', 'ovoalbúmina']) {
+      assert.equal(one(t, 'huevo-crudo').status, 'aparece', t);
+    }
+    assert.equal(one('harina, azúcar, aceite de girasol', 'huevo-crudo').status, 'no-aparece');
+    // Palabra completa: «huevas» y «huevería» no son huevo.
+    assert.equal(one('huevas de pescado', 'huevo-crudo').status, 'no-aparece');
+  });
+
+  test('huevo pasteurizado: aparece, con evidencia y matiz «pasteurizado»', () => {
+    const r = one('Harina, huevo pasteurizado (8%), sal', 'huevo-crudo');
+    assert.equal(r.status, 'aparece');
+    assert.equal(r.matiz, 'pasteurizado');
+    assert.deepEqual(r.evidence, ['huevo pasteurizado (8%)']);
+    assert.equal(one('ovoproducto pasteurizado', 'huevo-crudo').matiz, 'pasteurizado');
+    // Uno sin pasteurizar quita el matiz.
+    assert.equal(one('huevo pasteurizado, yema', 'huevo-crudo').matiz, undefined);
+    assert.equal(one('huevo', 'huevo-crudo').matiz, undefined);
+  });
+
+  test('negaciones: sin huevo, sin alcohol, 0,0, sin cafeína', () => {
+    for (const t of ['sin huevo', 'libre de huevo', 'sin gluten ni huevo', 'sin leche ni huevos', 'producto sin huevo ni lactosa']) {
+      assert.equal(one(t, 'huevo-crudo').status, 'no-aparece', t);
+    }
+    // «sin lactosa con huevo»: el «con» corta la negación.
+    assert.equal(one('sin lactosa con huevo', 'huevo-crudo').status, 'aparece');
+    for (const t of ['sin alcohol', 'Cerveza sin alcohol', 'cerveza 0,0', 'Cerveza 0.0%', 'vino sin alcohol', 'vino desalcoholizado', 'alcohol 0,0', 'levadura de cerveza', 'azúcares alcohol', 'alcoholes de azúcar']) {
+      assert.equal(one(t, 'alcohol').status, 'no-aparece', t);
+    }
+    for (const t of ['café descafeinado', 'sin cafeína', 'descafeinado', 'sin teína', 'cola sin cafeína', 'manteca de cacao', 'té de menta', 'cola de pescado']) {
+      assert.equal(one(t, 'cafeina').status, 'no-aparece', t);
+    }
+  });
+
+  test('alcohol: vino, cerveza, ron, licor, brandy, coñac, whisky, ginebra, alcohol, etanol; no vinagre', () => {
+    for (const t of ['vino blanco', 'cerveza', 'ron', 'licor de hierbas', 'brandy', 'coñac', 'whisky', 'ginebra', 'alcohol', 'etanol', 'alcohol etílico', 'Vino tinto (12%)']) {
+      assert.equal(one(t, 'alcohol').status, 'aparece', t);
+    }
+    for (const t of ['vinagre', 'vinagre de vino', 'vinagre de vino blanco', 'vinagre balsámico', 'vinagreta', 'vinagre de alcohol', 'ronda de pan']) {
+      assert.equal(one(t, 'alcohol').status, 'no-aparece', t);
+    }
+    // El vinagre no tapa un vino de verdad.
+    assert.equal(one('vinagre de vino, vino blanco', 'alcohol').status, 'aparece');
+    const duda = one('azúcar, alcohol de caña', 'alcohol');
+    assert.equal(duda.status, 'aparece');
+    assert.equal(duda.matiz, 'duda');
+    assert.deepEqual(duda.evidence, ['alcohol de caña']);
+  });
+
+  test('cafeína: café, cafeína, té, guaraná, mate, cola; cacao con matiz «poca»', () => {
+    for (const t of ['café', 'extracto de café', 'cafeína', 'té verde', 'guaraná', 'yerba mate', 'cola', 'extracto de nuez de cola', 'Aroma natural, extracto de té negro']) {
+      const r = one(t, 'cafeina');
+      assert.equal(r.status, 'aparece', t);
+      assert.equal(r.matiz, undefined, t);
+    }
+    for (const t of ['cacao', 'cacao en polvo', 'chocolate negro']) {
+      const r = one(t, 'cafeina');
+      assert.equal(r.status, 'aparece', t);
+      assert.equal(r.matiz, 'poca', t);
+    }
+    assert.equal(one('cacao, café', 'cafeina').matiz, undefined);
+  });
+
+  test('listeria: leche cruda, sin pasteurizar, azules, brie, patés, ahumados', () => {
+    for (const t of ['leche cruda', 'queso de leche cruda', 'queso sin pasteurizar', 'queso azul', 'roquefort', 'gorgonzola', 'cabrales', 'brie', 'camembert', 'salmón ahumado', 'paté de hígado', 'foie gras', 'brotes de alfalfa', 'jamón cocido', 'fiambre']) {
+      assert.equal(one(t, 'listeria').status, 'aparece', t);
+    }
+    // Ahumado sin pescado no es listeria.
+    assert.equal(one('pimentón ahumado', 'listeria').status, 'no-aparece');
+    assert.equal(one('sabor ahumado', 'listeria').status, 'no-aparece');
+    assert.equal(one('sal, aceite, harina', 'listeria').status, 'no-aparece');
+  });
+
+  test('listeria: pasteurizada es una señal distinta, con matiz', () => {
+    const solo = one('Leche pasteurizada, sal, cuajo', 'listeria');
+    assert.equal(solo.status, 'no-aparece');
+    assert.equal(solo.matiz, 'pasteurizado');
+    assert.deepEqual(solo.evidence, ['Leche pasteurizada']);
+    const azul = one('Queso azul (leche pasteurizada)', 'listeria');
+    assert.equal(azul.status, 'aparece');
+    assert.equal(azul.matiz, 'pasteurizado');
+    // «sin pasteurizar» no es pasteurizado.
+    const cruda = one('queso de leche sin pasteurizar', 'listeria');
+    assert.equal(cruda.status, 'aparece');
+    assert.equal(cruda.matiz, undefined);
+    // Queso fresco: sin decirlo, duda; diciéndolo, tranquiliza.
+    assert.equal(one('queso fresco', 'listeria').matiz, 'duda');
+    assert.equal(one('queso fresco de leche pasteurizada', 'listeria').status, 'no-aparece');
+    assert.equal(one('leche cruda y leche pasteurizada', 'listeria').matiz, undefined);
+  });
+
+  test('toxoplasmosis: jamón, chorizo, salchichón, fuet, lomo, carne cruda, carne picada', () => {
+    for (const t of ['jamón serrano', 'chorizo', 'salchichón', 'fuet', 'lomo embuchado', 'carne cruda', 'sobrasada', 'embutidos']) {
+      const r = one(t, 'toxoplasmosis');
+      assert.equal(r.status, 'aparece', t);
+      assert.equal(r.matiz, undefined, t);
+    }
+    for (const t of ['carne picada', 'lomo']) assert.equal(one(t, 'toxoplasmosis').matiz, 'duda', t);
+    assert.equal(one('jamón cocido', 'toxoplasmosis').status, 'no-aparece');
+    assert.equal(one('jamón york', 'toxoplasmosis').status, 'no-aparece');
+    assert.equal(one('lomo de bacalao', 'toxoplasmosis').status, 'no-aparece');
+    assert.equal(one('sin embutidos', 'toxoplasmosis').status, 'no-aparece');
+  });
+
+  test('mercurio: pez espada, emperador, atún (rojo), tiburón, cazón, lucio', () => {
+    for (const t of ['pez espada', 'emperador', 'atún rojo', 'tiburón', 'cazón', 'lucio']) {
+      const r = one(t, 'mercurio');
+      assert.equal(r.status, 'aparece', t);
+      assert.equal(r.matiz, undefined, t);
+    }
+    assert.equal(one('atún', 'mercurio').matiz, 'duda');
+    assert.equal(one('salmón, merluza', 'mercurio').status, 'no-aparece');
+  });
+
+  test('pescado crudo: crudo, marinado, ahumado, ceviche (solo con pescado)', () => {
+    for (const t of ['salmón crudo', 'pescado marinado', 'salmón ahumado', 'ceviche', 'sushi', 'boquerones en vinagre', 'carpaccio de bacalao']) {
+      assert.equal(one(t, 'pescado-crudo').status, 'aparece', t);
+    }
+    for (const t of ['jamón crudo', 'pimentón ahumado', 'cacao crudo', 'leche cruda', 'carne marinada']) {
+      assert.equal(one(t, 'pescado-crudo').status, 'no-aparece', t);
+    }
+    assert.equal(one('anchoas', 'pescado-crudo').matiz, 'duda');
+  });
+
+  test('hierbas: regaliz, ruda, sen, poleo; hinojo y tila con matiz «poca»', () => {
+    for (const t of ['regaliz', 'extracto de regaliz', 'ruda', 'hojas de sen', 'poleo']) {
+      const r = one(t, 'hierbas');
+      assert.equal(r.status, 'aparece', t);
+      assert.equal(r.matiz, undefined, t);
+    }
+    for (const t of ['hinojo', 'tila']) assert.equal(one(t, 'hierbas').matiz, 'poca', t);
+    assert.equal(one('sin regaliz', 'hierbas').status, 'no-aparece');
+    assert.equal(one('manzanilla, menta', 'hierbas').status, 'no-aparece');
+  });
+
+  test('evidencia: fragmentos literales de la lista, máximo 3, sin repetir', () => {
+    const r = one('Vino tinto, Cerveza, vino tinto, Ron añejo, Licor de café, Brandy', 'alcohol');
+    assert.equal(r.evidence.length, 3);
+    assert.deepEqual(r.evidence, ['Vino tinto', 'Cerveza', 'vino tinto']);
+    // Literal: conserva mayúsculas y acentos.
+    assert.deepEqual(one('Salsa de Café Molido, sal', 'cafeina').evidence, ['Salsa de Café Molido']);
+    // Un ingrediente muy largo se acorta al trozo que habla del tema.
+    const largo = one(`Salsa (${'agua, '.repeat(20)}yema de huevo, sal, ${'especias, '.repeat(10)}pimienta)`, 'huevo-crudo');
+    assert.equal(largo.status, 'aparece');
+    assert.ok(largo.evidence[0].length <= 80);
+    assert.match(largo.evidence[0], /huevo/);
+  });
+
+  test('inglés básico de listas de OFF', () => {
+    assert.equal(one('sugar, egg, salt', 'huevo-crudo').status, 'aparece');
+    assert.equal(one('water, wine, salt', 'alcohol').status, 'aparece');
+    assert.equal(one('water, sugar', 'alcohol').status, 'no-aparece');
+  });
+
+  test('determinismo y sin efectos sobre la entrada', () => {
+    const txt = 'Leche pasteurizada, huevo, vino, cacao';
+    const ids = ['listeria', 'huevo-crudo', 'alcohol', 'cafeina'];
+    const copy = [...ids];
+    assert.deepEqual(checkLabel(txt, ids, BASE), checkLabel(txt, ids, BASE));
+    assert.deepEqual(ids, copy);
+    assert.deepEqual(checkLabel(txt, ids, BASE), checkLabel(txt, ids));
+  });
+
+  test('cada tema pedido en missing se puede comprobar', () => {
+    for (const id of CLAVE_IDS) assert.equal(checkLabel('agua', [id], BASE).length, 1, id);
+  });
+});
+
+describe('temas: coherencia y determinismo', () => {
+  test('claves.js, si existe, usa los mismos ids', async () => {
+    let mod = null;
+    try {
+      mod = await import('../src/engine/claves.js');
+    } catch {
+      return; // aún no está: no depende de ello
+    }
+    const ids = mod.CLAVES.map((c) => c.id).sort();
+    assert.deepEqual(ids, [...CLAVE_IDS].sort());
+  });
+
+  test('todo lo que devuelve topics/missing son ids de claves, en cualquier alimento de la guía', () => {
+    for (const f of FOODS) {
+      assert.ok(isTopicList(topicsForFood(f)), f.id);
+      assert.ok(isTopicList(missingForFood(f)), f.id);
+    }
+  });
+
+  test('un duda siempre lleva missing; un «Sí» nunca lleva topics (muestra de platos y productos)', () => {
+    const platos = [
+      'sushi', 'ñoquis', 'plato del día', 'tortilla', 'paella', 'zumo', 'ensalada', 'macarrones', 'solomillo', 'tarta casera',
+      'gazpacho', 'pulpo', 'helado artesano', 'hamburguesa', 'croquetas', 'pizza cuatro quesos', 'lasaña', 'flan', 'mojito', 'xyzzy',
+    ];
+    for (const t of platos) {
+      const v = ct(t);
+      if (v.level === 'duda') assert.ok(v.missing.length > 0, t);
+      if (v.level === 'si') assert.deepEqual(v.topics, [], t);
+      if (v.level === 'cuidado' || v.level === 'no') assert.deepEqual(v.missing, [], t);
+    }
+  });
+
+  test('mismo texto y perfil → mismo resultado', () => {
+    for (const t of ['sushi', 'plato misterioso', 'ñoquis']) assert.deepEqual(ct(t), ct(t));
+    const p = { name: 'Ñoquis de patata' };
+    assert.deepEqual(classifyProduct(p, BASE), classifyProduct(p, BASE));
+    assert.deepEqual(verdictForFood('queso-azul', BASE), verdictForFood('queso-azul', BASE));
   });
 });

@@ -182,7 +182,7 @@ export function extractReading(message, mode) {
 
 // ---------- Utilidades HTTP ----------
 
-function send(res, status, payload, extraHeaders = {}) {
+export function send(res, status, payload, extraHeaders = {}) {
   if (res.writableEnded) return;
   const body = JSON.stringify(payload);
   res.statusCode = status;
@@ -193,7 +193,7 @@ function send(res, status, payload, extraHeaders = {}) {
   res.end(body);
 }
 
-class HttpError extends Error {
+export class HttpError extends Error {
   constructor(status, code, headers) {
     super(code);
     this.status = status;
@@ -260,14 +260,14 @@ function parseJson(text) {
   }
 }
 
-function headerValue(req, name) {
+export function headerValue(req, name) {
   const v = req.headers?.[name];
   return Array.isArray(v) ? v[0] : v;
 }
 
 // Misma origen: sin CORS. Un navegador de otro sitio no puede mandar JSON sin preflight, y además se
 // rechazan las peticiones marcadas como de otro sitio.
-function checkSameOrigin(req) {
+export function checkSameOrigin(req) {
   const site = headerValue(req, 'sec-fetch-site');
   if (site === 'cross-site') throw new HttpError(403, 'origen');
   const origin = headerValue(req, 'origin');

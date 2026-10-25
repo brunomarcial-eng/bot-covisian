@@ -5,7 +5,7 @@
 //   HOST=0.0.0.0 node server.js → accesible desde la red local (por defecto solo 127.0.0.1)
 //
 // Sirve SOLO los archivos públicos de la app (index.html, styles.css, manifest.webmanifest, icon.svg, iconos
-// y lo que hay bajo src/) y la función POST /api/leer. Nada de node_modules, tests, docs, api, .git ni
+// y lo que hay bajo src/) y las funciones POST /api/leer y POST /api/producto. Nada de node_modules, tests, docs, api, .git ni
 // package.json. No registra peticiones ni cuerpos.
 
 import http from 'node:http';
@@ -14,6 +14,7 @@ import { realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import leerHandler from './api/leer.js';
+import productoHandler from './api/producto.js';
 
 export const ROOT = path.dirname(fileURLToPath(import.meta.url));
 
@@ -117,14 +118,18 @@ async function serveStatic(req, res, pathname, root) {
   stream.pipe(res);
 }
 
-export function createServer({ root = ROOT, leer = leerHandler } = {}) {
+export function createServer({ root = ROOT, leer = leerHandler, producto = productoHandler } = {}) {
   return http.createServer(async (req, res) => {
     try {
       const { pathname } = new URL(req.url, 'http://localhost');
-      // Las cabeceras comunes también para /api/leer (el handler añade no-store y JSON).
+      // Las cabeceras comunes también para /api/leer y /api/producto (el handler añade no-store y JSON).
       for (const [k, v] of Object.entries(SECURITY_HEADERS)) res.setHeader(k, v);
       if (pathname === '/api/leer') {
         await leer(req, res);
+        return;
+      }
+      if (pathname === '/api/producto') {
+        await producto(req, res);
         return;
       }
       if (pathname === '/api' || pathname.startsWith('/api/')) {

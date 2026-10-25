@@ -610,7 +610,9 @@ describe('off.js', () => {
       assert.equal(r.found, true);
       assert.equal(r.product.name, 'Nutella');
       assert.equal(calls[0].url, `https://world.openfoodfacts.org/api/v2/product/3017620422003.json?fields=${OFF_FIELDS}`);
-      assert.match(calls[0].url, /fields=code,product_name,product_name_es,brands,image_front_small_url,ingredients_text_es,ingredients_text,allergens_tags,traces_tags,categories_tags,labels_tags$/);
+      assert.match(calls[0].url, /fields=code,product_name,product_name_es,brands,image_front_small_url,ingredients_text_es,ingredients_text,allergens_tags,traces_tags,categories_tags,labels_tags,quantity,lang,ingredients_text_en,ingredients_text_fr,ingredients_text_it,ingredients_text_pt,ingredients_text_ca,ingredients_text_de,ingredients$/);
+      assert.equal(r.source, 'off');
+      assert.equal(r.incomplete, false);
     });
 
     test('404 con JSON (no existe) → found:false, no es error de red', async () => {

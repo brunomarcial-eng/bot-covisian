@@ -1,4 +1,4 @@
-# Solo se publica la app (index.html, styles.css, manifest, iconos, src/) y la función api/leer.js.
+# Solo se publica la app (index.html, styles.css, manifest, iconos, src/) y las funciones api/leer.js y api/producto.js.
 # package.json y package-lock.json SÍ se suben: Vercel instala @anthropic-ai/sdk para la función
 # (vercel.json responde 404 si alguien los pide por URL).
 docs/

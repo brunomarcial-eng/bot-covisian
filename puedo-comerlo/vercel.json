@@ -6,6 +6,9 @@
   "functions": {
     "api/leer.js": {
       "maxDuration": 30
+    },
+    "api/producto.js": {
+      "maxDuration": 60
     }
   },
   "routes": [
@@ -27,7 +30,7 @@
       "continue": true
     },
     {
-      "src": "^/(?!(?:index\\.html|styles\\.css|manifest\\.webmanifest|(?:icon|apple-touch-icon|favicon)[a-z0-9-]*\\.(?:png|svg|ico)|src/(?:[A-Za-z0-9_-]+/)*[A-Za-z0-9_-]+\\.js|api/leer)?$).*$",
+      "src": "^/(?!(?:index\\.html|styles\\.css|manifest\\.webmanifest|(?:icon|apple-touch-icon|favicon)[a-z0-9-]*\\.(?:png|svg|ico)|src/(?:[A-Za-z0-9_-]+/)*[A-Za-z0-9_-]+\\.js|api/(?:leer|producto))?$).*$",
       "status": 404,
       "dest": "/404"
     }

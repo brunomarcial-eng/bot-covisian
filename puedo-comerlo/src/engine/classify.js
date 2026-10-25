@@ -4,6 +4,7 @@
 import { FOODS, GROUPS, FOOD_BY_ID } from './foods.js';
 import { LEVEL_LABEL, levelRank } from './levels.js';
 import { normalize } from './normalize.js';
+import { topicsForFood, missingForFood, mergeTopics, MISSING_UNKNOWN, MISSING_MAX } from './temas.js';
 import {
   KEYWORD_RULES,
   ruleOrderIndex,
@@ -43,6 +44,27 @@ export const PHRASES = Object.freeze({
   quesoPasteurizado: 'Leche pasteurizada. Quita la corteza si la tiene.',
   lecturaIncierta: 'No estoy segura de la lectura.',
 });
+
+// Producto sin lista de ingredientes, o con ingredientes de internet sin confirmar: no es un «Sí».
+export const INCOMPLETE = Object.freeze({
+  sinIngredientes: {
+    phrase: 'No tengo los ingredientes de este producto. Fotografíalos y lo compruebo.',
+    detail:
+      'Sin la lista de ingredientes no puedo descartar lo que importa en el embarazo ni tus alergias. ' +
+      'Fotografía la etiqueta, por donde pone «Ingredientes», y lo compruebo.',
+    source: 'La propia app: faltan los ingredientes',
+  },
+  web: {
+    phrase: 'Datos encontrados en internet, sin confirmar con la etiqueta.',
+    detail:
+      'Estos ingredientes no vienen de la etiqueta del producto sino de internet, y pueden estar mal o desactualizados. ' +
+      'Fotografía la lista de ingredientes de la etiqueta y lo compruebo.',
+    source: 'La propia app: datos de internet sin confirmar',
+  },
+});
+
+// Pasta rellena: además del huevo, el relleno puede llevar queso.
+const RELLENO_RE = /(?<![a-z0-9])(?:rellen[oa]s?|ravioli(?:s|es)?|tortellini(?:s)?|capeletis?|agnolotti|canelones|lasanas?)(?![a-z0-9])/;
 
 const PASTEURIZABLE_CHEESE = new Set(['queso-fresco', 'queso-curado', 'queso-blando-corteza']);
 // Quesos cuyo riesgo (listeria) anula el calor: cocinados pasan a «queso cocinado».
@@ -563,7 +585,13 @@ function phraseFor(basePhrase, baseLevel, level) {
 }
 
 // Aplica alergias, «otra cosa», trazas y lectura incierta sobre el veredicto fusionado.
-function finish(base, { title, foodIds, profile, allergyFound, otraFound, traces = [], uncertain = false, notes, ingredients }) {
+function finish(
+  base,
+  {
+    title, foodIds, profile, allergyFound, otraFound, traces = [], uncertain = false, notes, ingredients,
+    topics = [], missingList = [], forceMissing = false, downgrade = null,
+  },
+) {
   let level = base.level;
   const prefixes = [];
   const allergyHits = ALLERGY_IDS.filter((a) => profile.alergias.includes(a) && allergyFound.has(a));
@@ -589,8 +617,20 @@ function finish(base, { title, foodIds, profile, allergyFound, otraFound, traces
     level = 'duda';
     prefixes.push(PHRASES.lecturaIncierta);
   }
+  // Producto sin ingredientes o con datos de internet sin confirmar: un «Sí» pasa a «No estoy segura».
+  // «Con cuidado» y «Mejor no» se quedan (el riesgo ya está identificado).
+  const downgraded = !!downgrade && level === 'si';
+  if (downgraded) level = 'duda';
   let phrase = [...prefixes, phraseFor(base.phrase, base.level, level)].filter(Boolean).join(' ');
   let { detail, question, alternative } = base;
+  let source = base.source;
+  if (downgraded) {
+    phrase = downgrade.phrase;
+    detail = downgrade.detail;
+    question = null;
+    alternative = null;
+    source = downgrade.source;
+  }
   if (byProfileOnly) {
     phrase = prefixes.join(' ');
     const marked = [];
@@ -614,28 +654,47 @@ function finish(base, { title, foodIds, profile, allergyFound, otraFound, traces
     detail,
     question,
     alternative,
-    source: base.source,
+    source,
     foodId: base.id || null,
     foodIds,
     notes,
     uncertain: !!uncertain,
     ingredients,
+    // Temas conflictivos por los que sale «Con cuidado» o «Mejor no» (ids de claves.js). «Sí» y «No estoy segura»: [].
+    topics: level === 'cuidado' || level === 'no' ? topics : [],
+    // Temas que no se pueden descartar sin ver la etiqueta: «No estoy segura», o producto sin ingredientes fiables.
+    missing: level === 'duda' || forceMissing ? missingList : [],
   };
 }
 
 // Núcleo común de classifyText y classifyProduct.
-function classifyDoc(doc, { title, profile, context, extraMatches = [], declared = [], traces = [], labels = [], uncertain = false, ingredients = [] }) {
+function classifyDoc(
+  doc,
+  {
+    title, profile, context, extraMatches = [], declared = [], traces = [], labels = [], uncertain = false,
+    ingredients = [], forceMissing = false, downgrade = null,
+  },
+) {
   const p = sanitizeProfile(profile);
   const text = doc.text;
   const matches = applyContext([...findMatches(doc, context), ...extraMatches], doc, context);
 
-  const pieces = matches.map((m) => {
+  const entries = matches.map((m) => {
     const food = FOOD_BY_ID[m.id];
     let piece = pieceFromFood(food, { order: m.order, K: m.K });
     piece = applyEmbutidoProfile(piece, food, p);
     piece = applyPasteurized(piece, text);
-    return piece;
+    return { food, piece };
   });
+  const pieces = entries.map((e) => e.piece);
+  // Temas: por relevancia (lo más grave primero) y solo de lo que de verdad pide cuidado o es «Mejor no».
+  const byRelevance = entries
+    .slice()
+    .sort((a, b) => levelRank(b.piece.level) - levelRank(a.piece.level) || a.piece.order - b.piece.order);
+  const topics = mergeTopics(
+    byRelevance.filter((e) => e.piece.level === 'cuidado' || e.piece.level === 'no').map((e) => topicsForFood(e.food)),
+  );
+  const missingList = missingFor(byRelevance, text);
   const base = pieces.length ? mergePieces(pieces) : unknownPiece();
   const foodIds = [...new Set(matches.map((m) => m.id))];
 
@@ -668,14 +727,30 @@ function classifyDoc(doc, { title, profile, context, extraMatches = [], declared
     uncertain,
     notes: dietNotes(p, categories, lactosaNegated),
     ingredients,
+    topics,
+    missingList,
+    forceMissing,
+    downgrade,
   });
+}
+
+// Qué no se puede descartar sin ver la etiqueta, según lo que se reconoce. Nada reconocido: la regla 7.
+function missingFor(byRelevance, text) {
+  if (!byRelevance.length) return MISSING_UNKNOWN.slice();
+  const list = mergeTopics(byRelevance.map((e) => missingForFood(e.food)));
+  if (byRelevance.some((e) => e.food.id === 'pasta') && RELLENO_RE.test(text) && !list.includes('listeria')) {
+    list.push('listeria');
+  }
+  return list.slice(0, MISSING_MAX);
 }
 
 // ---------------------------------------------------------------------------
 // API pública
 // ---------------------------------------------------------------------------
 
-export function classifyText(name, { ingredients = [], uncertain = false } = {}, profile) {
+// `source: 'web'` (o `ingredientsSource: 'web'`): los datos vienen de internet, sin confirmar con la etiqueta.
+export function classifyText(name, { ingredients = [], uncertain = false, source, ingredientsSource } = {}, profile) {
+  const web = source === 'web' || ingredientsSource === 'web';
   const ingr = (Array.isArray(ingredients) ? ingredients : [ingredients]).filter((x) => typeof x === 'string' && x.trim());
   const title = String(name ?? '').trim();
   const doc = buildDoc([{ text: title, kind: 'name' }, ...ingr.map((t) => ({ text: t, kind: 'ingredient' }))]);
@@ -685,6 +760,8 @@ export function classifyText(name, { ingredients = [], uncertain = false } = {},
     context: 'text',
     uncertain: !!uncertain,
     ingredients: ingr.slice(),
+    forceMissing: web,
+    downgrade: web ? INCOMPLETE.web : null,
   });
 }
 
@@ -732,6 +809,10 @@ export function classifyProduct(product, profile) {
     if (id && FOOD_BY_ID[id]) extraMatches.push({ id, order: idOrder(id), start: -1, end: -1, where: 'category', via: 'cat' });
   }
   const mapAllergens = (tags) => [...new Set(list(tags).map((t) => OFF_ALLERGEN_MAP[t]).filter(Boolean))];
+  // Sin ingredientes, o ingredientes de internet sin confirmar: no se puede dar un «Sí».
+  const sinIngredientes = !ingredientsText.trim();
+  const web = pr.ingredientsSource === 'web' || pr.source === 'web';
+  const incomplete = sinIngredientes ? INCOMPLETE.sinIngredientes : web ? INCOMPLETE.web : null;
 
   return classifyDoc(doc, {
     title: name || 'Producto sin nombre',
@@ -742,6 +823,8 @@ export function classifyProduct(product, profile) {
     traces: mapAllergens(pr.traces),
     labels,
     ingredients: splitTopLevel(ingredientsText),
+    forceMissing: !!incomplete,
+    downgrade: incomplete,
   });
 }
 
@@ -764,6 +847,7 @@ export function verdictForFood(foodId, profile) {
   const categories = new Set(tags);
   for (const k of lexiconHits(DIET_LEXICON, nameNorm)) if (!neg.has(k)) categories.add(k);
 
+  const risky = piece.level === 'cuidado' || piece.level === 'no';
   return finish(piece, {
     title: food.name,
     foodIds: [food.id],
@@ -772,6 +856,8 @@ export function verdictForFood(foodId, profile) {
     otraFound: otraHits(p.otra, [nameNorm, ...aliasNorms]),
     notes: dietNotes(p, categories, false),
     ingredients: [],
+    topics: risky ? topicsForFood(food) : [],
+    missingList: missingForFood(food).slice(0, MISSING_MAX),
   });
 }
 
