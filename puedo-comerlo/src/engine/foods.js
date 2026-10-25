@@ -360,7 +360,8 @@ export const FOODS = [
     name: 'Huevo bien hecho',
     aliases: [
       'huevo bien hecho', 'huevo duro', 'huevos duros', 'huevo cocido', 'huevos cocidos', 'huevo con la yema hecha',
-      'huevo frito bien hecho',
+      'huevo frito bien hecho', 'huevo frito con la yema hecha', 'huevo frito con la yema cuajada',
+      'huevos fritos con la yema hecha', 'huevo a la plancha con la yema hecha',
     ],
     groups: ['huevos', 'restaurante'],
     level: 'si',
@@ -396,12 +397,13 @@ export const FOODS = [
       'huevo poco hecho', 'huevo crudo', 'huevos crudos', 'yema líquida', 'yema cruda', 'yema curada', 'huevo poché',
       'huevo pochado', 'huevo escalfado', 'huevo pasado por agua', 'huevo mollet', 'huevo a baja temperatura',
       'huevo frito', 'huevos fritos', 'huevos rotos', 'huevos estrellados', 'huevos benedictinos', 'revuelto jugoso',
+      'huevo a la plancha', 'huevos a la flamenca', 'huevos al plato', 'huevos con patatas',
     ],
     groups: ['huevos', 'restaurante'],
     level: 'no',
-    phrase: 'Con la yema o la clara líquidas, mejor no.',
+    phrase: 'La yema líquida, mejor no estos meses: nada de mojar la yema.',
     detail:
-      'Un huevo con la yema o la clara sin cuajar, como un poché, unos huevos rotos o un frito con la yema líquida, está poco hecho. AESAN recomienda en el embarazo tomar el huevo bien cocinado, por el riesgo de salmonela.',
+      'Un huevo con la yema o la clara sin cuajar, como un frito con la yema líquida, unos huevos rotos o un poché, está poco hecho. AESAN recomienda en el embarazo tomar el huevo bien cocinado, por el riesgo de salmonela. Con la yema bien hecha, cuajada, sí.',
     question: '¿Me lo pueden hacer con la yema cuajada?',
     alternative: 'Huevo duro, o frito o a la plancha con la yema bien hecha.',
     source: 'AESAN',
@@ -502,7 +504,7 @@ export const FOODS = [
     name: 'Carne poco hecha',
     aliases: [
       'carne poco hecha', 'carne al punto', 'carne sangrante', 'sangrante', 'vuelta y vuelta', 'carne cruda',
-      'carne roja poco hecha', 'chuletón', 'chuleta de vaca', 'txuleta', 'entrecot al punto', 'solomillo al punto',
+      'carne roja poco hecha', 'entrecot al punto', 'solomillo al punto',
       'solomillo poco hecho', 'rosbif', 'roast beef', 'magret de pato', 'tataki de ternera',
     ],
     groups: ['carne', 'restaurante'],
@@ -946,7 +948,7 @@ export const FOODS = [
     phrase: 'Sí: va horneada, y el horno cocina lo que lleva encima.',
     detail:
       'En el horno, la pizza se pone muy caliente y lo que lleva encima se cocina con ella: el jamón york, el chorizo o el queso. Lo que se añade después del horno ya no cuenta como cocinado: si el jamón curado, la burrata u otro queso se ponen al final, en frío, van crudos. Un huevo con la yema líquida tampoco está hecho. AESAN recomienda en el embarazo cocinar los alimentos hasta que estén bien calientes por dentro.',
-    question: '¿El jamón curado va al horno o se pone al final, en frío?',
+    question: '¿Lo que lleva encima va al horno o se pone al final, en frío?',
     alternative: 'Una pizza con todo horneado, por ejemplo de verduras.',
     source: 'AESAN',
     tags: ['gluten', 'leche', 'lactosa'],
@@ -1197,7 +1199,7 @@ export const FOODS = [
     ],
     groups: ['bebidas', 'supermercado'],
     level: 'si',
-    phrase: 'Sí; el negro lleva algo de cafeína, que también suma.',
+    phrase: 'Sí, con moderación: el chocolate negro también lleva algo de cafeína.',
     detail:
       'El chocolate se puede tomar con normalidad. Lleva algo de cafeína, más cuanto más puro, y AESAN la cuenta dentro del tope orientativo de 200 mg al día en el embarazo.',
     question: null,
