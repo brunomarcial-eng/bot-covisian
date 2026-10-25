@@ -1297,6 +1297,90 @@ body[data-verdict] .more .btn--secondary { color: #245443; border-color: #245443
   body[data-verdict] .more .btn--secondary:hover { background: #e4ece6; }
 }
 
+/* ---------- Ilustración: la mesa de la portada, el plato suelto y el plato que gira ---------- */
+
+/* Portada: la mesa a sangre (compensa el margen lateral), recortada por los bordes y fundida con el crema.
+   La altura deja siempre a la vista el título, el texto y «Seguir» en 360×740. */
+.cover-art {
+  position: relative;
+  margin: var(--s3) calc(var(--gutter) * -1) 0;
+  height: clamp(13rem, calc(100svh - 27rem), 30rem);
+  overflow: hidden;
+  pointer-events: none;
+}
+.cover-art svg { display: block; width: 100%; height: 100%; }
+.cover-art::before {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: 26%;
+  background: linear-gradient(to top, rgba(243, 238, 230, 0), var(--bg) 92%);
+}
+.is-cover .cover-title { margin-top: var(--s4); margin-bottom: var(--s2); }
+.is-cover .lead { margin-bottom: 0; }
+.is-cover .actions { margin-top: var(--s4); }
+.is-cover .disclaimer-note { margin-top: var(--s5); }
+.is-cover .cover-title,
+.is-cover .lead,
+.is-cover .actions,
+.is-cover .disclaimer-note { animation: cover-text 0.55s var(--ease) both; }
+.is-cover .cover-title { animation-delay: 0.05s; }
+.is-cover .lead { animation-delay: 0.15s; }
+.is-cover .actions { animation-delay: 0.6s; }
+.is-cover .disclaimer-note { animation-delay: 0.7s; }
+@keyframes cover-text { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* Estados vacíos: un plato suelto y una línea */
+.empty--art {
+  display: grid;
+  justify-items: center;
+  gap: var(--s3);
+  padding: var(--s6) 0 var(--s4);
+  text-align: center;
+}
+.empty--art p { margin: 0; text-wrap: balance; }
+.empty-art { width: 8.5rem; height: 8.5rem; }
+.empty-art svg { width: 100%; height: 100%; animation: plate-in 0.6s var(--ease) both; }
+@keyframes plate-in { from { opacity: 0; transform: translateY(8px) scale(0.9) rotate(-8deg); } to { opacity: 1; transform: none; } }
+/* En «Lo último» (Inicio) va en línea y más pequeño, para no competir con las dos acciones */
+.section--last-empty .empty--art {
+  grid-template-columns: 5rem 1fr;
+  justify-items: start;
+  align-items: center;
+  gap: var(--s4);
+  padding: var(--s3) 0 var(--s2);
+  text-align: left;
+}
+.section--last-empty .empty-art { width: 5rem; height: 5rem; }
+
+/* Movimiento de la ilustración (copia de los estilos de src/ui/art/mesa.js y platos.js, para que el SVG no lleve <style>) */
+.art-mesa .art-plato, .art-mesa .art-extra { animation: art-entra 0.56s cubic-bezier(0.22, 0.7, 0.2, 1) both; animation-delay: calc(var(--i, 0) * 70ms + 40ms); transform-box: fill-box; transform-origin: center; }
+.art-mesa .art-extra { animation-name: art-aparece; }
+.art-mesa .art-vapor { animation: art-vapor 5.2s ease-in-out infinite; animation-delay: calc(1.6s + var(--v, 0) * 1.7s); transform-box: fill-box; transform-origin: center bottom; opacity: 0.4; }
+@keyframes art-entra { from { opacity: 0; transform: translate(var(--dx, 0), var(--dy, 10px)) scale(0.88); } to { opacity: 1; transform: none; } }
+@keyframes art-aparece { from { opacity: 0; } to { opacity: 1; } }
+@keyframes art-vapor { 0%, 100% { opacity: 0.18; transform: translateY(2px) scaleY(0.94); } 50% { opacity: 0.5; transform: translateY(-3px) scaleY(1.04); } }
+.art-cargando .art-gira { transform-origin: 80px 80px; animation: art-gira 2.4s linear infinite; }
+@keyframes art-gira { to { transform: rotate(360deg); } }
+
+/* Entradas suaves: los dos accesos de Inicio y las filas de la carta leída, una a una (≤ 0,5 s en total) */
+body[data-screen="inicio"] .tile,
+.entries--rise > .entry { animation: rise 0.42s var(--ease) backwards; }
+body[data-screen="inicio"] .tile:nth-child(2) { animation-delay: 0.07s; }
+.entries--rise > .entry:nth-child(1) { animation-delay: 0.02s; }
+.entries--rise > .entry:nth-child(2) { animation-delay: 0.07s; }
+.entries--rise > .entry:nth-child(3) { animation-delay: 0.12s; }
+.entries--rise > .entry:nth-child(4) { animation-delay: 0.17s; }
+.entries--rise > .entry:nth-child(5) { animation-delay: 0.22s; }
+.entries--rise > .entry:nth-child(6) { animation-delay: 0.27s; }
+.entries--rise > .entry:nth-child(n+7) { animation-delay: 0.32s; }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+/* «Leyendo…»: el plato que gira junto al texto de estado */
+.status--art { min-height: 6.5rem; gap: var(--s4); }
+.status-art { flex: none; width: 5.5rem; height: 5.5rem; }
+.status-art svg { width: 100%; height: 100%; }
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -1310,5 +1394,9 @@ body[data-verdict] .more .btn--secondary { color: #245443; border-color: #245443
   body.is-igniting .answer > *,
   body.is-igniting .answer-word { animation: none !important; }
   .tm { animation: none !important; }
+  .art-mesa .art-plato, .art-mesa .art-extra, .art-mesa .art-vapor, .art-cargando .art-gira { animation: none !important; }
+  .art-mesa .art-vapor { opacity: 0.35; }
+  .is-cover .cover-title, .is-cover .lead, .is-cover .disclaimer-note, .is-cover .actions,
+  .empty-art svg, body[data-screen="inicio"] .tile, .entries--rise > .entry { animation: none !important; }
   .tone-marks, .tone-marks.is-out { transition: none !important; }
 }

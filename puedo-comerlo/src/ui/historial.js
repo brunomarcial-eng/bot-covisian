@@ -4,6 +4,7 @@ import { getHistory, clearHistory, HISTORY_MAX } from '../store.js';
 import { h, announce, fill } from './dom.js';
 import { entries, confirmBox } from './components.js';
 import { entryRow } from './entries.js';
+import { emptyState } from './art-ui.js';
 
 export function render({ main, profile }) {
   const h1 = h('h1', null, 'Historial');
@@ -15,7 +16,7 @@ export function render({ main, profile }) {
     if (!history.length) {
       fill(
         host,
-        h('div', { class: 'empty' }, h('p', null, 'Todavía no has consultado nada. Lo que busques o fotografíes aparecerá aquí.')),
+        emptyState('tortilla', h('p', null, 'Todavía no has consultado nada. Lo que busques o fotografíes aparecerá aquí.')),
       );
       return;
     }

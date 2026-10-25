@@ -7,6 +7,7 @@ import { entryRow } from './entries.js';
 import { recordSearch } from './buscar.js';
 import { buildHash, navigate } from './router.js';
 import { installHint } from './instalar.js';
+import { emptyState } from './art-ui.js';
 
 // Dos accesos grandes: la tipografía manda; no hay icono ni círculo.
 function tile(href, title, kicker, variant = '') {
@@ -63,6 +64,16 @@ export function render({ main, profile }) {
   );
 
   const history = getHistory().slice(0, 3);
+  if (!history.length) {
+    main.append(
+      h(
+        'section',
+        { class: 'section section--last-empty', 'aria-labelledby': 'lo-ultimo' },
+        sectionHead('Lo último', 'lo-ultimo'),
+        emptyState('fruta', h('p', null, 'Aquí irán tus últimas respuestas.')),
+      ),
+    );
+  }
   if (history.length) {
     main.append(
       h(

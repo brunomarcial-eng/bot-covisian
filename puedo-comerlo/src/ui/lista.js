@@ -5,6 +5,7 @@ import { getList, removeFromList, getFavorites } from '../store.js';
 import { h, announce, fill } from './dom.js';
 import { entryItem, entryLink, entries, sectionHead } from './components.js';
 import { refreshEntry } from './recalc.js';
+import { emptyState } from './art-ui.js';
 
 export function render({ main, profile }) {
   const h1 = h('h1', null, 'Lista');
@@ -40,7 +41,7 @@ export function render({ main, profile }) {
     if (!list.length) {
       fill(
         listHost,
-        h('div', { class: 'empty' }, h('p', null, 'Todavía no hay nada. Cuando mires un plato o un producto, puedes dejarlo aquí.')),
+        emptyState('ensalada', h('p', null, 'Todavía no hay nada. Cuando mires un plato o un producto, puedes dejarlo aquí.')),
       );
       return;
     }

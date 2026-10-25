@@ -119,6 +119,7 @@ export function render({ main, profile, setTab }) {
           }),
         ),
         'Platos',
+        { rise: true },
       ),
     );
   }

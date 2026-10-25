@@ -166,8 +166,9 @@ export function entryLink({ href = null, level, title, phrase, meta = null, onCl
   return h('li', { class: `entry lv-${lv}` }, h('div', { class: 'entry-body' }, body));
 }
 
-export function entries(items, label = null) {
-  return h('ul', { class: 'entries', 'aria-label': label }, items);
+// rise: las filas entran una a una (solo donde llegan de golpe, como la carta leída).
+export function entries(items, label = null, { rise = false } = {}) {
+  return h('ul', { class: `entries${rise ? ' entries--rise' : ''}`, 'aria-label': label }, items);
 }
 
 // Lista tipográfica de atajos: texto + flecha fina.

@@ -3,6 +3,7 @@
 
 import { h, uid, fill } from './dom.js';
 import { notice } from './components.js';
+import { loadingStatus } from './art-ui.js';
 
 // <input type="file"> oculto, sin «capture», para que abra la galería.
 export function galleryInput(onFile) {
@@ -179,13 +180,7 @@ export function photoFlow(host, { signal, subject = 'la carta', onPhoto, onCance
 // Vista de «leyendo»: miniatura de la foto + estado en región viva.
 export function readingView(host, blob, firstStatus) {
   const url = URL.createObjectURL(blob);
-  const text = h('span', null, firstStatus);
-  const status = h(
-    'div',
-    { class: 'status', role: 'status', 'aria-live': 'polite' },
-    h('span', { class: 'spinner', 'aria-hidden': 'true' }),
-    text,
-  );
+  const { el: status, text } = loadingStatus(firstStatus);
   fill(host, 
     h('div', { class: 'camera-frame camera-frame--thumb' }, h('img', { src: url, alt: 'La foto que estoy leyendo', class: 'is-photo' })),
     h('div', { class: 'mt-md' }, status),

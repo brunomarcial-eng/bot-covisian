@@ -6,6 +6,7 @@ import { h, fill } from './dom.js';
 import { classifyItem, NOTICE_ETIQUETA_OCR } from './recalc.js';
 import { galleryInput, photoFlow, readingView } from './photo.js';
 import { atajos, cleanItems } from './fuera.js';
+import { loadingStatus } from './art-ui.js';
 import { navigate, replaceQuietly } from './router.js';
 
 export const ATAJOS_SUPER = [
@@ -190,12 +191,7 @@ export function render(ctx) {
     stopScanner();
     lastCode = code;
     intro.hidden = false;
-    const status = h(
-      'div',
-      { class: 'status', role: 'status', 'aria-live': 'polite' },
-      h('span', { class: 'spinner', 'aria-hidden': 'true' }),
-      h('span', null, 'Buscando en Open Food Facts…'),
-    );
+    const { el: status } = loadingStatus('Buscando en Open Food Facts…');
     fill(body, status, h('p', { class: 'meta mt-sm' }, `Código ${code}`));
 
     let res = null;

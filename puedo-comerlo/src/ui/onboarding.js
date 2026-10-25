@@ -4,6 +4,7 @@
 import { getProfile, saveProfile, setOnboarded } from '../store.js';
 import { h, icon } from './dom.js';
 import { navigate } from './router.js';
+import { coverArt } from './art-ui.js';
 import { alergiasFieldset, otraField, dietaFieldset, checkedValues } from './profile-fields.js';
 
 const TOTAL = 4;
@@ -51,18 +52,23 @@ function goNext(n) {
 
 // ---------- Pasos ----------
 
+// Portada: título y texto arriba, la mesa a sangre debajo (con el detalle de la persona sentada, que
+// asoma por abajo), «Seguir» y, tras el botón, la nota. El pie literal está siempre abajo.
 function step1() {
   const { form } = stepForm(
     () => goNext(1),
     [
       h('h1', { class: 'cover-title' }, '¿Puedo comerlo?'),
       h('p', { class: 'lead' }, 'Para la carta y para el súper. Una respuesta corta, y el motivo solo si lo abres.'),
-      h(
-        'p',
-        { class: 'disclaimer-note' },
-        'Es una guía orientativa, no una app médica. No hay un médico detrás y no sustituye a tu matrona, a tu ginecólogo ni a tu médico.',
-      ),
+      coverArt(),
     ],
+  );
+  form.append(
+    h(
+      'p',
+      { class: 'disclaimer-note' },
+      'Es una guía orientativa, no una app médica. No hay un médico detrás y no sustituye a tu matrona, a tu ginecólogo ni a tu médico.',
+    ),
   );
   return [form];
 }
@@ -131,4 +137,5 @@ export function render({ main, segs }) {
     return;
   }
   main.append(header(n), ...STEPS[n](getProfile()));
+  main.classList.toggle('is-cover', n === 1);
 }
