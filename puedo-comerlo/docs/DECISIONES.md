@@ -184,3 +184,160 @@ Aplicadas las respuestas de `docs/CUESTIONARIO.md`: 64 alimentos nuevos en la gu
 - **Alergia o «otra cosa» que pone «Mejor no» sobre una base que no lo era**: la frase queda solo en «Has marcado X.» y el detalle pasa a una nota propia («Lleva X, que has marcado en tus ajustes. Por eso sale «Mejor no», aunque en general este alimento no tenga un riesgo especial en el embarazo.»; con base «Con cuidado»: «…solo pida algo de cuidado en el embarazo»; con base desconocida: «…aunque la app no reconoce del todo este plato»; para «otra cosa»: «Has marcado «X» entre lo que no quieres comer en tus ajustes. …»). `question` y `alternative` pasan a null. Si la base ya era «Mejor no» (incluido el perfil de embutido «no»), se queda todo como estaba. Vale para `classifyText`, `classifyProduct` y `verdictForFood` (todos pasan por `finish()`). Las trazas y la lectura incierta no cambian.
 - **Fiambre en frío**: «bocadillo/sándwich/tosta/montadito de pavo», «pavo en frío», «mixto frío» y «sándwich mixto frío» → fiambre de bandeja («Mejor no»). «Frío/fría» en el texto convierte en crudo cualquier fiambre o embutido que iba a contar como cocinado. «Pavo» a secas, «pechuga de pavo a la plancha/asada» y «bocadillo de pavo asado» siguen siendo carne hecha («Sí»).
 - **«Plato(s) combinado(s)»** ya no es alcohol (bloqueo en el léxico; sin coincidencia, «No estoy segura»). «Combinado», «combinados» y «combinado de ginebra» siguen siendo alcohol, también «plato combinado con copa de vino».
+
+## Claves del embarazo
+
+### N8 · Las ocho claves y el microcopy que las acompaña (Laura, Product Owner)
+
+La clienta pidió: «No solamente que te dé el resultado, sino ir educando a la usuaria para que sepa cuáles son los temas conflictivos que se van a ir repitiendo durante todo el embarazo.» Esto lo resuelven las **claves**: ocho temas que vuelven una y otra vez, explicados una sola vez y enlazados desde cada respuesta. No son un veredicto nuevo: el semáforo lo sigue calculando el motor.
+
+**Entregable de contenido**: `src/engine/claves.js` (nuevo, sin dependencias). Exporta `CLAVES` (ocho, en este orden: `listeria`, `toxoplasmosis`, `mercurio`, `huevo-crudo`, `pescado-crudo`, `alcohol`, `cafeina`, `hierbas`), `CLAVE_BY_ID` y `claveLabel(id)` (el título o el propio id). Cada clave lleva `id`, `titulo`, `resumen` (una frase, ≤ 90 caracteres; los de ahora miden entre 57 y 67), `porque` (2–3 frases), `donde` (pistas de etiqueta), `carta` (preguntas para el camarero), `ejemplos`, `alternativa` y `fuente`.
+
+**Lo que decidí sin preguntar**
+
+- **Alineada con la guía de alimentos.** Cada afirmación sale de lo que ya dicen las fichas de `foods.js` (mismas especies de mercurio, mismos ahumados, mismas salsas con vino, mismo tope de cafeína). Dos cosas que no están en el brief y que se han dejado fuera a propósito: no se da ninguna frecuencia ni cantidad de pescado, y no se dice qué cantidad de regaliz es «mucha».
+- **Fuentes.** Solo AESAN y el Ministerio de Sanidad, por su nombre y de forma general («AESAN recomienda…», «AESAN señala…»). Alcohol: «AESAN y Ministerio de Sanidad» (igual que la ficha del alcohol). El resto: AESAN. No se atribuye a ninguna de las dos ningún detalle que no esté ya en la guía.
+- **Cifras.** La única cifra es «200 mg» de cafeína al día, con «orientativa». Hay un «0,0» en alcohol: es el nombre de la cerveza (la propia etiqueta), no una cantidad.
+- **Palabras vetadas.** No aparecen «evitar» ni «seguro/segura» (ni en el texto, ni como veredicto). Para el alcohol se usa la fórmula de la guía: «no se conoce una cantidad sin riesgo».
+- **Tono.** Frases cortas, sin exclamaciones ni diminutivos, sin alarma: se dice qué es, por qué importa y qué hacer. Cada clave termina en una alternativa práctica.
+- **Cocinar sí cambia el resultado… salvo en el mercurio.** Listeria, toxoplasmosis, salmonela y anisakis: el calor (o un buen lavado) corta el riesgo. Mercurio, alcohol (si no hierve de verdad) y cafeína: no. Es la misma distinción que ya hace el motor tras la decisión N2.
+- **Poleo** va en «Hierbas» porque la clienta lo dejó en «Mejor no» (poleo menta) en el cuestionario; **manzanilla y rooibos** se nombran como alternativa («Sí» en la guía). Tila y jengibre («Con cuidado») no se nombran: no caben en una pista corta sin matizar.
+- **Mate** aparece en cafeína como ejemplo y en la pista de etiqueta; en la guía el mate está dentro del té (yerba mate).
+
+**Validado**: `node -e "import('./src/engine/claves.js').then(m=>console.log(m.CLAVES.length))"` → 8; ningún `resumen` pasa de 90 caracteres; `porque` de 2–3 frases; `donde` 3–5, `carta` 2–4 y `ejemplos` 4–6 por clave; sin «evitar», «seguro/segura» ni exclamaciones; ninguna cifra salvo 200 mg (y el «0,0»).
+
+### Microcopy de la interfaz (para Michi)
+
+Texto literal, listo para pegar. Entre llaves, lo que pone el código. Tratamiento de tú, sin exclamaciones, sin «evitar» ni «seguro» como veredicto. No he tocado ningún archivo de interfaz.
+
+#### 1. Producto reconocido por nombre, pero sin ingredientes («No estoy segura» tras escanear)
+
+| Clave | Texto |
+|---|---|
+| `duda.titulo` | Me faltan los ingredientes |
+| `duda.apertura` | He encontrado el producto por su nombre, pero no trae la lista de ingredientes. |
+| `duda.pregunta` | Voy a mirar si lleva: {lista}. |
+| `duda.cierre` | Con la foto de la etiqueta te lo digo mejor. |
+
+- **{lista}** se construye a partir de `missing`: etiquetas en minúscula, separadas por coma y la última con « o ». Una sola: «Voy a mirar si lleva: huevo.» Varias: «Voy a mirar si lleva: huevo, leche sin pasteurizar o alcohol.» Si `missing` viene vacío, no se pinta la pregunta (solo apertura y cierre).
+- **Etiqueta de cada tema** (que `missing` debe traducir a estas palabras): huevo → «huevo»; leche → «leche sin pasteurizar»; embutido → «embutido curado»; pescado → «pescado crudo o ahumado»; mercurio → «pescado con mercurio»; alcohol → «alcohol»; cafeína → «cafeína»; brotes → «brotes crudos»; hierbas → «hierbas o infusiones»; carne → «carne cruda». Si el motor usa otros ids, Michi los casa con la clave más cercana de esta lista.
+- El título es el h1 de la pantalla; la pastilla sigue siendo «No estoy segura» (arena).
+
+#### 2. Pasar a la foto
+
+| Clave | Texto |
+|---|---|
+| `foto.boton` | Fotografiar los ingredientes |
+| `foto.ayuda` (bajo el botón, opcional) | Acerca la etiqueta, con buena luz, hasta que se lean las letras. |
+
+Es el botón principal de esa pantalla (salvia). Sin segunda acción al lado.
+
+#### 3. Resultado tras la foto
+
+| Clave | Texto |
+|---|---|
+| `etiqueta.encabezado` | Lo que he mirado en la etiqueta |
+| `etiqueta.no` (plantilla, tema ausente) | No aparece {tema}. |
+| `etiqueta.si` (plantilla, tema hallado) | Aparece: {tema}. |
+| `etiqueta.si.pasteurizado` (plantilla, con matiz bueno) | Aparece {tema}, {matiz}: bien. |
+| `etiqueta.si.sinpasteurizar` (matiz malo) | Aparece {tema}, sin pasteurizar. |
+| `etiqueta.ilegible` (si esa parte no se lee) | No se lee bien esta parte de la etiqueta. |
+
+Una línea por tema, en este orden fijo: huevo, leche, embutido curado, pescado, alcohol, cafeína, brotes, hierbas. Se escribe primero lo hallado (con enlace «Por qué importa») y debajo lo que no aparece, en tono más suave.
+
+| Tema | Ausente | Hallado | Con matiz «pasteurizado» |
+|---|---|---|---|
+| huevo | No aparece huevo. | Aparece: huevo. | Aparece huevo, pasteurizado: bien. |
+| leche | No aparece leche. | Aparece: leche. | Aparece leche, pasteurizada: bien. |
+| queso | No aparece queso. | Aparece: queso. | Aparece queso, pasteurizado: bien. |
+| embutido curado | No aparece embutido curado. | Aparece: embutido curado. | — |
+| pescado crudo o ahumado | No aparece pescado crudo ni ahumado. | Aparece: pescado ahumado. | — |
+| alcohol | No aparece alcohol. | Aparece: alcohol. | — |
+| cafeína | No aparece cafeína. | Aparece: cafeína. | — |
+| brotes | No aparecen brotes. | Aparecen: brotes. | — |
+| hierbas | No aparecen hierbas desaconsejadas. | Aparecen: hierbas desaconsejadas. | — |
+
+(«Aparecen» solo en los dos temas en plural.) El matiz solo existe para huevo, leche y queso. Si la etiqueta dice «sin pasteurizar», sale la plantilla `etiqueta.si.sinpasteurizar`.
+
+#### 4. Enlace a la clave y chip de tema
+
+| Clave | Texto |
+|---|---|
+| `clave.enlace` | Por qué importa |
+| `clave.enlace.aria` | Por qué importa: {titulo} |
+| `clave.chip` | {claveLabel(id)}, p. ej. «Listeria», «Huevo crudo», «Hierbas e infusiones» |
+
+- El chip es neutro (superficie y línea, sin color de semáforo) y lleva a la clave; no es una pastilla de veredicto, para no confundirse con las cuatro palabras.
+- El enlace «Por qué importa» va dentro de «Ver más», junto a la fuente, y también en cada línea hallada de `etiqueta.si`. Destino propuesto: `#/claves` con la clave abierta (`#/claves/{id}`).
+- Un alimento puede llevar más de un chip (p. ej. el tiramisú: Huevo crudo y Cafeína). Máximo dos a la vista; el resto en «Ver más».
+
+#### 5. Pantalla «Las claves del embarazo»
+
+| Clave | Texto |
+|---|---|
+| `claves.titulo` | Las claves del embarazo |
+| `claves.entradilla` | Son los ocho temas que más se repiten durante el embarazo. Sirven para saber qué mirar en una etiqueta y qué preguntar en la carta. |
+| `claves.tarjeta.abrir` | Abrir |
+| `claves.tarjeta.cerrar` | Cerrar |
+| `claves.secc.porque` | Por qué importa |
+| `claves.secc.donde` | Qué mirar en la etiqueta |
+| `claves.secc.carta` | Qué preguntar en la carta |
+| `claves.secc.ejemplos` | Dónde suele aparecer |
+| `claves.secc.alternativa` | Una alternativa |
+| `claves.fuente` | Fuente: {fuente} |
+| `claves.cierre` | Si tienes una duda sobre tu caso, pregúntasela a tu matrona. |
+
+- **Forma de cada tarjeta**: superficie `#fffdf8` con borde de hoja, sin color de semáforo. Cerrada: el título (Fraunces, h2) y debajo el `resumen` en una frase, con «Abrir» a la derecha. Abierta: `porque` en un párrafo; `donde` como lista corta; `carta` como lista de preguntas entre comillas; `ejemplos` en una sola línea separada por comas; `alternativa` en un párrafo; la fuente al final, pequeña. Una sola abierta a la vez; se abre la que viene en la URL. Ocho tarjetas en una columna, en el orden de `CLAVES`.
+- **Dónde se entra**: un enlace discreto en Inicio, bajo «Lo último» («Las claves del embarazo») y otro en Ajustes. No es un quinto destino de la barra inferior (la especificación fija cuatro).
+- Sin cuenta atrás, sin «has leído 3 de 8», sin barra de progreso: es una consulta, no un curso.
+
+#### 6. Datos que vienen de internet
+
+| Clave | Texto |
+|---|---|
+| `internet.aviso` | Datos encontrados en internet ({fuente}). Compruébalos con la etiqueta. |
+
+Ejemplo real: «Datos encontrados en internet (Open Food Facts). Compruébalos con la etiqueta.» `{fuente}` es el nombre de la base consultada. El aviso va antes del resultado, en texto secundario y con «Fotografiar los ingredientes» a mano.
+
+#### 7. Producto que no está en ningún sitio
+
+| Clave | Texto |
+|---|---|
+| `noencuentro.texto` | No lo encuentro. Fotografía los ingredientes y lo miro por ti. |
+| `noencuentro.boton` | Fotografiar los ingredientes |
+
+Sustituye a «No está en Open Food Facts. Haz una foto de los ingredientes.» (el mensaje de red se queda como está).
+
+#### 8. Lista de la compra
+
+| Clave | Texto |
+|---|---|
+| `lista.titulo` | Lista |
+| `lista.carro` (encabezado de lo comprado) | En el carro |
+| `lista.pendiente` (encabezado de lo que falta) | Pendiente |
+| `lista.carro.vacio` | Nada en el carro todavía. |
+| `lista.pendiente.vacio` | No queda nada pendiente. |
+| `lista.vacia.titulo` | Lista vacía |
+| `lista.vacia.texto` | Todavía no hay nada. Cuando mires un plato o un producto, puedes dejarlo aquí. |
+| `lista.contador` | {n} pendiente / {n} pendientes |
+| `lista.marcar.aria` | Marcar {nombre} como comprado |
+| `lista.desmarcar.aria` | Devolver {nombre} a pendiente |
+| `lista.marcado` (mensaje al marcar) | {nombre}: en el carro. |
+| `lista.desmarcado` (mensaje al desmarcar) | {nombre}: otra vez pendiente. |
+| `lista.quitado` (ya existe) | {nombre}: quitado de la lista. |
+| `lista.compartir.boton` | Compartir la lista |
+| `lista.compartir.titulo` | Mi lista de la compra |
+| `lista.compartir.ok` | Lista compartida. |
+| `lista.compartir.copiada` | Lista copiada. |
+| `lista.compartir.error` | No he podido compartir la lista. |
+
+- **Orden**: «Pendiente» primero, «En el carro» debajo; «En el carro» se pliega si no hay nada. El semáforo y la frase de cada fila no cambian al marcar: el color de la banda sigue siendo el de la respuesta.
+- **Mensaje al marcar**: se anuncia en la región viva (`announce`), igual que «quitado de la lista», y el foco pasa a la fila siguiente o, si no hay, al título.
+- **Texto que se comparte** (`navigator.share({ title, text })`; si no existe, se copia al portapapeles): primera línea «Mi lista de la compra», una línea por producto pendiente con un guion («- Queso fresco»), sin el semáforo, sin frases y sin dirección web. Solo lo pendiente: es para que otra persona haga la compra. Si no hay nada pendiente, el botón se oculta.
+- Ni el texto ni el botón de compartir mencionan embarazo ni salud: el mensaje sale del móvil de la usuaria y puede acabar en un grupo familiar.
+
+#### Para quien integre
+
+- `CLAVES`, `CLAVE_BY_ID` y `claveLabel` se importan de `src/engine/claves.js`. La ruta `#/claves` y la forma de `missing` son decisión de interfaz y motor; este texto no depende de ellas.
+- Los textos 1, 3, 6 y 7 son frases de interfaz, no de la guía: no van en `foods.js`.
+- Si el copy de algún tema cambia por una pregunta de la clienta, el sitio único es este apartado y `claves.js`.
