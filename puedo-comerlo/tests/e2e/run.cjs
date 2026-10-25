@@ -280,7 +280,7 @@ function PILLS_FN() {
     const lvCls = (String(el.className).match(/\blv-(si|cuidado|no|duda)\b/) || [])[1] || null;
     out.push({
       kind: isAnswer ? 'answer' : 'entry',
-      label: wordEl ? clean(wordEl.innerText) : '',
+      label: wordEl ? clean(wordEl.textContent) : '', // textContent: «Sí» se pinta en mayúsculas por CSS (innerText daría «SÍ»)
       name: nameEl ? clean(nameEl.innerText) : '',
       phrase: phraseEl ? clean(phraseEl.innerText) : '',
       card: clean(el.innerText).slice(0, 500),
@@ -294,7 +294,7 @@ function PILLS_FN() {
       phraseColor: phraseEl ? getComputedStyle(phraseEl).color : null,
       hasMore: !!el.querySelector('.more-btn'),
       inLo: !!el.closest('section[aria-labelledby="lo-ultimo"]'),
-      valid: !!wordEl && L.includes(clean(wordEl.innerText)),
+      valid: !!wordEl && L.includes(clean(wordEl.textContent)),
     });
   }
   return out;
@@ -328,7 +328,7 @@ async function toneState(page) {
       footColor: fl ? getComputedStyle(fl).color : null,
       footBg: foot ? getComputedStyle(foot).backgroundColor : null,
       wordColor: word ? getComputedStyle(word).color : null,
-      wordText: word ? word.innerText.trim() : null,
+      wordText: word ? word.textContent.trim() : null,
       phraseColor: phrase ? getComputedStyle(phrase).color : null,
     };
   }).catch(() => ({}));
@@ -362,7 +362,8 @@ async function snap(page, t, screen) {
     const answers = [...document.querySelectorAll('article.answer, li.entry')].filter(visible).map((el) => {
       const a = el.tagName === 'ARTICLE';
       const q = (sel) => { const n = el.querySelector(sel); return n ? clean(n.innerText) : ''; };
-      return { label: q(a ? '.answer-word' : '.lvl'), name: q(a ? '.answer-name' : '.entry-name'), phrase: q(a ? '.answer-phrase' : '.entry-phrase') };
+      const tc = (sel) => { const n = el.querySelector(sel); return n ? clean(n.textContent) : ''; };
+      return { label: tc(a ? '.answer-word' : '.lvl'), name: q(a ? '.answer-name' : '.entry-name'), phrase: q(a ? '.answer-phrase' : '.entry-phrase') };
     });
     const legacy = [...document.querySelectorAll(LEGACY)].map((n) => n.tagName.toLowerCase() + '.' + String(n.className).split(/\s+/).slice(0, 2).join('.'));
     const svgs = [...document.querySelectorAll('svg')].map((v) => ({

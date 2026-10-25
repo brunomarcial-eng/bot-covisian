@@ -70,6 +70,20 @@ si la app no lo respeta, lo avisa y hace el arranque por la interfaz.
 Leyenda del informe: **FALLO** incumple la especificación o el contrato; *Aviso* es algo que conviene
 mirar pero no rompe el criterio de hecho; `·` es información (qué se vio, tiempos, rutas).
 
+## Pantalla entera del color (N6) e ilustración (N7/N7b)
+
+Lo que la batería comprueba de estos dos cambios (todo en los escenarios de arriba):
+
+- **Color del veredicto** (1, 3, 4, 7, 9, 10): en las pantallas de UNA respuesta (Buscar, ficha, producto, etiqueta de un plato) `document.body.dataset.verdict` = `si|cuidado|no|duda`, el fondo del body tarda ~0,45 s en tomar el color (la batería espera 0,7 s): sí `rgb(36,84,67)`, con cuidado `rgb(176,79,16)`, mejor no `rgb(122,51,44)`, no estoy segura `rgb(134,103,42)`; `<meta name="theme-color">` cambia con el veredicto y vuelve a `#f3eee6`. `.answer-word` es crema `rgb(255,253,248)` con el texto exacto (se lee con `textContent`: «Sí» se pinta en mayúsculas por CSS y `innerText` daría «SÍ»). Palabra, frase y pie ≥ 4,5:1 sobre el color. Fuera de esas pantallas (Inicio, Fuera, Súper, Lista, Historial, Ajustes, carta) no hay `data-verdict` y el fondo es crema.
+- **Transiciones** (9): en Buscar, «sushi» → «lubina a la plancha» → «tortilla» → «xyzzy» → vacío, con `data-verdict` y meta al instante, fondo tras el fundido, «?» decorativos (`#tone span[aria-hidden]`) solo con cuidado y duda; atrás/adelante entre fichas e Inicio; `prefers-reduced-motion` (emulado): color al instante y 0 animaciones.
+- **Listas** (4, 5, 9): `ul.entries > li.entry.lv-*[data-level]` con banda de fondo (`#e0eae3`, `#f8e2d0`, `#f2dfdb`, `#efe6c8`) y la palabra `.lvl` en salvia, arcilla, vino o arena oscura (≥ 4,5:1). Las filas son 2 × gutter más anchas que la columna: se comprueba que caben, centradas y sin scroll horizontal (390 px y 1280 px).
+- **Portada** (1): `.cover-art` (`aria-hidden`) con 12 `.art-plato`, `main.is-cover`, «Paso 1 de 4», «Seguir» dentro del viewport y por encima del pie a 390×844 y 360×740, `.disclaimer-note` después del botón, sin `<text>`/`<image>` en el SVG; con reduced-motion los 12 platos con opacidad 1 y 0 animaciones; sin él, animación al abrir.
+- **Vacíos y carga** (2, 4, 5, 7): `.empty.empty--art` con `.empty-art` en Lista, Historial e Inicio («Lo último»); `.status--art .status-art` con el texto en `.status-text` y sin `.spinner` al leer una foto y al consultar Open Food Facts (la respuesta se retrasa con `page.route`); la carta leída es `ul.entries.entries--rise`.
+- **SVG** (10): ninguno de los SVG vistos en la batería contiene `<text>`, `<tspan>`, `<image>` ni `<foreignObject>`, y las ilustraciones grandes son decorativas.
+- **360×740** (9): ficha de cada color, Buscar (largo y con «Ver más»), carta, Lista, Historial y Ajustes sin scroll horizontal, controles ≥ 48 px, nada tapado por el pie; capturas en `out/09-*-360-*.png`.
+
+En local `/api/leer` responde 503 (sin clave de visión): la lectura de fotos va por OCR local y eso es lo esperado.
+
 ## Fixtures
 
 `fixtures/make-fixtures.cjs` las regenera de forma reproducible (HTML fijo + captura con Playwright, fuentes
