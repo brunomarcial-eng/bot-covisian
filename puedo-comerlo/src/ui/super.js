@@ -1,12 +1,13 @@
 // En el súper: código de barras (Open Food Facts) o foto de la etiqueta.
 
 import { classifyProduct } from '../engine/index.js';
-import { addHistory, setResult } from '../store.js';
+import { addHistory, setResult, getResult } from '../store.js';
 import { h, fill } from './dom.js';
 import { classifyItem, NOTICE_ETIQUETA_OCR } from './recalc.js';
 import { galleryInput, photoFlow, readingView } from './photo.js';
 import { atajos, cleanItems } from './fuera.js';
 import { loadingStatus } from './art-ui.js';
+import { LABEL_BUTTON, DEFAULT_TOPICS } from './etiqueta-ui.js';
 import { navigate, replaceQuietly } from './router.js';
 
 export const ATAJOS_SUPER = [
@@ -20,7 +21,8 @@ export const ATAJOS_SUPER = [
   ['Cerveza 0,0', 'cerveza-00'],
 ];
 
-const MSG_NO_ESTA = 'No está en Open Food Facts. Haz una foto de los ingredientes.';
+const MSG_NO_ESTA = 'No lo encuentro. Fotografía los ingredientes y lo miro por ti.';
+const MSG_INGREDIENTES = 'No he podido leer los ingredientes. Acércala, con buena luz.';
 const MSG_RED = 'No he podido consultar Open Food Facts. Revisa la conexión o fotografía los ingredientes.';
 const MSG_ETIQUETA = 'No he podido leer la etiqueta. Acércala, con buena luz.';
 
@@ -47,6 +49,9 @@ export function render(ctx) {
   let scanner = null;
   let flow = null;
   let lastCode = '';
+  // Escaneo guiado: el producto del código (o null si no se encontró) al que se le fotografían los ingredientes.
+  let labelCtx = null;
+  let backToResult = false;
 
   const stopScanner = () => {
     if (scanner) {
@@ -61,9 +66,11 @@ export function render(ctx) {
   signal.addEventListener('abort', stopScanner, { once: true });
 
   // ---------- Vista inicial ----------
-  function showHome({ message = null, labelFirst = false } = {}) {
+  function showHome({ message = null, labelFirst = false, ingredients = false } = {}) {
     stopScanner();
     flow = null;
+    backToResult = false;
+    if (!ingredients) labelCtx = null;
     intro.hidden = false;
 
     const scanBtn = h(
@@ -74,7 +81,7 @@ export function render(ctx) {
     const labelBtn = h(
       'button',
       { type: 'button', class: 'btn btn--primary', onclick: startLabel },
-      'Fotografiar la etiqueta',
+      ingredients ? LABEL_BUTTON : 'Fotografiar la etiqueta',
     );
 
     const input = h('input', {
@@ -186,48 +193,82 @@ export function render(ctx) {
     }
   }
 
-  // ---------- Open Food Facts ----------
+  // ---------- Open Food Facts y, si no está o no trae ingredientes, internet ----------
   async function lookup(code) {
     stopScanner();
     lastCode = code;
+    labelCtx = null;
     intro.hidden = false;
-    const { el: status } = loadingStatus('Buscando en Open Food Facts…');
-    fill(body, status, h('p', { class: 'meta mt-sm' }, `Código ${code}`));
+    const ctl = new AbortController();
+    const onAbort = () => ctl.abort();
+    signal.addEventListener('abort', onAbort, { once: true });
+    const { el: status, text } = loadingStatus('Buscando en Open Food Facts…');
+    const cancel = h(
+      'button',
+      {
+        type: 'button',
+        class: 'btn btn--secondary',
+        onclick: () => {
+          ctl.abort();
+          showHome({ labelFirst: true });
+        },
+      },
+      'Cancelar',
+    );
+    fill(body, status, h('p', { class: 'meta mt-sm' }, `Código ${code}`), h('div', { class: 'actions' }, cancel));
 
     let res = null;
     try {
-      const { fetchProduct } = await import('../capture/off.js');
-      res = await fetchProduct(code);
+      const { lookupProduct } = await import('../capture/producto.js');
+      res = await lookupProduct(code, {
+        signal: ctl.signal,
+        onStatus: (t) => {
+          if (!ctl.signal.aborted) text.textContent = t;
+        },
+      });
     } catch (err) {
-      if (signal.aborted) return;
-      console.warn('Open Food Facts:', err);
+      if (signal.aborted || ctl.signal.aborted || (err && err.name === 'AbortError')) return;
+      console.warn('Consulta del producto:', err);
       showHome({ message: messageBox(MSG_RED), labelFirst: true });
       return;
+    } finally {
+      signal.removeEventListener('abort', onAbort);
     }
-    if (signal.aborted) return;
+    if (signal.aborted || ctl.signal.aborted) return;
 
     if (!res || !res.found || !res.product) {
-      showHome({ message: messageBox(MSG_NO_ESTA, 'info'), labelFirst: true });
+      // No está en ningún sitio: se fotografían los ingredientes y se mira por ella.
+      labelCtx = { product: null, code, topics: DEFAULT_TOPICS };
+      showHome({ message: messageBox(MSG_NO_ESTA, 'info'), labelFirst: true, ingredients: true });
       return;
     }
-    const product = res.product;
+    // El producto lleva de dónde salen sus ingredientes (el motor rebaja los de internet sin confirmar).
+    const product = { ...res.product };
+    if (res.ingredientsSource) product.ingredientsSource = res.ingredientsSource;
+    const web =
+      res.source === 'web' || res.productSource === 'web'
+        ? { name: res.sourceName || '', url: res.sourceUrl || '' }
+        : null;
     const verdict = classifyProduct(product, profile);
     const title = (product.name && String(product.name).trim()) || 'Producto sin nombre';
-    const payload = { kind: 'producto', product };
+    const payload = { kind: 'producto', product, web };
     setResult({ title, via: 'codigo', items: [verdict], notice: null, payload });
     addHistory({ via: 'codigo', title, level: verdict.level, phrase: verdict.phrase, foodId: verdict.foodId || null, payload });
     navigate('#/resultado');
   }
 
-  // ---------- Foto de la etiqueta ----------
+  // ---------- Foto de la etiqueta (suelta o de los ingredientes de un producto) ----------
   function startLabel() {
     stopScanner();
     intro.hidden = true;
     flow = photoFlow(body, {
       signal,
-      subject: 'la etiqueta',
+      subject: labelCtx ? 'los ingredientes' : 'la etiqueta',
       onPhoto: (blob) => readLabel(blob),
-      onCancel: () => showHome({ labelFirst: !!lastCode }),
+      onCancel: () => {
+        if (backToResult) navigate('#/resultado');
+        else showHome({ labelFirst: !!lastCode, ingredients: !!labelCtx });
+      },
       openGallery: () => gallery.click(),
     });
   }
@@ -256,6 +297,11 @@ export function render(ctx) {
     }
     if (signal.aborted) return;
 
+    if (labelCtx) {
+      readIngredients(res);
+      return;
+    }
+
     const items = res && res.readable ? cleanItems(res.items, 1) : [];
     if (!items.length) {
       showHome({ message: messageBox(MSG_ETIQUETA), labelFirst: true });
@@ -275,6 +321,31 @@ export function render(ctx) {
     navigate('#/resultado');
   }
 
+  // Los ingredientes de la foto se unen al producto del código (nombre y marca del código) y se vuelve a
+  // clasificar. El resultado dice qué se ha mirado (los temas que faltaban antes de la foto).
+  function readIngredients(res) {
+    const ctx = labelCtx;
+    const first = res && res.readable && Array.isArray(res.items) ? res.items[0] : null;
+    const ingredients = first && Array.isArray(first.ingredients) ? first.ingredients.map((x) => String(x).trim()).filter(Boolean) : [];
+    if (!ingredients.length) {
+      showHome({ message: messageBox(MSG_INGREDIENTES), labelFirst: true, ingredients: true });
+      return;
+    }
+    const base = ctx.product || { code: ctx.code || '', name: '', brand: '', allergens: [], traces: [], categories: [], labels: [] };
+    const product = { ...base, ingredientsText: ingredients.join(', '), ingredientsSource: 'etiqueta' };
+    delete product.ingredientsLang;
+    if (!String(product.name || '').trim()) product.name = String((first && first.name) || '').trim();
+    if (product.name === 'La etiqueta') product.name = '';
+    if (!product.name) product.name = 'Producto de la foto';
+    const verdict = classifyProduct(product, profile);
+    const title = product.name;
+    const payload = { kind: 'producto', product, web: null, label: { topics: ctx.topics || [] } };
+    const via = product.code ? 'codigo' : 'foto';
+    setResult({ title, via, items: [verdict], notice: res.via === 'ocr' ? NOTICE_ETIQUETA_OCR : null, payload });
+    addHistory({ via, title, level: verdict.level, phrase: verdict.phrase, foodId: verdict.foodId || null, payload });
+    navigate('#/resultado');
+  }
+
   showHome();
 
   // Accesos directos desde Resultado.
@@ -283,6 +354,23 @@ export function render(ctx) {
     startScan();
   } else if (params.get('etiqueta') === '1') {
     replaceQuietly('#/super');
+    startLabel();
+  } else if (params.get('ingredientes') === '1') {
+    // Desde un resultado que pide los ingredientes: se fotografían y se unen a ese producto.
+    replaceQuietly('#/super');
+    const stored = getResult();
+    const product = stored && stored.payload && stored.payload.kind === 'producto' ? stored.payload.product : null;
+    if (product) {
+      let missing = [];
+      try {
+        missing = classifyProduct(product, profile).missing || [];
+      } catch {
+        /* se usan los temas por defecto */
+      }
+      lastCode = product.code || '';
+      labelCtx = { product, code: product.code || '', topics: missing.length ? missing : DEFAULT_TOPICS };
+      backToResult = true;
+    }
     startLabel();
   }
 

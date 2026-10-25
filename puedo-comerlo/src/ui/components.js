@@ -3,6 +3,7 @@
 // lateral del color del nivel. La pastilla rellena solo aparece donde resume (la carta).
 
 import { LEVEL_LABEL } from '../engine/levels.js';
+import { claveLabel, CLAVE_BY_ID } from '../engine/claves.js';
 import { addToList, isInList } from '../store.js';
 import { h, icon, levelMark, uid, announce, fill } from './dom.js';
 import { trimPhrase } from './phrase.js';
@@ -25,6 +26,21 @@ export function pill(level, { small = false, text = null } = {}) {
 // Frase del veredicto sin repetir la palabra del nivel.
 export function phraseOf(v) {
   return trimPhrase(v.phrase || '', v.level);
+}
+
+// Enlace «Por qué importa» a la clave de un tema.
+export function claveLink(id, { small = true } = {}) {
+  const c = CLAVE_BY_ID[id];
+  return h(
+    'a',
+    {
+      class: `text-link${small ? ' text-link--small' : ''}`,
+      href: `#/claves/${encodeURIComponent(id)}`,
+      'aria-label': `Por qué importa: ${c ? c.titulo : id}`,
+    },
+    'Por qué importa',
+    icon('arrow-right', 18, 1.5),
+  );
 }
 
 // Botón «Añadir a la lista». Cuando ya está, «En la lista» (aria-disabled, para no perder el foco).
@@ -73,6 +89,18 @@ export function verdictMore(v, opts = {}) {
     parts.push(h(sub, { class: 'more-label' }, 'Forma de comer'));
     parts.push(h('ul', { class: 'more-notes' }, v.notes.map((n) => h('li', null, n))));
   }
+  if (Array.isArray(v.topics) && v.topics.length) {
+    // Chips neutros (no son veredictos): llevan a la clave del tema. Después, el enlace «Por qué importa».
+    parts.push(h(sub, { class: 'more-label' }, 'Para saber más'));
+    parts.push(
+      h(
+        'ul',
+        { class: 'chips', 'aria-label': 'Temas' },
+        v.topics.map((id) => h('li', null, h('a', { class: 'chip', href: `#/claves/${encodeURIComponent(id)}` }, claveLabel(id)))),
+      ),
+    );
+    parts.push(claveLink(v.topics[0]));
+  }
   if (extraMore) parts.push(extraMore);
   if (v.source) parts.push(h('p', { class: 'more-source' }, `Fuente: ${v.source}`));
 
@@ -104,7 +132,7 @@ export function verdictMore(v, opts = {}) {
 //   eyebrow: línea pequeña encima (grupo de la guía)   sheet: dentro de una hoja
 //   actions: nodos bajo la frase (antes de «Ver más»)   listEntry: añade «Añadir a la lista» en «Ver más»
 export function verdictAnswer(v, opts = {}) {
-  const { level = 2, title = v.title, eyebrow = null, sheet = false, actions = null, hideName = false } = opts;
+  const { level = 2, title = v.title, eyebrow = null, sheet = false, actions = null, hideName = false, afterPhrase = null } = opts;
   const lv = norm(v.level);
   const { button, panel } = verdictMore(v, opts);
   const nameId = uid('nombre');
@@ -116,6 +144,7 @@ export function verdictAnswer(v, opts = {}) {
     h('p', { class: 'answer-word' }, LEVEL_LABEL[lv]),
     h(`h${level}`, { class: hideName ? 'visually-hidden' : 'answer-name', id: nameId }, capFirst(title) || 'Sin nombre'),
     phrase ? h('p', { class: 'answer-phrase' }, phrase) : null,
+    afterPhrase,
     actions ? h('div', { class: 'answer-actions' }, actions) : null,
     button ? h('div', { class: 'more-bar' }, button) : null,
     panel,

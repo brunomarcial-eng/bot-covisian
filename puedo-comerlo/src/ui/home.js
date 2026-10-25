@@ -85,6 +85,16 @@ export function render({ main, profile }) {
     );
   }
 
+  // Las claves: una línea discreta (no es un quinto destino de la barra).
+  main.append(
+    h(
+      'a',
+      { class: 'claves-link', href: '#/claves' },
+      h('span', null, 'Las claves del embarazo: los 8 temas que más se repiten'),
+      icon('arrow-right', 20, 1.4),
+    ),
+  );
+
   // Una línea discreta, solo si no está instalada y no la ha cerrado.
   const hint = installHint();
   if (hint) main.append(hint);

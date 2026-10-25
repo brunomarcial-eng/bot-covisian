@@ -15,6 +15,7 @@ import * as lista from './ui/lista.js';
 import * as historial from './ui/historial.js';
 import * as ajustes from './ui/ajustes.js';
 import * as instalar from './ui/instalar.js';
+import * as claves from './ui/claves.js';
 import { beginNavigation, endNavigation } from './ui/tone.js';
 
 const SCREENS = {
@@ -29,6 +30,7 @@ const SCREENS = {
   historial,
   ajustes,
   instalar,
+  claves,
 };
 
 // Pestaña de la navegación inferior que se marca en cada ruta.

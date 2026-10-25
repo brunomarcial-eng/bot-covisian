@@ -63,7 +63,7 @@ function httpUrl(value) {
 
 // Llama a /api/producto. Devuelve { ok: true, found, ... } o { ok: false } si no se pudo (503, 429, 5xx, red,
 // tiempo agotado, reason: 'web_no_disponible'…). Si lo cancela quien llama → lanza AbortError.
-async function fetchWeb(code, { signal, timeoutMs = WEB_TIMEOUT_MS } = {}) {
+async function fetchWeb(code, { signal, timeoutMs = WEB_TIMEOUT_MS, hint } = {}) {
   if (signal?.aborted) throw abortError();
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -76,7 +76,7 @@ async function fetchWeb(code, { signal, timeoutMs = WEB_TIMEOUT_MS } = {}) {
         method: 'POST',
         signal: ctrl.signal,
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ code }),
+        body: JSON.stringify(hint ? { code, ...hint } : { code }),
         credentials: 'same-origin',
         referrerPolicy: 'no-referrer',
       });
@@ -170,7 +170,16 @@ export async function lookupProduct(code, { signal, onStatus, offOptions, webTim
 
   // 2. Búsqueda web de respaldo
   say(onStatus, STATUS_WEB);
-  const web = await fetchWeb(clean, { signal, timeoutMs: webTimeoutMs });
+  // Si OFF conoce el nombre, se le pasa a la búsqueda: encontrar una ficha por nombre y marca es mucho
+  // más fácil que por el número suelto.
+  let hint;
+  if (off?.found) {
+    const name = text(off.product.name, 100);
+    const brand = text(off.product.brand, 60);
+    if (name) hint = brand ? { name, brand } : { name };
+    else if (brand) hint = { brand };
+  }
+  const web = await fetchWeb(clean, { signal, timeoutMs: webTimeoutMs, hint });
 
   // OFF falló por red y la web tampoco respondió → error de red.
   if (offError && !web.ok) throw offError.code === 'network' ? offError : networkError(offError);

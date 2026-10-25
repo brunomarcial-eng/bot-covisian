@@ -77,6 +77,13 @@ export function render({ main }) {
     ),
     h(
       'section',
+      { class: 'section section--settings', 'aria-labelledby': 'aj-claves' },
+      h('h2', { id: 'aj-claves' }, 'Las claves del embarazo'),
+      h('p', null, 'Los ocho temas que más se repiten, explicados una sola vez.'),
+      h('a', { class: 'btn btn--secondary', href: '#/claves' }, 'Ver las claves'),
+    ),
+    h(
+      'section',
       { class: 'section section--settings', 'aria-labelledby': 'aj-instalar' },
       h('h2', { id: 'aj-instalar' }, 'En la pantalla de inicio'),
       standalone

@@ -6,6 +6,7 @@ import { verdictAnswer, entryItem, entries, notice, pill, addToListButton } from
 import { verdictsForPayload, platosLeidos } from './recalc.js';
 import { LEVEL_LABEL } from '../engine/levels.js';
 import { setTone } from './tone.js';
+import { webNotice, needLabelBlock, labelChecks, DEFAULT_TOPICS } from './etiqueta-ui.js';
 
 // Resumen de la carta: cuántos platos hay de cada nivel, del peor al mejor.
 function summary(items) {
@@ -45,6 +46,7 @@ export function render({ main, profile, setTab }) {
   }
 
   const isProduct = kind === 'producto';
+  let needsLabel = false;
 
   // Un producto es una sola respuesta: la palabra grande y el nombre como h1 de la propia respuesta.
   if (!isProduct) main.append(h('h1', null, result.title || 'Resultado'));
@@ -91,20 +93,46 @@ export function render({ main, profile, setTab }) {
     const brand = String(p.brand || '').trim();
     if (brand && brand.toLowerCase() !== String(result.title || '').trim().toLowerCase()) bits.push(brand);
     if (p.code) bits.push(`Código ${p.code}`);
+    // Escaneo guiado: de dónde salen los datos y qué falta (o qué se ha mirado en la etiqueta).
+    const hasIngredients = !!String(p.ingredientsText || '').trim();
+    const src = p.ingredientsSource || (hasIngredients ? 'off' : null);
+    const missing = Array.isArray(v.missing) ? v.missing : [];
+    const guided = [webNotice(payload.web || null)];
+    if (!hasIngredients) {
+      needsLabel = true;
+      guided.push(needLabelBlock({ missing, kind: 'sin' }));
+    } else if (src === 'web') {
+      needsLabel = true;
+      guided.push(needLabelBlock({ missing, kind: 'web' }));
+    } else {
+      const before = Array.isArray(payload.label?.topics) ? payload.label.topics : [];
+      const topics = src === 'etiqueta' ? [...before, ...missing, ...(v.topics || [])] : missing;
+      const checks = labelChecks({
+        ingredientsText: p.ingredientsText,
+        topics: src === 'etiqueta' && !topics.length ? DEFAULT_TOPICS : topics,
+        profile,
+        heading: src === 'etiqueta' ? 'Lo que he mirado en la etiqueta' : 'Lo que he mirado en los ingredientes',
+      });
+      if (checks) guided.push(checks);
+    }
     main.append(
       verdictAnswer(v, {
         level: 1,
         title: result.title,
         eyebrow: bits.length ? bits.join(' · ') : null,
+        afterPhrase: guided.some(Boolean) ? h('div', { class: 'guided' }, guided) : null,
         actions: addToListButton(entryFor(v, 0), { small: true, variant: 'secondary', inline: true }),
       }),
     );
   } else if (kind === 'etiqueta' && items.length === 1) {
     const v = items[0];
+    const ing = Array.isArray(payload.items?.[0]?.ingredients) ? payload.items[0].ingredients.join(', ') : '';
+    const checks = labelChecks({ ingredientsText: ing, topics: [...(v.missing || []), ...(v.topics || [])], profile });
     main.append(
       verdictAnswer(v, {
         level: 2,
         title: v.title,
+        afterPhrase: checks ? h('div', { class: 'guided' }, checks) : null,
         actions: addToListButton(entryFor(v, 0), { small: true, variant: 'secondary', inline: true }),
       }),
     );
@@ -134,6 +162,12 @@ export function render({ main, profile, setTab }) {
   else if (kind === 'etiqueta') action = ['#/super?etiqueta=1', 'Fotografiar otra etiqueta'];
   else if (kind === 'producto' || result.via === 'codigo') action = ['#/super?escanear=1', 'Escanear otro código'];
   if (action) {
-    main.append(h('div', { class: 'actions actions--end' }, h('a', { class: 'btn btn--primary', href: action[0] }, action[1])));
+    main.append(
+      h(
+        'div',
+        { class: 'actions actions--end' },
+        h('a', { class: `btn ${needsLabel ? 'btn--secondary' : 'btn--primary'}`, href: action[0] }, action[1]),
+      ),
+    );
   }
 }

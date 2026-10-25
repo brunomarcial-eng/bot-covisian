@@ -155,13 +155,15 @@ export function clearHistory() {
 
 // ---- Lista de la compra ----
 
+// Cada entrada lleva `done` (comprado, en el carro). Los datos antiguos no lo tienen: cuenta como pendiente.
 export function getList() {
   const l = read(KEYS.list, []);
-  return Array.isArray(l) ? l : [];
+  return Array.isArray(l) ? l.map((x) => ({ ...x, done: x && x.done === true })) : [];
 }
 
 export function isInList(match) {
-  return getList().some((x) => sameThing(x, match));
+  // Lo ya comprado no cuenta: se puede volver a añadir.
+  return getList().some((x) => !x.done && sameThing(x, match));
 }
 
 function sameThing(a, b) {
@@ -170,11 +172,27 @@ function sameThing(a, b) {
 }
 
 export function addToList(entry) {
-  const e = entryFrom(entry);
+  const e = { ...entryFrom(entry), done: false };
   const list = getList().filter((x) => !sameThing(x, e));
   list.unshift(e);
   write(KEYS.list, list);
   return e;
+}
+
+// Marca una entrada como comprada (en el carro) o la devuelve a pendiente.
+export function setListDone(id, done = true) {
+  write(
+    KEYS.list,
+    getList().map((x) => (x.id === id ? { ...x, done: done === true } : x)),
+  );
+}
+
+// «Vaciar lo comprado»: quita de la lista todo lo que está en el carro.
+export function clearListDone() {
+  write(
+    KEYS.list,
+    getList().filter((x) => !x.done),
+  );
 }
 
 export function removeFromList(id) {

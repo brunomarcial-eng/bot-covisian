@@ -85,6 +85,8 @@ const PATHS = {
   trash:
     '<path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l.8 12a1.5 1.5 0 0 0 1.5 1.4h6.4a1.5 1.5 0 0 0 1.5-1.4l.8-12"/>',
   close: '<path d="M6 6l12 12M18 6 6 18"/>',
+  alert: '<path d="M12 4.2 21 19.5H3z"/><path d="M12 10v4.4M12 17.1v.1"/>',
+  external: '<path d="M13.5 5.5H19v5.5M19 5.5l-8 8M10.5 7H6.5A1.5 1.5 0 0 0 5 8.5v9A1.5 1.5 0 0 0 6.5 19h9a1.5 1.5 0 0 0 1.5-1.5v-4"/>',
   info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.9v.1"/>',
   lock: '<rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/>',
   phone: '<rect x="6.5" y="3" width="11" height="18" rx="2.5"/><path d="M11 18h2"/>',
