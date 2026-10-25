@@ -10,7 +10,7 @@ matrona, el ginecólogo o el médico. No da consejo personalizado.
 ## Privacidad
 
 - No pide datos clínicos: ni semana de embarazo, ni fecha de parto, ni analíticas.
-- No hay cuentas ni servidor de usuarios. Lo que la persona configura (embutidos, alergias, forma de comer, lista,
+- No hay cuentas ni servidor de usuarios. Lo que la persona configura (alergias, otra cosa que no quiera comer, dietas, lista,
   historial y favoritos) se guarda solo en el navegador de su móvil (`localStorage`). Si borra los datos del
   navegador, se pierde. La app no lo ve.
 - La foto de una carta o de una etiqueta se envía solo para transcribir el texto y no se guarda. El modelo de visión
@@ -62,7 +62,7 @@ puedo-comerlo/
   src/store.js                                             todo lo que se guarda en el móvil (localStorage)
   src/engine/                                              motor de reglas: puro, determinista, sin red
     levels.js                                              niveles del semáforo
-    foods.js                                               base de alimentos de la guía
+    foods.js                                               base de alimentos y sus fichas
     index.js y resto                                       normalizar, buscar y clasificar
   src/capture/                                             cámara, compresión, lectura de fotos, códigos, Open Food Facts
   api/leer.js                                              función sin estado: foto → transcripción en JSON
@@ -74,7 +74,7 @@ puedo-comerlo/
 
 ## Fuentes
 
-Los textos de la guía citan solo estas fuentes:
+Los textos de las fichas citan solo estas fuentes:
 
 - AESAN (Agencia Española de Seguridad Alimentaria y Nutrición): embarazo y alimentación, listeria, mercurio y
   cafeína.

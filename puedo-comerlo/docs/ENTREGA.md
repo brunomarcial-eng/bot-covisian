@@ -2,6 +2,8 @@
 
 **Dirección:** https://puedo-comerlo.vercel.app (25-10-2026)
 
+**Última versión:** 25-10-2026, rediseño de la interfaz y arranque de 4 pasos (sin la pregunta de embutidos). `docs/GUIA-DE-USO.md` y sus capturas están al día con esa versión.
+
 ## Comprobado
 - 116 tests del motor y de la captura en verde (`npm test`).
 - 11 escenarios de extremo a extremo en verde **contra la dirección publicada**: arranque sin datos
