@@ -75,8 +75,11 @@ function pick(list, allowed) {
 
 export function sanitizeProfile(p = {}) {
   return {
-    embutido: ['no', 'cocinados', 'los_como'].includes(p.embutido) ? p.embutido : null,
-    embutidos: p.embutido === 'no' ? [] : pick(p.embutidos, EMBUTIDOS),
+    // La pregunta sobre embutidos se retiró del arranque (25-10-2026): el motor aplica siempre su
+    // regla por defecto (crudo, «Mejor no»; cocinado dentro del plato, «Sí»). Se ignora cualquier
+    // valor antiguo guardado en el móvil.
+    embutido: null,
+    embutidos: [],
     alergias: pick(p.alergias, ALERGIAS),
     otra: typeof p.otra === 'string' ? p.otra.slice(0, OTRA_MAX) : '',
     dieta: pick(p.dieta, DIETAS),
@@ -96,7 +99,7 @@ export function saveProfile(profile) {
 }
 
 export function isOnboarded() {
-  return read(KEYS.onboarded, false) === true && getProfile().embutido !== null;
+  return read(KEYS.onboarded, false) === true;
 }
 
 export function setOnboarded(value = true) {
