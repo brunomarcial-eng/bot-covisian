@@ -36,7 +36,6 @@ const FOOTER = 'Orientativa. No sustituye el consejo de tu matrona, ginecólogo 
 const TXT = {
   app: '¿Puedo comerlo?',
   portada: 'Para la carta y para el súper. Una respuesta corta, y el motivo solo si lo abres.',
-  decidido: '¿Qué has decidido?',
   inicio: '¿Qué vas a comer?',
   inicioSub: 'En la mesa o en el súper. La respuesta, primero.',
   fuera: 'Foto de la carta, o el plato escrito. Si no se lee, no lo invento.',
@@ -46,19 +45,18 @@ const TXT = {
   laCarta: 'La carta',
   borrar: 'Borrar los datos de este móvil',
 };
-const EMB_OPT = {
-  no: 'No quiero comer embutidos',
-  cocinados: 'Solo si van cocinados',
-  los_como: 'Los como, y quiero ver el riesgo',
-};
-const EMBUTIDOS = { jamon: 'Jamón curado', chorizo: 'Chorizo o sobrasada', salchichon: 'Salchichón, fuet o salami', lomo: 'Lomo embuchado' };
 const ALERGIAS = { leche: 'Leche', huevo: 'Huevo', gluten: 'Gluten', frutos_secos: 'Frutos secos', pescado: 'Pescado', marisco: 'Marisco', soja: 'Soja', sesamo: 'Sésamo' };
-const DIETAS = { vegetariana: 'Vegetariana', vegana: 'Vegana', sin_cerdo: 'Sin cerdo', sin_lactosa: 'Sin lactosa' };
+const DIETAS = { vegetariana: 'Vegetariana', vegana: 'Vegana', sin_cerdo: 'Sin cerdo', sin_lactosa: 'Sin lactosa (intolerancia)' };
 const LEVEL_LABEL = { si: 'Sí', cuidado: 'Con cuidado', no: 'Mejor no', duda: 'No estoy segura' };
 const COLORS = { 'Sí': [36, 84, 67], 'Con cuidado': [141, 67, 36], 'Mejor no': [122, 51, 44] };
 const NAV = ['Inicio', 'Fuera', 'Súper', 'Lista'];
 const FORBIDDEN = /semana|\bparto\b|fecha probable|toxoplasm|diabet|anal[ií]tic|glucos|\bpeso\b|\bedad\b|cu[aá]ntos a[nñ]os|trimestre|inmun|\bfpp\b|\bkg\b|kilos/i;
-const PROFILE_BASE = { embutido: 'cocinados', embutidos: [], alergias: [], otra: '', dieta: [] };
+const PROFILE_BASE = { alergias: [], otra: '', dieta: [] };
+// Lo que ya no debe existir en el arranque ni en Ajustes (la pregunta de embutidos se retiró).
+const NO_EMBUTIDOS = /embutid|jam[oó]n|AESAN|toxoplasm|listeria|solo si van cocinados|qu[eé] has decidido/i;
+// Estructura vieja que ya no existe (rediseño N5).
+const LEGACY_SEL = '.card, .chip, .chips, .sheet, .row, .link-btn, .answer .pill, .entry .pill';
+const LEVEL_WORDS = Object.values(LEVEL_LABEL);
 
 let BASE = '';
 let SERVER_KIND = '';
@@ -239,39 +237,45 @@ async function seen(page, text, { timeout = 6000, exact = true } = {}) {
   }
 }
 
-// Pastillas de semáforo visibles (fuera de nav/pie), con el texto de su ficha.
+// Respuestas visibles: `article.answer` (respuesta única) y `ul.entries > li.entry` (filas), fuera de nav/pie.
+// Cada una con la palabra del nivel (`.answer-word` / `.lvl`), su nombre, su frase y su color.
+// (Se sigue llamando «pills» por historia: el resumen de la carta usa `.pill` y se lee aparte.)
 function PILLS_FN() {
   const L = ['Sí', 'Con cuidado', 'Mejor no', 'No estoy segura'];
-  const clean = (s) => (s || '').replace(/\s+/g, ' ').trim().replace(/^[^\p{L}]+/u, '').replace(/[.:]$/, '');
+  const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
   const visible = (el) => {
     const r = el.getBoundingClientRect(); if (r.width < 1 || r.height < 1) return false;
     const cs = getComputedStyle(el); return cs.visibility !== 'hidden' && cs.display !== 'none' && Number(cs.opacity) > 0.05;
   };
-  const all = [];
-  for (const el of document.querySelectorAll('body *')) {
-    const tc = el.textContent; if (!tc || tc.length > 40) continue;
-    if (el.closest('nav,footer,[role=navigation],[role=contentinfo],select,option,script,style,template,button[role=tab]')) continue;
-    const t = clean(el.innerText); if (!L.includes(t)) continue;
-    if ([...el.children].some((c) => clean(c.innerText) === t)) continue;
+  const out = [];
+  for (const el of document.querySelectorAll('article.answer, li.entry')) {
+    if (el.closest('nav,footer,[role=navigation],[role=contentinfo]')) continue;
     if (!visible(el)) continue;
-    all.push(el);
+    const isAnswer = el.tagName === 'ARTICLE';
+    const wordEl = el.querySelector(isAnswer ? '.answer-word' : '.lvl');
+    const nameEl = el.querySelector(isAnswer ? '.answer-name' : '.entry-name');
+    const phraseEl = el.querySelector(isAnswer ? '.answer-phrase' : '.entry-phrase');
+    const cs = wordEl ? getComputedStyle(wordEl) : null;
+    const b = wordEl ? getComputedStyle(wordEl.parentElement) : null;
+    const lvCls = (String(el.className).match(/\blv-(si|cuidado|no|duda)\b/) || [])[1] || null;
+    out.push({
+      kind: isAnswer ? 'answer' : 'entry',
+      label: wordEl ? clean(wordEl.innerText) : '',
+      name: nameEl ? clean(nameEl.innerText) : '',
+      phrase: phraseEl ? clean(phraseEl.innerText) : '',
+      card: clean(el.innerText).slice(0, 500),
+      level: el.dataset.level || null,
+      lvCls,
+      color: cs ? cs.color : null,
+      fontFamily: cs ? cs.fontFamily : null,
+      fontSize: cs ? cs.fontSize : null,
+      markColor: b ? b.borderLeftColor : null,
+      hasMore: !!el.querySelector('.more-btn'),
+      inLo: !!el.closest('section[aria-labelledby="lo-ultimo"]'),
+      valid: !!wordEl && L.includes(clean(wordEl.innerText)),
+    });
   }
-  const heads = [...document.querySelectorAll('h1,h2,h3,h4')];
-  const lo = heads.find((h) => /^lo [uú]ltimo/i.test(h.innerText.trim()));
-  let nextHead = null;
-  if (lo) { const lv = +lo.tagName[1]; nextHead = heads.slice(heads.indexOf(lo) + 1).find((h) => +h.tagName[1] <= lv) || null; }
-  const count = (root) => all.filter((p) => root.contains(p)).length;
-  return all.map((el) => {
-    let card = el;
-    while (card.parentElement && card.parentElement !== document.body && count(card.parentElement) === 1) card = card.parentElement;
-    const inLo = !!lo && !!(lo.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING) && (!nextHead || !!(nextHead.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_PRECEDING));
-    const chain = [];
-    for (let a = el, i = 0; a && i < 3; a = a.parentElement, i++) {
-      const cs = getComputedStyle(a); const b = getComputedStyle(a, '::before');
-      chain.push({ color: cs.color, bg: cs.backgroundColor, border: cs.borderTopColor, borderW: cs.borderTopWidth, beforeBg: b.backgroundColor, beforeColor: b.color, beforeContent: b.content });
-    }
-    return { label: clean(el.innerText), card: (card.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 400), inLo, chain };
-  });
+  return out;
 }
 async function pills(page) { return page.evaluate(PILLS_FN).catch(() => []); }
 async function mainPill(page, timeout = 6000) {
@@ -285,7 +289,7 @@ async function mainPill(page, timeout = 6000) {
 
 // Instantánea de textos para el escenario 10.
 async function snap(page, t, screen) {
-  const data = await page.evaluate(() => {
+  const data = await page.evaluate((LEGACY) => {
     const visible = (el) => { const r = el.getBoundingClientRect(); if (r.width < 1 || r.height < 1) return false; const cs = getComputedStyle(el); return cs.visibility !== 'hidden' && cs.display !== 'none'; };
     const headings = [...document.querySelectorAll('h1,h2,h3,h4,[role=heading]')].filter(visible).map((h) => h.innerText.replace(/\s+/g, ' ').trim());
     const leaves = [];
@@ -293,8 +297,15 @@ async function snap(page, t, screen) {
       const tc = el.textContent; if (!tc || tc.length > 30 || el.children.length > 2) continue;
       if (!visible(el)) continue; const t = el.innerText.replace(/\s+/g, ' ').trim(); if (t) leaves.push(t);
     }
-    return { text: document.body.innerText, headings, leaves: [...new Set(leaves)] };
-  }).catch(() => null);
+    const clean = (x) => (x || '').replace(/\s+/g, ' ').trim();
+    const answers = [...document.querySelectorAll('article.answer, li.entry')].filter(visible).map((el) => {
+      const a = el.tagName === 'ARTICLE';
+      const q = (sel) => { const n = el.querySelector(sel); return n ? clean(n.innerText) : ''; };
+      return { label: q(a ? '.answer-word' : '.lvl'), name: q(a ? '.answer-name' : '.entry-name'), phrase: q(a ? '.answer-phrase' : '.entry-phrase') };
+    });
+    const legacy = [...document.querySelectorAll(LEGACY)].map((n) => n.tagName.toLowerCase() + '.' + String(n.className).split(/\s+/).slice(0, 2).join('.'));
+    return { text: document.body.innerText, headings, leaves: [...new Set(leaves)], answers, legacy };
+  }, LEGACY_SEL).catch(() => null);
   if (data) CORPUS.push({ scenario: t.id, screen, hash: await getHash(page), ...data });
   return data;
 }
@@ -337,9 +348,10 @@ async function buttonSizes(page) {
       let kind = el.tagName === 'SUMMARY' ? 'summary' : el.tagName === 'A' ? 'enlace' : el.tagName === 'LABEL' ? 'opcion' : 'boton';
       if (kind === 'enlace') {
         const cls = typeof el.className === 'string' ? el.className : '';
-        const looks = !transparent(cs.backgroundColor) || (parseFloat(cs.borderTopWidth) >= 1 && cs.borderTopStyle !== 'none' && parseFloat(cs.borderBottomWidth) >= 1) || el.closest('nav') || /(^|[\s_-])(btn|button|tile|chip|tab)([\s_-]|$)/.test(cls);
-        if (!looks) continue;
-        kind = el.closest('nav') ? 'enlace-nav' : 'enlace-boton';
+        const looks = !transparent(cs.backgroundColor) || (parseFloat(cs.borderTopWidth) >= 1 && cs.borderTopStyle !== 'none' && parseFloat(cs.borderBottomWidth) >= 1) || el.closest('nav') || /(^|[\s_-])(btn|button|tile|chip|tab)([\s_-]|$)/.test(cls) || !!el.closest('.shortcuts, ul.entries');
+        if (!looks && /\btext-link\b/.test(cls)) kind = 'enlace-texto';
+        else if (!looks) continue;
+        else kind = el.closest('nav') ? 'enlace-nav' : 'enlace-boton';
       }
       if (kind === 'opcion') {
         const inp = el.querySelector('input[type=checkbox],input[type=radio]') || (el.htmlFor && document.getElementById(el.htmlFor));
@@ -425,17 +437,12 @@ async function seed(page, t, profile = {}) {
 
 async function onboardUI(page, p) {
   await openApp(page, '#/');
-  await tap(page, 'Seguir');
-  await tap(page, EMB_OPT[p.embutido || 'cocinados']);
-  await tap(page, 'Seguir');
-  if (p.embutido !== 'no') {
-    for (const e of p.embutidos || []) await tap(page, EMBUTIDOS[e]);
-    await tap(page, 'Seguir');
-  }
-  for (const a of p.alergias || []) await tap(page, ALERGIAS[a]);
-  await tap(page, 'Seguir');
-  for (const d of p.dieta || []) await tap(page, DIETAS[d]);
-  await tap(page, 'Seguir');
+  await tap(page, 'Seguir');                       // 1 → 2 alergias
+  for (const a of p.alergias || []) await tap(page, ALERGIAS[a], { loose: false });
+  if (p.otra) await page.locator('input[name=otra]').fill(p.otra);
+  await tap(page, 'Seguir');                       // 2 → 3 dietas
+  for (const d of p.dieta || []) await tap(page, DIETAS[d], { loose: false });
+  await tap(page, 'Seguir');                       // 3 → 4 privacidad
   await tap(page, 'Empezar');
   await appReady(page);
 }
@@ -511,106 +518,135 @@ async function checkLeerRequests(t) {
 async function s1(t, browser) {
   const { page } = await t.newPage(browser);
   const forms = [];
+  const arranque = []; // texto de cada paso del arranque
   const collect = async (step) => { const f = await formTexts(page); forms.push({ step, ...f }); await snap(page, t, step); };
+  const stepInfo = async () => page.evaluate(() => ({
+    count: (document.querySelector('.steps-count') || {}).innerText || null,
+    back: [...document.querySelectorAll('.back-btn')].filter((b) => b.getBoundingClientRect().width > 0).map((b) => b.innerText.replace(/\s+/g, ' ').trim()),
+    h1: [...document.querySelectorAll('h1')].map((h) => h.innerText.trim()),
+  }));
+  const pieOk = async (label) => {
+    await page.evaluate(() => window.scrollTo(0, 0)); await page.waitForTimeout(150);
+    const f = await footerState(page);
+    await t.check(f.found && f.ok, `${label}: pie literal visible en el viewport y no tapado`, f.found ? JSON.stringify(f.all) : 'no encontrado; parecido: ' + JSON.stringify(f.partial));
+  };
+  const seguirEnabled = async (n) => {
+    const b = await find(page, 'Seguir', { timeout: 2000, loose: false });
+    const off = !b || (await b.isDisabled().catch(() => false)) || (await b.getAttribute('aria-disabled')) === 'true';
+    await t.check(!off, `Paso ${n}: «Seguir» no se desactiva (sin haber elegido nada)`);
+  };
 
+  // --- Paso 1: portada
   await openApp(page, '#/');
   await t.check(/#\/arranque\/1/.test(await waitHash(page, /arranque\/1/)), 'Sin arranque hecho, la app va a #/arranque/1', await getHash(page));
   await t.check(await seen(page, TXT.app), 'Portada: título «¿Puedo comerlo?»');
   await t.check(await seen(page, TXT.portada), 'Portada: texto literal «Para la carta y para el súper…»');
   await t.check(await seen(page, FOOTER), 'Portada: disclaimer literal');
   await t.check(!!(await find(page, 'Seguir', { timeout: 2000, loose: false })), 'Portada: botón «Seguir»');
+  let si = await stepInfo();
+  await t.check(si.count === 'Paso 1 de 4', 'Portada: «Paso 1 de 4» (.steps-count)', JSON.stringify(si));
+  await t.check(si.back.length === 0, 'Portada: sin botón «Atrás»', JSON.stringify(si.back));
+  await seguirEnabled(1);
+  await pieOk('Paso 1');
+  arranque.push(['1', await bodyText(page)]);
   await collect('arranque-1');
   await t.shot('portada');
   await tap(page, 'Seguir');
 
+  // --- Paso 2: alergias e intolerancias
   await t.check(/arranque\/2/.test(await waitHash(page, /arranque\/2/)), 'Paso 2 en #/arranque/2', await getHash(page));
-  const txt2 = await bodyText(page);
-  await t.check(/AESAN/.test(txt2) && /toxoplasm/i.test(txt2) && /listeria/i.test(txt2), 'Paso 2 explica el riesgo (AESAN, toxoplasmosis, listeria)', short(txt2, 300));
-  for (const w of ['jamón', 'chorizo', 'salchichón', 'fuet', 'lomo embuchado']) if (!norm(txt2).includes(norm(w))) await t.check(false, `Paso 2 nombra «${w}»`);
-  await t.check(/york|pavo|chopped/i.test(txt2), 'Paso 2 explica aparte el fiambre de bandeja (york, pavo, chopped)');
-  await t.check(/croqueta/i.test(txt2) && /pizza/i.test(txt2), 'Alternativa: embutido bien cocinado dentro del plato (croqueta, pizza…)');
-  await t.check(/reci[eé]n hecho/i.test(txt2), 'Alternativa: fiambre recién hecho en caliente');
-  await t.check(/huevo bien cuajado/i.test(txt2) && /pez espada/i.test(txt2), 'Alternativa: otras proteínas (huevo bien cuajado… pescado que no sea pez espada…)');
-  await t.check(await seen(page, TXT.decidido), 'Pregunta literal «¿Qué has decidido?»');
-  for (const o of Object.values(EMB_OPT)) await t.check(!!(await find(page, o, { timeout: 1500 })), `Opción «${o}»`);
-  await collect('arranque-2');
-  await t.shot('paso-2');
-
-  // «Seguir» sin elegir no avanza
-  const seguir = await find(page, 'Seguir', { timeout: 2000, loose: false });
-  if (!seguir) await t.check(false, 'Paso 2: botón «Seguir»');
-  else {
-    const disabled = await seguir.isDisabled().catch(() => false) || (await seguir.getAttribute('aria-disabled')) === 'true';
-    const before = await bodyText(page);
-    if (!disabled) { await clickLoc(seguir); await page.waitForTimeout(700); }
-    const h = await getHash(page);
-    await t.check(/arranque\/2/.test(h) && (await seen(page, TXT.decidido, { timeout: 500 })), '«Seguir» del paso 2 no avanza sin elegir', `hash ${h}${disabled ? ' (botón deshabilitado)' : ''}`);
-    if (!disabled) {
-      const after = await bodyText(page);
-      const added = addedLines(before, after);
-      t.info('Al pulsar «Seguir» sin elegir, la app muestra', added.join(' / ') || '(nada nuevo visible)');
-    }
-  }
-  await tap(page, EMB_OPT.cocinados);
+  si = await stepInfo();
+  await t.check(si.count === 'Paso 2 de 4', 'Paso 2: «Paso 2 de 4»', JSON.stringify(si));
+  await t.check(si.back.length === 1 && /atr[aá]s/i.test(si.back[0]), 'Paso 2: botón «Atrás» (.back-btn)', JSON.stringify(si.back));
+  await t.check(si.h1.includes('Alergias e intolerancias'), 'Paso 2: título «Alergias e intolerancias»', JSON.stringify(si.h1));
+  for (const a of Object.values(ALERGIAS)) await t.check(!!(await find(page, a, { timeout: 1500, loose: false })), `Paso 2: alergia «${a}»`);
+  await t.check(await seen(page, 'Otra cosa que no quieras comer', { timeout: 1500 }), 'Paso 2: campo «Otra cosa que no quieras comer»');
+  await seguirEnabled(2);
+  await pieOk('Paso 2');
+  arranque.push(['2', await bodyText(page)]);
+  // «Atrás» vuelve a la portada, y «Seguir» sin elegir nada avanza
+  await tap(page, /^atr[aá]s$/i, { loose: false });
+  await t.check(/arranque\/1/.test(await waitHash(page, /arranque\/1/)), '«Atrás» del paso 2 vuelve a #/arranque/1', await getHash(page));
   await tap(page, 'Seguir');
-
-  await t.check(/arranque\/3/.test(await waitHash(page, /arranque\/3/)), 'Paso 3 (cuáles come) tras «Solo si van cocinados»', await getHash(page));
-  for (const e of Object.values(EMBUTIDOS)) await t.check(!!(await find(page, e, { timeout: 1500, loose: false })), `Paso 3: opción «${e}»`);
-  await tap(page, EMBUTIDOS.jamon);
-  await tap(page, EMBUTIDOS.lomo);
-  await collect('arranque-3');
-  await t.shot('paso-3');
-  await tap(page, 'Seguir');
-
-  await t.check(/arranque\/4/.test(await waitHash(page, /arranque\/4/)), 'Paso 4: alergias', await getHash(page));
-  for (const a of Object.values(ALERGIAS)) await t.check(!!(await find(page, a, { timeout: 1500, loose: false })), `Paso 4: alergia «${a}»`);
-  await tap(page, ALERGIAS.leche);
-  const free = page.locator('input[type=text], input:not([type]), textarea').filter({ visible: true });
+  await t.check(/arranque\/2/.test(await waitHash(page, /arranque\/2/)), 'Otra vez en el paso 2', await getHash(page));
+  await tap(page, ALERGIAS.leche, { loose: false });
+  const free = page.locator('input[name=otra]').filter({ visible: true });
   if (await free.count()) {
     const f = free.first();
     const ml = await f.getAttribute('maxlength');
     await f.fill('x'.repeat(250));
     const len = (await f.inputValue()).length;
-    await f.fill('');
-    if (ml === '200' || len <= 200) t.info('Campo libre limita a 200', `maxlength=${ml}, admite ${len}`);
-    else t.warn('El campo libre de alergias admite más de 200 caracteres en la interfaz (el store lo recorta en silencio)', `maxlength=${ml}, admite ${len}`);
-  } else await t.check(false, 'Paso 4: campo libre corto para «otra cosa»');
+    await t.check(ml === '200' && len <= 200, 'Campo «Otra cosa» limitado a 200 caracteres', `maxlength=${ml}, admite ${len}`);
+    await f.fill('cilantro');
+  } else await t.check(false, 'Paso 2: campo libre corto para «otra cosa»');
+  await collect('arranque-2');
+  await t.shot('paso-2');
+  await tap(page, 'Seguir');
+  const pAfter2 = parseJSON((await storage(page))['pc.v1.profile'], {});
+  await t.check(JSON.stringify(pAfter2.alergias) === '["leche"]' && pAfter2.otra === 'cilantro', 'Al avanzar del paso 2 se guarda el perfil (leche, cilantro)', JSON.stringify(pAfter2));
+
+  // --- Paso 3: dietas y restricciones
+  await t.check(/arranque\/3/.test(await waitHash(page, /arranque\/3/)), 'Paso 3 en #/arranque/3', await getHash(page));
+  si = await stepInfo();
+  await t.check(si.count === 'Paso 3 de 4', 'Paso 3: «Paso 3 de 4»', JSON.stringify(si));
+  await t.check(si.h1.includes('Dietas y restricciones'), 'Paso 3: título «Dietas y restricciones»', JSON.stringify(si.h1));
+  for (const d of Object.values(DIETAS)) await t.check(!!(await find(page, d, { timeout: 1500, loose: false })), `Paso 3: opción «${d}»`);
+  await seguirEnabled(3);
+  await pieOk('Paso 3');
+  arranque.push(['3', await bodyText(page)]);
+  await tap(page, DIETAS.vegetariana, { loose: false });
+  await tap(page, DIETAS.sin_lactosa, { loose: false });
+  await collect('arranque-3');
+  await t.shot('paso-3');
+  await tap(page, 'Seguir');
+
+  // --- Paso 4: privacidad
+  await t.check(/arranque\/4/.test(await waitHash(page, /arranque\/4/)), 'Paso 4 en #/arranque/4', await getHash(page));
+  si = await stepInfo();
+  await t.check(si.count === 'Paso 4 de 4', 'Paso 4: «Paso 4 de 4»', JSON.stringify(si));
+  const txt4 = await bodyText(page);
+  arranque.push(['4', txt4]);
+  await t.check(/semana/i.test(txt4) && /anal[ií]tica/i.test(txt4), 'Privacidad: no pedimos semana ni analíticas', short(txt4, 300));
+  await t.check(/m[oó]vil/i.test(txt4) && /cuenta/i.test(txt4), 'Privacidad: se queda en este móvil y no hay cuenta');
+  await t.check(/no se guarda/i.test(txt4) && /reglas/i.test(txt4), 'Privacidad: la foto no se guarda; reglas fijas');
+  await t.check(await seen(page, FOOTER), 'Paso 4: pie literal');
+  await pieOk('Paso 4');
   await collect('arranque-4');
   await t.shot('paso-4');
-  await tap(page, 'Seguir');
-
-  await t.check(/arranque\/5/.test(await waitHash(page, /arranque\/5/)), 'Paso 5: forma de comer', await getHash(page));
-  for (const d of Object.values(DIETAS)) await t.check(!!(await find(page, d, { timeout: 1500, loose: false })), `Paso 5: opción «${d}»`);
-  await collect('arranque-5');
-  await tap(page, 'Seguir');
-
-  await t.check(/arranque\/6/.test(await waitHash(page, /arranque\/6/)), 'Paso 6: privacidad', await getHash(page));
-  const txt6 = await bodyText(page);
-  await t.check(/semana/i.test(txt6) && /anal[ií]tica/i.test(txt6), 'Privacidad: no pedimos semana ni analíticas', short(txt6, 300));
-  await t.check(/m[oó]vil/i.test(txt6) && /cuenta/i.test(txt6), 'Privacidad: se queda en este móvil y no hay cuenta');
-  await t.check(/no se guarda/i.test(txt6) && /reglas/i.test(txt6), 'Privacidad: la foto no se guarda; reglas fijas');
-  await collect('arranque-6');
-  await t.shot('paso-6');
+  const pasoFuera = await page.evaluate(() => { location.hash = '#/arranque/5'; return null; }).then(() => waitHash(page, /arranque\/[1-4]/, 3000));
+  await t.check(/arranque\/[1-4]/.test(pasoFuera), 'No existe el paso 5: #/arranque/5 vuelve a un paso válido', pasoFuera);
+  await go(page, '#/arranque/4');
   await tap(page, 'Empezar', { loose: false });
+
+  // (c) el arranque no habla de embutidos, jamón ni AESAN
+  const malos = arranque.filter(([, tx]) => NO_EMBUTIDOS.test(tx)).map(([n, tx]) => `paso ${n}: «${(tx.match(NO_EMBUTIDOS) || [''])[0]}»`);
+  await t.check(malos.length === 0, 'El arranque (4 pasos) no contiene «embutido», «jamón», «AESAN», toxoplasmosis ni «¿Qué has decidido?»', malos.join(' | '));
+  await t.check(!arranque.some(([, tx]) => /Solo si van cocinados|Los como, y quiero ver|No quiero comer embutidos/i.test(tx)), 'El arranque no ofrece ninguna de las tres opciones de embutidos');
 
   await t.check(await seen(page, TXT.inicio, { timeout: 8000 }), 'Tras «Empezar» llega a «¿Qué vas a comer?»', await getHash(page));
   await t.check(/^#\/?$|^$/.test(await getHash(page)), 'Inicio en #/', await getHash(page));
   await t.check(await seen(page, TXT.inicioSub), 'Inicio: subtítulo literal');
-  await t.check(!!(await find(page, 'Comer fuera', { timeout: 1500 })) && !!(await find(page, 'En el súper', { timeout: 1500 })), 'Inicio: botones «Comer fuera» y «En el súper»');
+  const tiles = await page.locator('a.tile').evaluateAll((els) => els.map((e) => ({ href: e.getAttribute('href'), text: e.innerText.replace(/\s+/g, ' ').trim() })));
+  await t.check(tiles.length === 2 && /Comer fuera/.test(tiles[0].text) && tiles[0].href === '#/fuera' && /En el súper/.test(tiles[1].text) && tiles[1].href === '#/super', 'Inicio: dos accesos a.tile «Comer fuera» y «En el súper»', JSON.stringify(tiles));
   await t.check(await seen(page, 'O escribe el plato', { timeout: 1500 }), 'Inicio: «O escribe el plato»');
   await t.check((await page.getByPlaceholder(/Sushi, tortilla, jam[oó]n/i).count()) > 0, 'Inicio: placeholder «Sushi, tortilla, jamón…»');
   await t.shot('inicio');
   const st = await storage(page);
   const prof = parseJSON(st['pc.v1.profile'], {});
-  await t.check(prof.embutido === 'cocinados' && JSON.stringify(prof.embutidos) === JSON.stringify(['jamon', 'lomo']) && JSON.stringify(prof.alergias) === JSON.stringify(['leche']),
-    'Perfil guardado en pc.v1.profile = cocinados / [jamon, lomo] / [leche]', st['pc.v1.profile']);
+  await t.check(JSON.stringify(prof.alergias) === '["leche"]' && prof.otra === 'cilantro' && JSON.stringify([...(prof.dieta || [])].sort()) === '["sin_lactosa","vegetariana"]',
+    'Perfil guardado en pc.v1.profile = alergias [leche] / otra «cilantro» / dieta [vegetariana, sin_lactosa]', st['pc.v1.profile']);
   await t.check(Object.keys(st).every((k) => k.startsWith('pc.v1.')), 'Todo lo guardado usa el prefijo pc.v1.', Object.keys(st).join(', '));
+  await t.check(st['pc.v1.onboarded'] === 'true', 'pc.v1.onboarded = true tras «Empezar»', String(st['pc.v1.onboarded']));
+  await page.reload({ waitUntil: 'load' }); await appReady(page);
+  await t.check(!/arranque/.test(await getHash(page)), 'Con el arranque hecho, al recargar no vuelve a pedirlo', await getHash(page));
 
-  // Ajustes también pregunta cosas: se revisan sus campos
+  // Ajustes también pregunta cosas: se revisan sus campos y que no quede nada de embutidos
   try {
     await tap(page, /ajustes/i);
     await waitHash(page, /ajustes/);
     await collect('ajustes');
+    const txtA = await bodyText(page);
+    await t.check(!NO_EMBUTIDOS.test(txtA), 'Ajustes no contiene «embutido», «jamón», «AESAN» ni toxoplasmosis', (txtA.match(NO_EMBUTIDOS) || [''])[0]);
   } catch (e) { t.warn('No pude abrir Ajustes desde Inicio para revisar sus campos', e.message); }
 
   // Revisión: nada clínico
@@ -669,14 +705,52 @@ async function s2(t, browser) {
   if (!historialLink) t.warn('No veo un acceso al Historial ni en Inicio ni en Ajustes (solo por URL #/historial)');
 }
 
+// Respuesta de Buscar para un texto: escribe en el campo, envía y devuelve la respuesta principal.
+async function askBuscar(page, q) {
+  const box = page.locator('#buscar-q');
+  await box.fill('');
+  await box.fill(q);
+  await box.press('Enter');
+  await page.waitForTimeout(700);
+  return mainPill(page, 4000);
+}
+
 async function s3(t, browser) {
   const { page } = await t.newPage(browser);
   await seed(page, t);
   await t.check(await seen(page, 'O escribe el plato', { timeout: 3000 }), 'Inicio: buscador «O escribe el plato»');
   const p1 = await searchFromHome(page, 'sushi');
   await snap(page, t, 'busqueda-sushi');
-  await t.check(p1 && p1.label === 'Mejor no', '«sushi» → respuesta principal «Mejor no»', p1 ? `${p1.label} — ${short(p1.card)}` : 'sin pastilla');
-  t.info('Ruta tras buscar «sushi»', await getHash(page));
+  await t.check(p1 && p1.label === 'Mejor no', '«sushi» → respuesta principal «Mejor no»', p1 ? `${p1.label} — ${short(p1.card)}` : 'sin respuesta');
+  const h1 = await getHash(page);
+  await t.check(/^#\/buscar\?q=sushi$/.test(h1), 'Buscar: la URL es #/buscar?q=sushi (sin parámetro g)', h1);
+  // estructura nueva de la respuesta
+  const est = await page.evaluate(() => {
+    const a = document.querySelector('article.answer');
+    if (!a) return null;
+    const q = (s) => !!a.querySelector(s);
+    return { cls: a.className, level: a.dataset.level, word: q('.answer-word'), name: q('.answer-name'), phrase: q('.answer-phrase'), more: q('.more-btn') && q('.more'), nAnswers: document.querySelectorAll('article.answer').length };
+  });
+  await t.check(!!est && /\blv-no\b/.test(est.cls) && est.level === 'no' && est.word && est.name && est.phrase && est.more && est.nAnswers === 1,
+    'Respuesta única: article.answer.lv-no[data-level=no] con .answer-word, .answer-name, .answer-phrase y .more-btn/.more', JSON.stringify(est));
+  await t.check(p1 && p1.name === 'Sushi', 'La respuesta nombra lo escrito («Sushi»)', p1 && p1.name);
+  // (a) Buscar solo muestra la respuesta
+  const tb = await bodyText(page);
+  await t.check(!/En la gu[ií]a/i.test(tb), 'Buscar no contiene «En la guía»', short(tb, 200));
+  await t.check(!/No aparece/i.test(tb), 'Buscar no contiene el aviso «No aparece…»', short(tb, 200));
+  const chips = await page.locator('.chip, .chips, [role=tablist], [role=tab]').count();
+  await t.check(chips === 0, 'Buscar no tiene chips de grupo (.chip, .chips, tabs)', String(chips));
+  const grupos = ['Todo', 'Embutidos', 'Lácteos', 'Huevos', 'Carne', 'Pescado', 'En el restaurante', 'Bebidas', 'Supermercado'];
+  const filtros = [];
+  for (const g of grupos) { if (await page.getByRole('button', { name: new RegExp('^\\s*' + esc(g) + '\\s*$', 'i') }).filter({ visible: true }).count()) filtros.push(g); }
+  await t.check(filtros.length === 0, 'Buscar no tiene filtros por grupo (Todo, Embutidos, Lácteos…)', filtros.join(', '));
+  await t.check(!/\b\d+ (resultados?|alimentos?|fichas?|coincidencias?)\b/i.test(tb), 'Buscar no muestra contador de resultados', short(tb, 200));
+  const nHeads = await page.locator('main h2, [role=main] h2').count();
+  t.info('Encabezados h2 en Buscar con respuesta', String(nHeads));
+  // «Añadir a la lista» a la vista sin abrir «Ver más»; «Ver la ficha» porque sushi es un único alimento
+  await t.check(!!(await find(page, 'Añadir a la lista', { timeout: 1500, loose: false })), '«Añadir a la lista» visible en la respuesta (sin «Ver más»)');
+  const verFicha = page.getByRole('link', { name: /^Ver la ficha$/ }).filter({ visible: true });
+  await t.check((await verFicha.count()) === 1 && /ficha\/pescado-crudo/.test((await verFicha.first().getAttribute('href')) || ''), '«Ver la ficha» visible (sushi = un único alimento) → #/ficha/pescado-crudo', await verFicha.first().getAttribute('href').catch(() => 'no está'));
   const hist = parseJSON((await storage(page))['pc.v1.history'], []);
   await t.check(hist.some((e) => /sushi/i.test(e.title) && e.via === 'busqueda'), 'La búsqueda «sushi» queda en el historial (via busqueda)', JSON.stringify(hist.map((e) => [e.via, e.title, e.level])));
   await t.shot('sushi');
@@ -685,37 +759,64 @@ async function s3(t, browser) {
   await waitHash(page, /^#\/?$/, 3000);
   const p2 = await searchFromHome(page, 'tortilla');
   await snap(page, t, 'busqueda-tortilla');
-  await t.check(p2 && p2.label === 'Con cuidado', '«tortilla» → respuesta principal «Con cuidado»', p2 ? `${p2.label} — ${short(p2.card)}` : 'sin pastilla');
+  await t.check(p2 && p2.label === 'Con cuidado', '«tortilla» → respuesta principal «Con cuidado» (sin alergias)', p2 ? `${p2.label} — ${short(p2.card)}` : 'sin respuesta');
   const all = await pills(page);
-  t.info('Pastillas tras «tortilla»', all.map((x) => `${x.inLo ? '[Lo último] ' : ''}${x.label}: ${short(x.card, 60)}`).join(' | '));
+  t.info('Respuestas tras «tortilla»', all.map((x) => `${x.inLo ? '[Lo último] ' : ''}${x.label}: ${short(x.name + ' · ' + x.phrase, 80)}`).join(' | '));
   await t.shot('tortilla');
 
-  // Pantalla Buscar: «En la guía», filtros y búsqueda sin acentos
+  // Pantalla Buscar escribiendo en su propio campo
   await go(page, '#/buscar');
   await t.check(/#\/buscar/.test(await getHash(page)), 'Ruta #/buscar');
-  const filtros = ['Todo', 'Embutidos', 'Lácteos', 'Huevos', 'Carne', 'Pescado', 'En el restaurante', 'Bebidas', 'Supermercado'];
-  const missing = [];
-  for (const f of filtros) if (!(await find(page, f, { timeout: 800, loose: false }))) missing.push(f);
-  await t.check(missing.length === 0, 'Buscar: filtros Todo, Embutidos, Lácteos, Huevos, Carne, Pescado, En el restaurante, Bebidas, Supermercado', 'faltan: ' + missing.join(', '));
-  const box = page.getByRole('searchbox').or(page.locator('input[type=search], input[type=text], input:not([type])')).filter({ visible: true }).first();
+  await t.check(await seen(page, 'Escribe un plato, un alimento o una bebida.', { timeout: 1500 }), 'Buscar vacío: línea de ayuda «Escribe un plato, un alimento o una bebida.»');
+  const sc = await page.locator('ul.shortcuts a').evaluateAll((els) => els.map((e) => e.getAttribute('href')));
+  await t.check(sc.length === 10, 'Buscar vacío: los 10 atajos (ul.shortcuts a)', sc.join(', '));
+  await t.check((await pills(page)).length === 0, 'Buscar vacío: ninguna respuesta');
+  await snap(page, t, 'buscar-vacio');
+  await t.shot('buscar-vacio');
+  const box = page.locator('#buscar-q');
   if (await box.count()) {
-    await box.fill('cesar'); await box.press('Enter').catch(() => {}); await page.waitForTimeout(800);
-    await t.check(await seen(page, /Ensalada C[eé]sar/i, { timeout: 3000 }), 'Buscar «cesar» (sin tilde) encuentra «Ensalada César»');
-    await t.check(await seen(page, /En la gu[ií]a/i, { timeout: 1500 }), 'Buscar: sección «En la guía» bajo la respuesta');
+    const pc = await askBuscar(page, 'cesar');
+    await t.check(pc && pc.label === 'Con cuidado', 'Buscar «cesar» (sin tilde) → «Con cuidado»', pc ? `${pc.label} — ${short(pc.card)}` : 'sin respuesta');
+    await t.check(/^#\/buscar\?q=cesar$/.test(await getHash(page)), 'La URL sigue #/buscar?q=cesar', await getHash(page));
+    const vf = await page.getByRole('link', { name: /^Ver la ficha$/ }).filter({ visible: true }).first().getAttribute('href').catch(() => null);
+    await t.check(/ficha\/ensalada-cesar/.test(vf || ''), '«cesar» → «Ver la ficha» de la Ensalada César', String(vf));
     await snap(page, t, 'buscar-cesar');
-    await box.fill('jamon'); await box.press('Enter').catch(() => {}); await page.waitForTimeout(800);
-    await t.check(await seen(page, /Jam[oó]n curado/i, { timeout: 3000 }), 'Buscar «jamon» (sin tilde) encuentra «Jamón curado»');
+    const pj = await askBuscar(page, 'jamon');
+    await t.check(pj && pj.label === 'Mejor no', 'Buscar «jamon» (sin tilde) → «Mejor no»', pj ? `${pj.label} — ${short(pj.card)}` : 'sin respuesta');
+    const vj = await page.getByRole('link', { name: /^Ver la ficha$/ }).filter({ visible: true }).first().getAttribute('href').catch(() => null);
+    await t.check(/ficha\/jamon-curado/.test(vj || ''), '«jamon» → «Ver la ficha» del Jamón curado', String(vj));
     await t.shot('buscar-jamon');
-  } else await t.check(false, 'Buscar: campo de texto');
-  // Filtro por grupo
-  try {
+
+    // (b) sushi flameado: Mejor no, y sin «Ver la ficha» porque suma más de un alimento
+    const pf = await askBuscar(page, 'sushi flameado');
+    await t.check(pf && pf.label === 'Mejor no', '«sushi flameado» → «Mejor no»', pf ? `${pf.label} — ${short(pf.card)}` : 'sin respuesta');
+    await t.check((await page.getByRole('link', { name: /^Ver la ficha$/ }).filter({ visible: true }).count()) === 0, '«sushi flameado» (varios alimentos) no enseña «Ver la ficha»');
+    await t.check(!!(await find(page, 'Añadir a la lista', { timeout: 1000, loose: false })), '«sushi flameado»: «Añadir a la lista» sí se ve');
+    await snap(page, t, 'buscar-sushi-flameado');
+    await t.shot('sushi-flameado');
+    // texto sin sentido
+    const px = await askBuscar(page, 'xyzzy');
+    await t.check(px && px.label === 'No estoy segura', '«xyzzy» → «No estoy segura»', px ? `${px.label} — ${short(px.card)}` : 'sin respuesta');
+    await t.check((await page.getByRole('link', { name: /^Ver la ficha$/ }).filter({ visible: true }).count()) === 0, '«xyzzy» no enseña «Ver la ficha»');
+    await snap(page, t, 'buscar-xyzzy');
+    await t.shot('xyzzy');
+    // otras: café con cuidado, cerveza 0,0 sí
+    const pcafe = await askBuscar(page, 'café');
+    await t.check(pcafe && pcafe.label === 'Con cuidado', 'Buscar «café» → «Con cuidado»', pcafe ? pcafe.label : 'sin respuesta');
+    const pc00 = await askBuscar(page, 'cerveza 0,0');
+    await t.check(pc00 && pc00.label === 'Sí', 'Buscar «cerveza 0,0» → «Sí»', pc00 ? pc00.label : 'sin respuesta');
+    // «Ver más» en la respuesta: detalle y fuente; el campo vacío vuelve a la ayuda
+    await tap(page, 'Ver más');
+    const panel = await page.locator('article.answer .more').first().innerText().catch(() => '');
+    await t.check(/AESAN|Ministerio de Sanidad|propia app/.test(panel), '«Ver más» en Buscar despliega detalle y fuente', short(panel, 200));
     await box.fill('');
-    await tap(page, 'Bebidas', { loose: false });
     await page.waitForTimeout(600);
-    const txt = await bodyText(page);
-    await t.check(/caf[eé]/i.test(txt) && !/Jam[oó]n curado/i.test(txt), 'Filtro «Bebidas» muestra café y no jamón curado');
-    await snap(page, t, 'buscar-bebidas');
-  } catch (e) { await t.check(false, 'Filtro «Bebidas»', e.message); }
+    await t.check((await pills(page)).length === 0 && /Escribe un plato/.test(await bodyText(page)), 'Con el campo vacío vuelve la ayuda y no hay respuesta');
+  } else await t.check(false, 'Buscar: campo de texto #buscar-q');
+
+  // Con el Enter en Buscar también se apunta en el historial
+  const hist2 = parseJSON((await storage(page))['pc.v1.history'], []);
+  await t.check(['cesar', 'jamon', 'sushi flameado', 'xyzzy'].every((q) => hist2.some((e) => e.via === 'busqueda' && e.title === q)), 'Lo enviado con Enter en Buscar queda en el historial', JSON.stringify(hist2.map((e) => e.title)));
 }
 
 async function s4(t, browser) {
@@ -724,15 +825,19 @@ async function s4(t, browser) {
   await tapNav(page, 'Fuera');
   await t.check(await seen(page, TXT.fuera, { timeout: 3000 }), 'Fuera: texto literal «Foto de la carta, o el plato escrito…»');
   const atajos = ['jamón curado', 'pescado crudo', 'tortilla', 'ensalada César', 'ensaladilla', 'tarta de queso', 'gazpacho', 'mayonesa casera', 'queso blando', 'paella'];
-  const miss = [];
-  for (const a of atajos) if (!(await find(page, a, { timeout: 600, loose: false }))) miss.push(a);
-  await t.check(miss.length === 0, 'Fuera: los 10 atajos', 'faltan: ' + miss.join(', '));
+  const sc = await page.locator('ul.shortcuts a').evaluateAll((els) => els.map((e) => ({ text: e.innerText.replace(/\s+/g, ' ').trim(), href: e.getAttribute('href'), h: Math.round(e.getBoundingClientRect().height) })));
+  const miss = atajos.filter((a) => !sc.some((x) => norm(x.text) === norm(a)));
+  await t.check(sc.length === 10 && miss.length === 0, 'Fuera: los 10 atajos en ul.shortcuts a', 'faltan: ' + miss.join(', ') + ' · hay ' + sc.length);
+  await t.check(sc.every((x) => x.h >= 47.5), 'Fuera: cada atajo mide ≥ 48 px', sc.filter((x) => x.h < 47.5).map((x) => `${x.text} ${x.h}`).join(', '));
+  await t.check(await page.locator('.chip, .chips').count() === 0, 'Fuera: los atajos no son chips');
   for (const b of ['Hacer una foto', 'Elegir una foto', 'Buscar un plato']) await t.check(!!(await find(page, b, { timeout: 1000 })), `Fuera: botón «${b}»`);
   await snap(page, t, 'fuera');
   await tap(page, 'tortilla', { loose: false });
   await t.check(/#\/ficha\/tortilla-patata/.test(await waitHash(page, /ficha/, 4000)), 'Atajo «tortilla» → #/ficha/tortilla-patata', await getHash(page));
   const p = await mainPill(page);
-  await t.check(p && p.label === 'Con cuidado', 'Ficha tortilla: «Con cuidado»', p ? p.label : 'sin pastilla');
+  await t.check(p && p.label === 'Con cuidado' && p.kind === 'answer', 'Ficha tortilla: respuesta «Con cuidado»', p ? p.label : 'sin respuesta');
+  await t.check(p && p.name === 'Tortilla de patata', 'Ficha tortilla: nombre «Tortilla de patata»', p && p.name);
+  await t.check(p && p.phrase && !/^con cuidado\s*[:,]/i.test(p.phrase), 'Ficha tortilla: la frase no repite «Con cuidado»', p && p.phrase);
   const srcRe = /AESAN|Ministerio de Sanidad|propia app/;
   const before = await bodyText(page);
   await t.check(!srcRe.test(before.replace(FOOTER, '')), 'Ficha mínima: la fuente no se ve hasta «Ver más»', short(before, 300));
@@ -755,16 +860,20 @@ async function s4(t, browser) {
   await waitHash(page, /lista/, 3000);
   await t.check(await seen(page, /tortilla/i, { timeout: 3000 }), 'Lista: aparece la tortilla');
   const lp = await pills(page);
-  await t.check(lp.some((x) => /tortilla/i.test(x.card)), 'Lista: la tortilla con semáforo y frase', lp.map((x) => `${x.label}: ${short(x.card, 80)}`).join(' | '));
+  const row = lp.find((x) => /tortilla/i.test(x.name));
+  await t.check(!!row && row.kind === 'entry' && row.label === 'Con cuidado' && !!row.phrase, 'Lista: la tortilla es una fila ul.entries > li.entry con «Con cuidado» y frase', lp.map((x) => `${x.label}: ${short(x.name + ' · ' + x.phrase, 80)}`).join(' | '));
+  const q0 = await page.locator('button.quiet-btn').evaluateAll((els) => els.map((e) => ({ aria: e.getAttribute('aria-label'), text: e.innerText.trim(), h: Math.round(e.getBoundingClientRect().height) })));
+  await t.check(q0.length === 1 && /^Quitar Tortilla/.test(q0[0].aria || '') && q0[0].text === 'Quitar', '«Quitar»: button.quiet-btn con aria-label «Quitar Tortilla de patata»', JSON.stringify(q0));
+  await t.check(q0.every((x) => x.h >= 47.5), '«Quitar» mide ≥ 48 px', JSON.stringify(q0));
   await snap(page, t, 'lista-con-tortilla');
   await page.reload({ waitUntil: 'load' });
   await appReady(page);
   await t.check(/lista/.test(await getHash(page)) && await seen(page, /tortilla/i, { timeout: 4000 }), 'Tras recargar, la tortilla sigue en la Lista', await getHash(page));
   await t.shot('lista-tras-recargar');
   try {
-    await tap(page, 'Quitar');
+    await page.locator('button.quiet-btn[aria-label^="Quitar"]').first().click();
     await page.waitForTimeout(500);
-    const rest = (await pills(page)).filter((x) => /tortilla/i.test(x.card));
+    const rest = (await pills(page)).filter((x) => /tortilla/i.test(x.name));
     const pl = parseJSON((await storage(page))['pc.v1.list'], []);
     await t.check(rest.length === 0 && !pl.some((e) => e.foodId === 'tortilla-patata'), '«Quitar» elimina la tortilla de la lista (pantalla y pc.v1.list)', rest.map((x) => short(x.card, 80)).join(' | ') + ' · list=' + JSON.stringify(pl.map((e) => e.title)));
     await t.check(await seen(page, TXT.listaVacia, { timeout: 2000 }), 'Lista vacía: texto literal «Todavía no hay nada…»');
@@ -807,6 +916,15 @@ async function s5(t, browser) {
   const r = await readPhoto(t, page, path.join(FIX, 'carta.jpg'));
   await snap(page, t, 'carta-resultado');
   await t.shot('carta-resultado');
+  if (r.outcome === 'fichas') {
+    await page.evaluate(() => window.scrollTo(0, 0));
+    const fr = await footerState(page);
+    await t.check(fr.found && fr.ok, 'Resultado de la carta: pie literal visible (arriba)', fr.found ? JSON.stringify(fr.all) : 'no encontrado');
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight)); await page.waitForTimeout(200);
+    const fr2 = await footerState(page);
+    await t.check(fr2.found && fr2.ok, 'Resultado de la carta: pie visible también al hacer scroll hasta abajo', fr2.found ? JSON.stringify(fr2.all) : 'no encontrado');
+    await page.evaluate(() => window.scrollTo(0, 0));
+  }
   const viaOcr = t.events.some((e) => e.type === 'http' && /\/api\/leer/.test(e.url));
   t.info('Resultado con carta.jpg', `${r.outcome} en ${Math.round(r.ms / 1000)} s; ${viaOcr ? '/api/leer respondió error → OCR local' : 'visión'}`);
   await checkLeerRequests(t);
@@ -818,10 +936,15 @@ async function s5(t, browser) {
   if (r.outcome === 'fichas') {
     await t.check(await seen(page, TXT.laCarta, { timeout: 1500 }), 'Resultado con título «La carta»');
     await t.check(r.pills.length <= 12, 'Como mucho 12 platos', String(r.pills.length));
-    t.info('Fichas', r.pills.map((x) => `${x.label}: ${short(x.card, 90)}`).join(' | '));
+    t.info('Filas', r.pills.map((x) => `${x.label}: ${short(x.name + ' · ' + x.phrase, 90)}`).join(' | '));
+    await t.check(r.pills.every((x) => x.kind === 'entry' && x.valid && x.lvCls === x.level), 'Carta: cada plato es una fila li.entry.lv-<nivel>[data-level] con .lvl, .entry-name y .entry-phrase', r.pills.filter((x) => !(x.kind === 'entry' && x.valid && x.lvCls === x.level)).map((x) => x.name).join(', '));
+    const resumen = await page.locator('.summary .pill').evaluateAll((els) => els.map((e) => e.innerText.replace(/\s+/g, ' ').trim()));
+    await t.check(resumen.length > 0 && resumen.every((x) => /^\d+ (mejor no|con cuidado|no estoy segura|sí)$/.test(x)), 'Carta: el resumen usa .pill con textos como «7 mejor no»', resumen.join(' | '));
+    const totalRes = resumen.reduce((a, x) => a + Number(x.split(' ')[0]), 0);
+    await t.check(totalRes === r.pills.length, 'Carta: el resumen suma tantos platos como filas', `${totalRes} vs ${r.pills.length}`);
     const rows = [];
     for (const [name, re, ok] of CARTA_EXPECT) {
-      const hit = r.pills.find((x) => re.test(norm(x.card)));
+      const hit = r.pills.find((x) => re.test(norm(x.name)));
       rows.push(`${name} → ${hit ? hit.label : '(no aparece)'}`);
       if (!hit) { t.warn(`No aparece ficha para «${name}»`); continue; }
       const important = CARTA_EXPECT.indexOf(CARTA_EXPECT.find((x) => x[0] === name)) < 6;
@@ -833,16 +956,16 @@ async function s5(t, browser) {
       const si = r.pills.filter((x) => x.label === 'Sí');
       await t.check(si.length === 0, 'Lectura incierta (OCR): ningún plato queda en «Sí» (baja a «No estoy segura»)', si.map((x) => short(x.card, 80)).join(' | '));
       const unsure = r.pills.filter((x) => x.label === 'No estoy segura');
-      const prefixed = unsure.filter((x) => /No estoy segura de la lectura/i.test(x.card));
+      const prefixed = unsure.filter((x) => /No estoy segura de la lectura/i.test(x.phrase));
       t.info('Fichas «No estoy segura» con «No estoy segura de la lectura.»', `${prefixed.length}/${unsure.length}`);
     }
-    const title = (x) => norm(x.card).replace(/^(si|con cuidado|mejor no|no estoy segura)\s*/, '');
+    const title = (x) => norm(x.name);
     const noise = r.pills.filter((x) => /^(entrantes|principales|postres|bebidas|casa marisa|carta del mediodia)\b/.test(title(x)) || /^[\d\s,.€]+$/.test(title(x).slice(0, 10)));
     if (noise.length) {
-      const lost = CARTA_EXPECT.filter(([, re]) => !r.pills.some((x) => re.test(norm(x.card)))).map(([n]) => n);
-      t.warn('Fichas de ruido: el nombre del restaurante / encabezados se leen como platos' + (lost.length ? ` y, con el tope de 12, se pierden platos reales (${lost.join(', ')})` : ''), noise.map((x) => short(x.card, 60)).join(' | '));
+      const lost = CARTA_EXPECT.filter(([, re]) => !r.pills.some((x) => re.test(norm(x.name)))).map(([n]) => n);
+      t.warn('Fichas de ruido: el nombre del restaurante / encabezados se leen como platos' + (lost.length ? ` y, con el tope de 12, se pierden platos reales (${lost.join(', ')})` : ''), noise.map((x) => short(x.name, 60)).join(' | '));
     }
-    if (r.pills.some((x) => /€|\d+,\d\d/.test(x.card.split(/(Sí|Con cuidado|Mejor no|No estoy segura)/)[0] || ''))) t.warn('Algún título de ficha conserva el precio («8,50 €»)');
+    if (r.pills.some((x) => /€|\d+,\d\d/.test(x.name))) t.warn('Algún título de ficha conserva el precio («8,50 €»)');
     const hist = parseJSON((await storage(page))['pc.v1.history'], []);
     await t.check(hist.some((e) => e.via === 'foto'), 'La lectura de la carta queda en el historial (via foto)', JSON.stringify(hist.map((e) => [e.via, e.title])));
   }
@@ -936,9 +1059,10 @@ async function s7(t, browser) {
   await waitHash(page, /super/, 3000);
   await t.check(await seen(page, TXT.super, { timeout: 3000 }), 'Súper: texto literal «El código consulta Open Food Facts…»');
   const atajos = ['atún en lata', 'loncheados', 'queso rallado', 'paté', 'ahumado', 'café', 'alcohol', 'cerveza 0,0'];
-  const miss = [];
-  for (const a of atajos) if (!(await find(page, a, { timeout: 500, loose: false }))) miss.push(a);
-  await t.check(miss.length === 0, 'Súper: los 8 atajos', 'faltan: ' + miss.join(', '));
+  const sc = await page.locator('ul.shortcuts a').evaluateAll((els) => els.map((e) => ({ text: e.innerText.replace(/\s+/g, ' ').trim(), h: Math.round(e.getBoundingClientRect().height) })));
+  const miss = atajos.filter((a) => !sc.some((x) => norm(x.text) === norm(a)));
+  await t.check(sc.length === 8 && miss.length === 0, 'Súper: los 8 atajos en ul.shortcuts a', 'faltan: ' + miss.join(', ') + ' · hay ' + sc.length);
+  await t.check(sc.every((x) => x.h >= 47.5), 'Súper: cada atajo mide ≥ 48 px', sc.filter((x) => x.h < 47.5).map((x) => `${x.text} ${x.h}`).join(', '));
   await snap(page, t, 'super');
 
   const codeInput = async () => {
@@ -970,9 +1094,12 @@ async function s7(t, browser) {
   t.info('Petición a OFF', offReq.map((r) => short(r.url, 140)).join(' | '));
   await t.check(offReq.some((r) => /world\.openfoodfacts\.org\/api\/v2\/product\/3017620422003/.test(r.url)), 'Usa GET world.openfoodfacts.org/api/v2/product/{code}');
   const p = await mainPill(page);
-  await t.check(p && p.label === 'Mejor no', 'Nutella con leche y frutos secos marcados → «Mejor no»', p ? `${p.label} — ${short(p.card)}` : 'sin pastilla');
+  await t.check(p && p.label === 'Mejor no' && p.kind === 'answer' && p.lvCls === 'no', 'Nutella con leche y frutos secos marcados → respuesta «Mejor no» (article.answer.lv-no)', p ? `${p.label} — ${short(p.card)}` : 'sin respuesta');
+  await t.check(p && /nutella/i.test(p.name), 'La respuesta lleva el nombre del producto (.answer-name)', p && p.name);
+  await t.check(p && /^Has marcado/.test(p.phrase), 'La frase de la respuesta empieza por «Has marcado…»', p && p.phrase);
   const txt = await bodyText(page);
   await t.check(/Has marcado/.test(txt), 'Aparece «Has marcado…»', short(txt, 300));
+  await t.check(!!(await find(page, 'Añadir a la lista', { timeout: 1500, loose: false })), 'Producto: «Añadir a la lista» visible en la respuesta');
   const hm = (txt.match(/Has marcado[^.\n]*\./g) || []);
   t.info('Frase de alergia', hm.join(' '));
   await t.check(hm.some((x) => /leche|frutos secos/i.test(x)), '«Has marcado» nombra leche o frutos secos', hm.join(' '));
@@ -1015,7 +1142,7 @@ async function s7(t, browser) {
       t.info('Etiqueta (opcional)', `${r.outcome} en ${Math.round(r.ms / 1000)} s; ${r.message || lp.map((x) => x.label + ': ' + short(x.card, 100)).join(' | ')}`);
       if (r.outcome === 'fichas') {
         if (!(await seen(page, 'La etiqueta', { timeout: 1000 }))) t.warn('El resultado de la etiqueta no se titula «La etiqueta»');
-        if (!(lp[0] && lp[0].label === 'Mejor no' && /Has marcado/.test(lp[0].card))) t.warn('Queso fresco con alergia a la leche no sale «Mejor no» con «Has marcado…»', lp.map((x) => x.label + ': ' + short(x.card, 100)).join(' | '));
+        if (!(lp[0] && lp[0].label === 'Mejor no' && /Has marcado/.test(lp[0].phrase))) t.warn('Queso fresco con alergia a la leche no sale «Mejor no» con «Has marcado…»', lp.map((x) => x.label + ': ' + short(x.card, 100)).join(' | '));
       } else if (r.outcome !== 'mensaje') t.warn('La lectura de la etiqueta no termina ni en fichas ni en mensaje', r.outcome);
     } catch (e) { t.warn('Flujo de etiqueta (opcional) no completado', e.message); }
   }
@@ -1050,17 +1177,22 @@ async function s8(t, browser) {
   await appReady(page);
   await tapNav(page, 'Lista');
   await t.check(await seen(page, /tortilla/i, { timeout: 4000 }), 'Tras recargar: la lista conserva la tortilla');
+  await t.check(await seen(page, 'Favoritos', { timeout: 1500 }), 'Tras recargar: la lista muestra «Favoritos» con la tortilla guardada');
   await tapNav(page, 'Inicio');
   await waitHash(page, /^#\/?$/, 3000);
   await t.check(await seen(page, /^Lo [uú]ltimo/, { timeout: 3000 }), 'Tras recargar: Inicio muestra «Lo último»');
   const lo = (await pills(page)).filter((x) => x.inLo);
-  await t.check(lo.length >= 1 && lo.length <= 3, '«Lo último» con 1–3 fichas', lo.map((x) => `${x.label}: ${short(x.card, 50)}`).join(' | '));
+  await t.check(lo.length >= 1 && lo.length <= 3 && lo.every((x) => x.kind === 'entry' && x.valid), '«Lo último» con 1–3 filas (li.entry) con su palabra de nivel', lo.map((x) => `${x.label}: ${short(x.name, 50)}`).join(' | '));
+  const loLinks = await page.locator('section[aria-labelledby="lo-ultimo"] ul.entries a.entry-link').count();
+  await t.check(loLinks === lo.length, '«Lo último»: cada fila es un enlace', `${loLinks}/${lo.length}`);
   await snap(page, t, 'inicio-lo-ultimo');
   await t.shot('inicio-lo-ultimo');
   await go(page, '#/historial');
-  await t.check(await seen(page, /sushi/i, { timeout: 3000 }) && await seen(page, /tortilla/i, { timeout: 1000 }), 'Historial: sushi (búsqueda) y tortilla (guía)');
+  await t.check(await seen(page, /sushi/i, { timeout: 3000 }) && await seen(page, /tortilla/i, { timeout: 1000 }), 'Historial: sushi (búsqueda) y tortilla (ficha)');
   const hp = await pills(page);
-  await t.check(hp.length >= 2, 'Historial con semáforo', String(hp.length));
+  await t.check(hp.length >= 2 && hp.every((x) => x.valid), 'Historial con la palabra de nivel en cada fila', String(hp.length));
+  const htxt = await bodyText(page);
+  await t.check(/Ficha · /.test(htxt) && /B[uú]squeda · /.test(htxt) && !/Gu[ií]a · /.test(htxt), 'Historial: etiqueta «Ficha» (no «Guía») y «Búsqueda»', short(htxt, 300));
   await snap(page, t, 'historial');
   const st = await storage(page);
   await t.check(parseJSON(st['pc.v1.list'], []).length >= 1 && parseJSON(st['pc.v1.history'], []).length >= 2, 'pc.v1.list y pc.v1.history persisten tras recargar');
@@ -1069,23 +1201,32 @@ async function s8(t, browser) {
   await tap(page, /ajustes/i, { loose: false });
   await waitHash(page, /ajustes/, 3000);
   const miss = [];
-  for (const x of [...Object.values(EMB_OPT), ...Object.values(EMBUTIDOS), ...Object.values(ALERGIAS), ...Object.values(DIETAS)]) if (!(await find(page, x, { timeout: 400, loose: false }))) miss.push(x);
-  await t.check(miss.length === 0, 'Ajustes permite cambiar embutidos, cuáles, alergias y forma de comer', 'faltan: ' + miss.join(', '));
+  for (const x of [...Object.values(ALERGIAS), ...Object.values(DIETAS), 'Otra cosa que no quieras comer']) if (!(await find(page, x, { timeout: 400, loose: false }))) miss.push(x);
+  await t.check(miss.length === 0, 'Ajustes permite cambiar alergias, «Otra cosa que no quieras comer» y dietas', 'faltan: ' + miss.join(', '));
+  const aj = await page.evaluate(() => ({
+    h2: [...document.querySelectorAll('h2')].map((x) => x.innerText.trim()),
+    legends: [...document.querySelectorAll('legend')].map((x) => x.innerText.trim()),
+  }));
+  for (const hh of ['Historial', 'En la pantalla de inicio', 'Tus datos']) await t.check(aj.h2.includes(hh), `Ajustes: h2 «${hh}»`, JSON.stringify(aj.h2));
+  await t.check(aj.legends.includes('Dietas y restricciones'), 'Ajustes: leyenda «Dietas y restricciones»', JSON.stringify(aj.legends));
   await snap(page, t, 'ajustes');
   await t.shot('ajustes');
   try {
     await tap(page, ALERGIAS.huevo, { loose: false });
-    const save = await find(page, /^(guardar|guardar cambios|hecho|listo)$/i, { timeout: 800 });
-    if (save) await clickLoc(save);
-    await page.waitForTimeout(500);
+    await tap(page, 'Guardar', { loose: false });
+    await t.check(await seen(page, 'Guardado. Las respuestas ya usan estos ajustes.', { timeout: 2000 }), 'Ajustes: «Guardado. Las respuestas ya usan estos ajustes.»');
+    await page.waitForTimeout(300);
     const prof = parseJSON((await storage(page))['pc.v1.profile'], {});
     await t.check((prof.alergias || []).includes('huevo'), 'Ajustes: marcar «Huevo» se guarda en el perfil', JSON.stringify(prof));
     await go(page, '#/ficha/tortilla-patata');
     const p = await mainPill(page);
-    await t.check(p && p.label === 'Mejor no' && /Has marcado huevo/i.test(p.card + (await bodyText(page))), 'Con alergia a huevo, la ficha de tortilla pasa a «Mejor no» con «Has marcado huevo.»', p ? `${p.label} — ${short(p.card)}` : 'sin pastilla');
+    await t.check(p && p.label === 'Mejor no' && /Has marcado huevo/i.test(p.phrase), 'Con alergia a huevo, la ficha de tortilla pasa a «Mejor no» con «Has marcado huevo.»', p ? `${p.label} — ${short(p.card)}` : 'sin respuesta');
+    await go(page, '#/buscar?q=tortilla');
+    const pb = await mainPill(page);
+    await t.check(pb && pb.label === 'Mejor no' && /Has marcado huevo/i.test(pb.phrase), 'Con alergia a huevo, Buscar «tortilla» → «Mejor no» con «Has marcado huevo.»', pb ? `${pb.label} — ${short(pb.card)}` : 'sin respuesta');
     await tapNav(page, 'Lista');
-    const lp = (await pills(page)).find((x) => /tortilla/i.test(x.card));
-    if (!lp || lp.label !== 'Mejor no') t.warn('La lista no recalcula el semáforo de la tortilla con el perfil nuevo (alergia a huevo)', lp ? `${lp.label} — ${short(lp.card)}` : 'no está');
+    const lp = (await pills(page)).find((x) => /tortilla/i.test(x.name));
+    await t.check(!!lp && lp.label === 'Mejor no', 'La lista recalcula el semáforo de la tortilla con el perfil nuevo (alergia a huevo)', lp ? `${lp.label} — ${short(lp.card)}` : 'no está');
   } catch (e) { await t.check(false, 'Cambiar una alergia en Ajustes', e.message); }
 
   // Borrar los datos de este móvil
@@ -1149,10 +1290,8 @@ async function s9(t, browser) {
   await measure('arranque-1');
   try {
     await tap(page, 'Seguir'); await measure('arranque-2');
-    await tap(page, EMB_OPT.cocinados); await tap(page, 'Seguir'); await measure('arranque-3');
+    await tap(page, 'Seguir'); await measure('arranque-3');
     await tap(page, 'Seguir'); await measure('arranque-4');
-    await tap(page, 'Seguir'); await measure('arranque-5');
-    await tap(page, 'Seguir'); await measure('arranque-6');
     await tap(page, 'Empezar');
   } catch (e) { t.warn('No pude recorrer el arranque para medir botones', e.message); await seed(page, t); }
   for (const [screen, hash] of [['inicio', '#/'], ['fuera', '#/fuera'], ['super', '#/super'], ['lista', '#/lista'], ['buscar', '#/buscar'], ['ajustes', '#/ajustes'], ['historial', '#/historial']]) {
@@ -1166,28 +1305,36 @@ async function s9(t, browser) {
   for (const s of sizes) {
     if (s.scrollW > s.innerW + 1) hscroll.push(`${s.screen}: ${s.scrollW}px`);
     for (const b of s.buttons) {
-      if (b.kind !== 'opcion') radii.add(b.radius);
-      if (b.h < 47.5) (b.kind === 'opcion' ? badOpt : bad).push(`${s.screen}: ${b.kind} «${b.text}» ${b.h}px`);
+      if (b.kind !== 'opcion' && b.kind !== 'enlace-texto') radii.add(b.radius);
+      if (b.h < 47.5) (b.kind === 'opcion' || b.kind === 'enlace-texto' ? badOpt : bad).push(`${s.screen}: ${b.kind} «${b.text}» ${b.h}px`);
     }
   }
   await t.check(bad.length === 0, 'Botones y enlaces-botón visibles ≥ 48 px de alto', [...new Set(bad)].join(' | '));
-  if (badOpt.length) t.warn('Opciones (label de checkbox/radio) de menos de 48 px', [...new Set(badOpt)].join(' | '));
+  if (badOpt.length) t.warn('Opciones (casillas) o enlaces de texto de menos de 48 px', [...new Set(badOpt)].join(' | '));
   t.info('border-radius de botones', [...radii].join(', '));
   await t.check(hscroll.length === 0, 'Sin scroll horizontal a 390 px', hscroll.join(' | '));
 
-  // Pastillas: colores
+  // La palabra del nivel: texto exacto, en Fraunces y en su color
   for (const [id, label] of [['agua', 'Sí'], ['tortilla-patata', 'Con cuidado'], ['pescado-crudo', 'Mejor no']]) {
     await go(page, '#/ficha/' + id);
     const p = await mainPill(page, 4000);
-    if (!p || p.label !== label) { await t.check(false, `Ficha ${id} muestra «${label}» para medir su color`, p ? p.label : 'sin pastilla'); continue; }
+    if (!p || p.label !== label) { await t.check(false, `Ficha ${id} muestra «${label}» para medir su color`, p ? p.label : 'sin respuesta'); continue; }
     const want = `rgb(${COLORS[label].join(', ')})`;
-    const hit = p.chain.some((c) => [c.color, c.bg, c.border, c.beforeBg].includes(want));
-    await t.check(hit, `Pastilla «${label}» usa ${want}`, JSON.stringify(p.chain[0]));
+    await t.check(p.color === want, `.answer-word «${label}» en ${want}`, p.color);
+    await t.check(/Fraunces/i.test(p.fontFamily || '') && parseFloat(p.fontSize) >= 40, `.answer-word «${label}» en Fraunces y grande (≥ 40 px)`, `${p.fontFamily} ${p.fontSize}`);
   }
   await go(page, '#/buscar?q=xyzzy');
   await page.waitForTimeout(500);
-  const pd = (await pills(page)).find((x) => x.label === 'No estoy segura');
-  if (pd) t.info('Color de «No estoy segura» (arena)', JSON.stringify(pd.chain[0])); else t.info('No vi «No estoy segura» al buscar «xyzzy»');
+  const pd = (await pills(page))[0];
+  await t.check(!!pd && pd.label === 'No estoy segura', 'Buscar «xyzzy»: .answer-word «No estoy segura»', pd ? pd.label : 'sin respuesta');
+  if (pd) t.info('Color de «No estoy segura» (arena)', `${pd.color} · marca lateral ${pd.markColor} · ${pd.fontSize}`);
+  if (pd) await t.check(parseFloat(pd.fontSize) < 56 + 0.5, '«No estoy segura» baja de tamaño para caber en una línea', pd.fontSize);
+  // Filas: la palabra `.lvl` en el color del nivel (Historial con las tres consultas de antes)
+  await go(page, '#/historial');
+  const rows = (await pills(page)).filter((x) => x.kind === 'entry');
+  const badRows = rows.filter((x) => COLORS[x.label] && x.color !== `rgb(${COLORS[x.label].join(', ')})`);
+  await t.check(rows.length >= 3 && badRows.length === 0, 'Historial: cada .lvl muestra la palabra exacta y en su color (Sí #245443, Con cuidado #8d4324, Mejor no #7a332c)', badRows.map((x) => `${x.name}: ${x.label} ${x.color}`).join(' | ') + ` · ${rows.length} filas`);
+  await t.check(new Set(rows.map((x) => x.label)).size >= 3, 'Historial: las filas cubren Sí, Con cuidado y Mejor no', [...new Set(rows.map((x) => x.label))].join(', '));
   await t.shot('pastillas');
 
   // Escritorio 1280: columna ≤ 32rem y centrada
@@ -1215,31 +1362,43 @@ async function s9(t, browser) {
 
 async function s10(t, browser) {
   const { page } = await t.newPage(browser);
-  await seed(page, t, { embutido: 'los_como' });
+  await seed(page, t);
   const foods = await page.evaluate(async () => {
     const m = await import(new URL('src/engine/foods.js', location.href).href);
     return m.FOODS.map((f) => ({ id: f.id, name: f.name, level: f.level, source: f.source }));
   }).catch((e) => { throw new Error('No puedo importar src/engine/foods.js: ' + e.message); });
   t.info('Fichas de la guía recorridas', String(foods.length));
-  const noPill = []; const wrongLevel = []; const noSource = []; const multi = []; const noName = [];
+  await t.check(foods.length === 140 && new Set(foods.map((f) => f.id)).size === 140, 'La guía tiene 140 alimentos (ids únicos)', String(foods.length));
+  const noAnswer = []; const wrongLevel = []; const badWord = []; const noSource = []; const multi = []; const noName = []; const repeats = []; const noMore = []; const badColor = [];
   for (const f of foods) {
     await go(page, '#/ficha/' + f.id);
     const p = (await pills(page)).filter((x) => !x.inLo);
-    if (!p.length) { noPill.push(f.id); continue; }
+    if (!p.length) { noAnswer.push(f.id); continue; }
     if (p.length > 1) multi.push(`${f.id} (${p.length})`);
-    if (p[0].label !== LEVEL_LABEL[f.level]) wrongLevel.push(`${f.id}: base ${LEVEL_LABEL[f.level]}, ficha ${p[0].label}`);
-    if (!(await seen(page, f.name, { timeout: 300 }))) noName.push(`${f.id} («${f.name}»)`);
-    const vm = await find(page, 'Ver más', { timeout: 800, loose: false });
-    if (vm) { await clickLoc(vm); await page.waitForTimeout(150); }
-    const txt = (await bodyText(page)).replace(FOOTER, '');
-    if (!/AESAN|Ministerio de Sanidad/.test(txt)) noSource.push(f.id);
+    const a = p[0];
+    if (!a.valid) badWord.push(`${f.id}: «${a.label}»`);
+    if (a.label !== LEVEL_LABEL[f.level] || a.lvCls !== f.level || a.level !== f.level) wrongLevel.push(`${f.id}: base ${LEVEL_LABEL[f.level]}, ficha ${a.label} (${a.lvCls}/${a.level})`);
+    if (COLORS[a.label] && a.color !== `rgb(${COLORS[a.label].join(', ')})`) badColor.push(`${f.id}: ${a.label} ${a.color}`);
+    if (!a.name || norm(a.name) !== norm(f.name)) noName.push(`${f.id} («${f.name}» / «${a.name}»)`);
+    if (new RegExp('^(' + LEVEL_WORDS.map(esc).join('|') + ')\\s*([:,]|por\\b)', 'i').test(a.phrase)) repeats.push(`${f.id}: «${short(a.phrase, 60)}»`);
+    const vm = page.locator('article.answer button.more-btn');
+    if (await vm.count()) {
+      await vm.first().click().catch(() => {});
+      await page.waitForTimeout(120);
+    } else noMore.push(f.id);
+    const more = await page.locator('article.answer .more').first().innerText().catch(() => '');
+    if (!/Fuente:\s*.*(AESAN|Ministerio de Sanidad)/.test(more)) noSource.push(`${f.id} (${short(more.split('Fuente:')[1] || '', 40)})`);
     await snap(page, t, 'ficha-' + f.id);
   }
-  await t.check(noPill.length === 0, 'Todas las fichas de la guía muestran semáforo', `${noPill.length}/${foods.length} sin pastilla: ${noPill.join(', ')}`);
-  if (foods.length - noPill.length > 0) {
-    await t.check(multi.length === 0, 'Ficha mínima: una sola pastilla', multi.join(', '));
-    await t.check(wrongLevel.length === 0, 'Con perfil neutro, cada ficha muestra su nivel base', wrongLevel.join(' | '));
-    await t.check(noName.length === 0, 'Cada ficha muestra su nombre', noName.join(', '));
+  await t.check(noAnswer.length === 0, 'Todas las fichas de la guía muestran su respuesta (article.answer)', `${noAnswer.length}/${foods.length} sin respuesta: ${noAnswer.join(', ')}`);
+  if (foods.length - noAnswer.length > 0) {
+    await t.check(multi.length === 0, 'Ficha mínima: una sola respuesta por ficha', multi.join(', '));
+    await t.check(badWord.length === 0, 'Cada ficha muestra una palabra de nivel exacta (Sí, Con cuidado, Mejor no o No estoy segura)', badWord.join(' | '));
+    await t.check(wrongLevel.length === 0, 'Con perfil neutro, cada ficha muestra su nivel base (palabra, clase lv-* y data-level)', wrongLevel.join(' | '));
+    await t.check(badColor.length === 0, 'La palabra de cada ficha va en el color de su nivel', badColor.slice(0, 8).join(' | '));
+    await t.check(noName.length === 0, 'Cada ficha muestra su nombre (.answer-name)', noName.join(', '));
+    await t.check(repeats.length === 0, '(d) En las fichas, la frase no empieza repitiendo la palabra del nivel', repeats.join(' | '));
+    await t.check(noMore.length === 0, 'Cada ficha tiene «Ver más»', noMore.join(', '));
     await t.check(noSource.length === 0, 'Cada ficha cita AESAN o Ministerio de Sanidad tras «Ver más»', noSource.join(', '));
   }
   // Plato desconocido: fuente = la propia app
@@ -1248,12 +1407,33 @@ async function s10(t, browser) {
   const pu = await mainPill(page, 3000);
   if (pu) {
     await t.check(pu.label === 'No estoy segura', 'Plato desconocido → «No estoy segura»', pu.label);
-    if (!/No lo tengo claro\. No lo doy por seguro\./.test(pu.card + await bodyText(page))) t.warn('Plato desconocido sin la frase «No lo tengo claro. No lo doy por seguro.»', short(pu.card));
-  } else t.warn('Buscar #/buscar?q=… no muestra respuesta del motor (¿no lee q de la URL?)');
+    await t.check(/No lo tengo claro\. No lo doy por seguro\./.test(pu.phrase), 'Plato desconocido: frase «No lo tengo claro. No lo doy por seguro.»', short(pu.phrase));
+    await tap(page, 'Ver más');
+    const mu = await page.locator('article.answer .more').first().innerText().catch(() => '');
+    await t.check(/propia app/i.test(mu), 'Plato desconocido: «Ver más» dice que la fuente es la propia app', short(mu, 200));
+  } else await t.check(false, 'Buscar #/buscar?q=… muestra la respuesta del motor');
   await snap(page, t, 'desconocido');
 
+  // (d) Ninguna fila ni respuesta recorrida repite la palabra del nivel al empezar la frase
+  const rep = []; let nAns = 0; const badLbl = [];
+  const startRe = new RegExp('^(' + LEVEL_WORDS.map(esc).join('|') + ')\\s*([:,]|por\\b)', 'i');
+  for (const c of CORPUS) for (const a of c.answers || []) {
+    nAns++;
+    if (!LEVEL_WORDS.includes(a.label)) badLbl.push(`${c.screen}: «${a.label}»`);
+    if (startRe.test(a.phrase)) rep.push(`${c.screen}: ${a.label} · «${short(a.phrase, 60)}»`);
+  }
+  t.info('Filas y respuestas analizadas', String(nAns));
+  await t.check(rep.length === 0, '(d) En filas y respuestas, la frase no empieza repitiendo la palabra del nivel', [...new Set(rep)].slice(0, 8).join(' | '));
+  await t.check(badLbl.length === 0, 'Toda fila y respuesta lleva una palabra de nivel exacta', [...new Set(badLbl)].slice(0, 8).join(' | '));
+  const leg = CORPUS.filter((c) => (c.legacy || []).length).map((c) => `${c.screen}: ${[...new Set(c.legacy)].join(' ')}`);
+  await t.check(leg.length === 0, 'Ninguna pantalla recorrida usa la estructura vieja (.card, .chip, .chips, .sheet, .row, .link-btn, .pill por respuesta)', [...new Set(leg)].slice(0, 6).join(' | '));
+  const enBuscar = CORPUS.filter((c) => /^#\/buscar/.test(c.hash) && /En la gu[ií]a|No aparece/i.test(c.text)).map((c) => c.screen);
+  await t.check(enBuscar.length === 0, '(a) Ninguna pantalla de Buscar contiene «En la guía» ni «No aparece»', enBuscar.join(', '));
+  const arrq = CORPUS.filter((c) => /^#\/arranque/.test(c.hash) && NO_EMBUTIDOS.test(c.text)).map((c) => c.screen);
+  await t.check(arrq.length === 0, '(c) Ninguna pantalla del arranque contiene «embutido», «jamón» ni «AESAN»', arrq.join(', '));
+
   // Análisis del lenguaje sobre todo lo recorrido (este escenario y los anteriores)
-  const strip = (s) => s.replace(/No estoy segura( de la lectura)?/g, '').replace(/No lo doy por seguro/g, '');
+  const strip = (s) => s.replace(/No estoy segura( de la lectura)?/gi, '').replace(/No lo doy por seguro/gi, '');
   const badPills = []; const badHeads = new Set(); const mentions = new Set();
   for (const c of CORPUS) {
     for (const l of c.leaves) if (/^(evitar|ev[ií]talo|seguro|segura|apto|no apto|prohibido|peligro(so)?)[.!]?$/i.test(l)) badPills.push(`${c.screen}: «${l}»`);
