@@ -272,6 +272,7 @@ export const CTX = {
       'endivias?', 'brotes', 'frutas?', 'manzanas?', 'peras?', 'platanos?', 'naranjas?', 'fresas?', 'kiwis?',
       'pinas?', 'mangos?', 'melon(?:es)?', 'sandias?', 'uvas?', 'frutos rojos', 'hinojo', 'alcachofas?',
       'berenjenas?', 'patatas?', 'boniatos?', 'calabazas?', 'puerros?', 'nabos?', 'chirivias?', 'germinados?',
+      'miel(?:es)?',
     ),
     '',
   ),
@@ -434,6 +435,9 @@ const RAW_SHELLFISH_FOR_CUT = alt(
   'gambas?', 'gambones?', 'carabineros?', 'langostinos?', 'cigalas?', 'vieiras?', 'zamburinas?', 'quisquillas?',
 );
 
+const ANCHOA_SALAZON =
+  '(?<!rellen[oa]s? (?:de|con) )anchoas?(?! (?:fritas?|rebozadas?|a la plancha|al horno|en tempura|asadas?|frescas?))';
+
 function rule(ids, src, opts = {}) {
   return { ids: Array.isArray(ids) ? ids : [ids], src, ...opts };
 }
@@ -450,13 +454,29 @@ const RULE_DEFS = [
   block('(?:estilo )?new york(?: cheese ?cake)?'),
   rule(
     'carne-bien-hecha',
-    '(?:chuleton(?:es)?|chuletas?|txuletas?|entrecots?|solomillos?|carnes?|filetes?|magret(?: de pato)?|steak|lomo (?:alto|bajo))(?: [a-z]+){0,2} (?:bien|muy) hech[oa]s?',
+    '(?:chuleton(?:es)?|chuletas?|txuletas?|entrecots?|solomillos?|carnes?|filetes?|magret(?: de pato)?|steak|lomo (?:alto|bajo))(?: [a-z]+){0,2} (?:(?:bien|muy) hech[oa]s?|hech[oa]s? del todo|(?:bien|muy) pasad[oa]s?)',
   ),
   rule(
     'carne-bien-hecha',
     'pechugas? de (?:pollo|pavo|pato) (?:a la (?:plancha|brasa|parrilla|crema|naranja)|al (?:horno|ajillo|curry|vino)|asad[oa]s?|frit[oa]s?|empanad[oa]s?|rellen[oa]s?|guisad[oa]s?|en salsa|en su jugo|estofad[oa]s?)',
   ),
-  rule('huevo-bien-hecho', 'huevos? (?:frit[oa]s? )?(?:bien hech[oa]s?|bien cuajad[oa]s?|con la yema (?:hecha|cuajada))'),
+  rule(
+    'huevo-bien-hecho',
+    'huevos? (?:frit[oa]s? |a la plancha )?(?:(?:bien|muy) hech[oa]s?|bien cuajad[oa]s?|con (?:la )?yema (?:bien )?(?:hecha|cuajada|dura))',
+  ),
+  // Horchata (cuestionario de la clienta): de brick o pasteurizada, «Sí»; artesana o sin pasteurizar, «Mejor no»;
+  // a secas, «Con cuidado». Antes que la leche cruda («sin pasteurizar») para no leerla como leche.
+  rule(
+    'horchata-artesana',
+    'horchatas?(?: [a-z]+){0,2} (?:artesan[oa]s?|artesanal(?:es)?|sin pasteurizar|no pasteurizad[oa]s?|recien hech[oa]s?|caseras?|de horchateria|a granel)',
+    { nameOnly: true },
+  ),
+  rule(
+    'horchata-pasteurizada',
+    'horchatas?(?: [a-z]+){0,2} (?:pasteurizad[oa]s?|de brick|de brik|en brick|en brik|uht|esterilizad[oa]s?|envasad[oa]s?|embotellad[oa]s?|de botella)',
+    { nameOnly: true },
+  ),
+  rule('horchata', 'horchatas?(?: de chufa)?|(?:leches?|bebidas?) de chufa'),
   rule('pate', 'mousses? de (?:pato|foie|higado|oca|pate|cerdo|ave|campana|pollo)'),
 
   // 1. Mercurio alto
@@ -480,6 +500,10 @@ const RULE_DEFS = [
     'boquerones-vinagre',
     '(?:boquerones?|anchoas?|sardinas?|bocartes?|caballas?)(?: [a-z]+){0,2} (?:en |al )?vinagre(?:ta)?|(?:boquerones?|anchoas?|bocartes?) marinad[oa]s?',
   ),
+  // Anchoas en salazón (cuestionario de la clienta: «Mejor no»). No las aceitunas rellenas de anchoa ni las
+  // anchoas frescas fritas (son boquerones). En un producto envasado, solo en el nombre.
+  rule('anchoas-salazon', `${ANCHOA_SALAZON}`, { context: 'text' }),
+  rule('anchoas-salazon', `${ANCHOA_SALAZON}`, { context: 'product', nameOnly: true }),
   // 5. Carne cruda: tartar y carpaccio
   rule('tartar', 'steak tartar(?:e)?|tartar(?:e|es)?(?: de (?:ternera|buey|vaca|res|solomillo|wagyu|retinto|carne))?'),
   rule('carpaccio', 'carpaccios?(?: de (?:ternera|buey|vaca|res|solomillo|wagyu|cecina|pato|presa|secreto|retinto|carne))?'),
@@ -490,10 +514,11 @@ const RULE_DEFS = [
   ),
   rule(
     'huevo-poco-hecho',
-    '(?:huevos?|yemas?|claras?)(?: [a-z]+){0,2} (?:poco hech[oa]s?|crud[oa]s?|liquid[oa]s?|sin cuajar|poco cuajad[oa]s?|pasad[oa]s? por agua|a baja temperatura|a 6[0-9](?: grados)?|mollets?|poches?|pochad[oa]s?|escalfad[oa]s?)|huevos? (?:rotos|estrellados|frit[oa]s?)|yemas? liquidas?|poches?|huevos? (?:a la )?benedict(?:ine|ina|inos)?|revueltos? (?:jugosos?|poco hechos?|cremosos?|babosos?)|huevos? revueltos? (?:jugosos?|cremosos?|poco hechos?)',
+    '(?:huevos?|yemas?|claras?)(?: [a-z]+){0,2} (?:poco hech[oa]s?|crud[oa]s?|liquid[oa]s?|sin cuajar|poco cuajad[oa]s?|pasad[oa]s? por agua|a baja temperatura|a 6[0-9](?: grados)?|mollets?|poches?|pochad[oa]s?|escalfad[oa]s?)|huevos? (?:rotos|estrellados|frit[oa]s?)|huevos? (?:de (?:corral|granja|gallina|campo|casa) )?(?:frit[oa]s?|a la plancha)|huevos? (?:a la flamenca|al plato)|a caballo|(?<!(?:de|revueltos?|tortillas?) )huevos? con (?:patatas|chorizo|chistorra|jamon|morcilla|pimientos|bacon|beicon|panceta|salchichas|longaniza|picadillo|sobrasada)|yemas? liquidas?|poches?|huevos? (?:a la )?benedict(?:ine|ina|inos)?|revueltos? (?:jugosos?|poco hechos?|cremosos?|babosos?)|huevos? revueltos? (?:jugosos?|cremosos?|poco hechos?)',
   ),
   // 6. Poco hecha / al punto / sangrante
-  rule('carne-poco-hecha', '(?:muy )?poco hech[oa]s?|al punto(?! de sal)|sangrante|vuelta y vuelta|a la sangre|poco cocinad[oa]s?|crud[oa] por dentro|chuleton(?:es)?|chuletas? de vaca|txuletas?|rosbif|roast beef|magret(?: de pato)?'),
+  rule('carne-poco-hecha', '(?:muy )?poco hech[oa]s?|al punto(?! de sal)|sangrante|vuelta y vuelta|a la sangre|poco cocinad[oa]s?|crud[oa] por dentro|rosbif|roast beef|magret(?: de pato)?'),
+  rule('chuleton', 'chuleton(?:es)?|chuletas? de (?:vaca|buey)|txuletas?'),
   // 7. Mayonesa: de bote (supermercado o dicho expresamente) antes que casera.
   rule('mayonesa-bote', 'mayonesas?|mahonesas?|alioli|allioli|aioli|salsa alioli', { context: 'product' }),
   rule(
@@ -557,6 +582,8 @@ const RULE_DEFS = [
     'jamon-curado',
     'jamon(?:es)?(?! (?:de )?(?:cocido|york|dulce|en dulce|de pavo))(?: (?:iberico|serrano|curado|crudo|de bellota|de cebo|de recebo|pata negra|gran reserva|reserva|loncheado|al corte|cortado a cuchillo))*|paletas? (?:iberica|serrana|curada|de bellota|de cebo)|paletillas? (?:iberica|serrana|curada)|pata negra|jabugo|cecina',
   ),
+  // «Levadura de cerveza» no es cerveza.
+  rule('levadura', 'levaduras?(?: de cerveza| nutricional(?:es)?)?', { nameOnly: true }),
   // 17. Bebidas: cerveza 0,0, sin alcohol, alcohol.
   rule(
     'cerveza-00',
@@ -604,13 +631,22 @@ const RULE_DEFS = [
     'cafe',
     'cafes?|espressos?|expresos?|cortados?|capuchinos?|cappuccinos?|lattes?|macchiatos?|frappuccinos?|frappe|cafe bombon|nespresso|capsulas de cafe|moka',
   ),
-  // 20. Infusiones a evitar, manzanilla y té.
+  // 20. Infusiones a evitar, manzanilla y té. Cuestionario de la clienta: kombucha y poleo «Mejor no»; tila y
+  // jengibre «Con cuidado»; rooibos «Sí». Antes que «té», que si no se queda con «té de…».
+  rule('kombucha', 'kombuchas?|tes? (?:de )?kombucha'),
+  rule('poleo-menta', '(?:(?:infusion(?:es)?|tes?|tisanas?) de )?poleos?(?: menta)?|menta poleo'),
+  rule('tila', '(?:(?:infusion(?:es)?|tes?|tisanas?) de )?(?:tilas?|tilo|flor(?:es)? de tilo)'),
+  rule(
+    'infusion-jengibre',
+    '(?:infusion(?:es)?|tes?|tisanas?|aguas?|shots?|chupitos?) (?:de |con )?jengibre(?: (?:y|con) limon)?|jengibre (?:en infusion|con limon)|^jengibre(?: (?:fresco|en polvo|molido|en rama))?$|^raiz de jengibre$',
+  ),
+  rule('rooibos', '(?:(?:infusion(?:es)?|tes?) (?:de )?)?rooibos', { nameOnly: true }),
   rule('infusiones-evitar', '(?:infusion(?:es)?|tes?|tisanas?|raiz|palo|extracto|rama|hojas?) de (?:sen|regaliz|ruda)|sen|regaliz|ruda'),
   rule('manzanilla', 'manzanillas?(?! de sanlucar)|camomila|infusion(?:es)? de manzanilla'),
-  block('tes? (?:de )?(?:rooibos|frutas|hierbas|frutos rojos)|rooibos|infusion(?:es)? de frutas'),
+  block('tes? (?:de )?(?:frutas|hierbas|frutos rojos)|infusion(?:es)? de frutas'),
   rule(
     'te',
-    'tes? (?:verde|negro|rojo|blanco|azul|matcha|chai|helado|frio|con leche|con limon|earl grey|ingles|moruno|marroqui|de jazmin|de menta|pakistani)|matcha|chai(?: latte)?|earl grey|pu erh|oolong|darjeeling|sencha|bancha|kukicha|genmaicha|kombucha|ice tea|iced tea|nestea|tes?',
+    'tes? (?:verde|negro|rojo|blanco|azul|matcha|chai|helado|frio|con leche|con limon|earl grey|ingles|moruno|marroqui|de jazmin|de menta|pakistani)|matcha|chai(?: latte)?|earl grey|pu erh|oolong|darjeeling|sencha|bancha|kukicha|genmaicha|ice tea|iced tea|nestea|tes?',
   ),
   // Chocolate antes que cola («Cola Cao»).
   rule(
@@ -636,11 +672,23 @@ const RULE_DEFS = [
   rule('salmon-hecho', 'salmon(?:es)?|truchas?'),
 
   // --- Más general (después de la lista de la especificación) ---
-  rule(any('bebida-vegetal'), 'bebidas? (?:vegetal(?:es)?|de (?:avena|soja|almendras?|arroz|coco|avellanas?))|leches? de (?:almendras?|avena|soja|soya|arroz|coco|avellanas?|anacardos?|espelta|chufa)|horchata'),
+  // Bebidas vegetales, separadas por alérgeno (avena o espelta: gluten; soja; frutos secos).
+  rule('bebida-avena', '(?:bebidas?|leches?)(?: vegetal(?:es)?)? de (?:avena|espelta)', { nameOnly: true }),
+  rule('bebida-soja', '(?:bebidas?|leches?)(?: vegetal(?:es)?)? de (?:soja|soya)', { nameOnly: true }),
+  rule(
+    'bebida-almendras',
+    '(?:bebidas?|leches?)(?: vegetal(?:es)?)? de (?:almendras?|avellanas?|anacardos?|nueces)',
+    { nameOnly: true },
+  ),
+  rule(
+    'bebida-vegetal',
+    'bebidas? (?:vegetal(?:es)?|de (?:arroz|coco))(?: de (?:arroz|coco))?|leches? de (?:arroz|coco)',
+    { nameOnly: true },
+  ),
   rule('yogur', 'yogur(?:es|t|ts)?|yoghourt|yoghurt|bifidus|kefir|skyr'),
   rule(
     'queso-fresco',
-    'quesos? fresc[oa]s?|queso de burgos|burgos|requeson|mozzarella|mozarella|mozzarela|burrata|ricotta|mascarpone|feta|cottage|quark|queso batido|queso crema|queso de untar|queso tierno|queso blanco|cuajada|mato',
+    'quesos? fresc[oa]s?|queso de burgos|(?<!morcilla de )burgos|requeson|mozzarella|mozarella|mozzarela|burrata|ricotta|mascarpone|feta|cottage|quark|queso batido|queso crema|queso de untar|queso tierno|queso blanco|cuajada|mato',
   ),
   rule(
     'queso-curado',
@@ -651,6 +699,12 @@ const RULE_DEFS = [
     'leches?(?: (?:entera|desnatada|semidesnatada|semi|uht|pasteurizada|esterilizada|en polvo|condensada|evaporada|fresca|sin lactosa|de vaca|de cabra|de oveja|con cacao|chocolatada|infantil|de crecimiento))*',
   ),
   rule('huevo-bien-hecho', 'huevos? (?:duros?|cocidos?|bien hech[oa]s?|bien cuajad[oa]s?)|huevo duro'),
+  // «Huevos» a secas (la compra): solo el nombre entero, para no pillar «huevos con…».
+  rule(
+    'huevos-frescos',
+    '(?:^|(?<=[|] ))(?:media )?(?:huevos?|docena de huevos)(?: (?:frescos?|camperos?|ecologicos?|de corral|de gallina|de granja|xl|l|m))*(?=$| [|])',
+    { nameOnly: true },
+  ),
   rule('revuelto', 'huevos? revueltos?|revueltos?'),
   rule(
     'tortilla-patata',
@@ -674,7 +728,7 @@ const RULE_DEFS = [
   ),
   rule(
     'pescado-azul-pequeno',
-    'sardinas?|sardinillas?|boquerones?|bocartes?|caballas?|jurel(?:es)?|chicharros?|salmonetes?|arenques?|espadines?|xoubas?|chanquetes?',
+    'sardinas?|sardinillas?|boquerones?|bocartes?|anchoas? (?:fritas?|rebozadas?|a la plancha|al horno|en tempura|asadas?|frescas?)|caballas?|jurel(?:es)?|chicharros?|salmonetes?|arenques?|espadines?|xoubas?|chanquetes?',
   ),
   rule(
     'pescado-blanco-plancha',
@@ -689,6 +743,9 @@ const RULE_DEFS = [
     'lentejas?|garbanzos?|alubias?|judias? (?:blancas|pintas|rojas|negras)|judiones?|fabes|fabada|potajes?|habas?|hummus|humus|frijoles?',
   ),
   rule('ensalada', 'verduras? crudas?|crudites|bastones de verduras'),
+  block(
+    'harinas? de (?:maiz|arroz|garbanzos?|almendras?|coco|soja|patata|yuca|tapioca|castanas?|trigo sarraceno|alforfon|quinoa|teff|mijo|lentejas?|guisantes?)',
+  ),
   rule(
     'verdura-cocinada',
     'judias verdes|parrillada de verduras|verduras?|pisto|menestra|espinacas|acelgas|brocoli|coliflor|alcachofas?|esparragos?(?: trigueros| verdes| blancos)?|calabacin(?:es)?|berenjenas?|pimientos?(?: asados| de padron| del piquillo)?|champinon(?:es)?|setas?|crema de (?:verduras|calabaza|calabacin|puerros?|zanahoria)|pure de (?:verduras|patatas?)|escalivada|samfaina|ratatouille|patatas?(?: (?:asadas|cocidas|al horno|fritas|panaderas|a lo pobre|bravas))?',

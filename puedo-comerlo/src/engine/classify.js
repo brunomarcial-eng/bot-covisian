@@ -50,7 +50,15 @@ const CHEESE_IDS = new Set(['queso-fresco', 'queso-curado', 'queso-blando-cortez
 // Lo que el calor NO arregla (mercurio, alcohol, cafeína, huevo o pescado crudos…) no se toca: solo se
 // convierten embutido curado, fiambre, queso, pescado ahumado y germinados.
 // En la lista de ingredientes estas coincidencias no dicen nada del producto («agua», «zumo de limón»).
-const NAME_ONLY_IDS = new Set(['agua', 'zumo']);
+// Lo mismo con los básicos de despensa del cuestionario (aceite, sal, harina, pan…): un producto desconocido no
+// pasa a «Sí» porque su lista de ingredientes lleve harina y sal. Y el surimi como ingrediente de unas gulas no
+// las convierte en «Mejor no».
+const NAME_ONLY_IDS = new Set([
+  'agua', 'zumo', 'aceite-vinagre-sal', 'azucar', 'harina', 'levadura', 'pan', 'mantequilla-nata', 'margarina',
+  'salsas-bote', 'salsa-soja', 'encurtidos', 'gelatina', 'miel', 'mermelada', 'frutos-secos', 'pipas', 'cereales',
+  'muesli', 'pasta', 'tofu', 'seitan', 'surimi', 'chicle', 'huevos-frescos', 'bebida-avena', 'bebida-soja',
+  'bebida-almendras', 'bebida-vegetal', 'rooibos',
+]);
 
 // ---------------------------------------------------------------------------
 // Índices precalculados
