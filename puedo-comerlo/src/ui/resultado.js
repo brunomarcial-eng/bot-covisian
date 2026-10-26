@@ -111,6 +111,7 @@ export function render({ main, profile, setTab }) {
         ingredientsText: p.ingredientsText,
         topics: src === 'etiqueta' && !topics.length ? DEFAULT_TOPICS : topics,
         profile,
+        level: v.level,
         heading: src === 'etiqueta' ? 'Lo que he mirado en la etiqueta' : 'Lo que he mirado en los ingredientes',
       });
       if (checks) guided.push(checks);
@@ -127,7 +128,7 @@ export function render({ main, profile, setTab }) {
   } else if (kind === 'etiqueta' && items.length === 1) {
     const v = items[0];
     const ing = Array.isArray(payload.items?.[0]?.ingredients) ? payload.items[0].ingredients.join(', ') : '';
-    const checks = labelChecks({ ingredientsText: ing, topics: [...(v.missing || []), ...(v.topics || [])], profile });
+    const checks = labelChecks({ ingredientsText: ing, topics: [...(v.missing || []), ...(v.topics || [])], profile, level: v.level });
     main.append(
       verdictAnswer(v, {
         level: 2,

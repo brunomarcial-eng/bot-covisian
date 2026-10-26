@@ -2046,7 +2046,7 @@ async function s12body(tv, browser, vp) {
   await tv.check(!!r2.label && r2.label.title === 'Lo que he mirado en la etiqueta', 'Tras la foto: section.label-check «Lo que he mirado en la etiqueta»', JSON.stringify(r2.label && r2.label.title));
   await tv.check(!!r2.label && r2.label.rows.length >= 1 && r2.label.rows.every((x) => x.topic && ['aparece', 'no-aparece'].includes(x.status)), 'Filas li.check-row con data-topic y data-status', JSON.stringify(r2.label && r2.label.rows.map((x) => [x.topic, x.status])));
   const huevo = r2.label && r2.label.rows.find((x) => x.topic === 'huevo-crudo');
-  await tv.check(!!huevo && huevo.status === 'aparece' && /^Aparece: .*huevo/i.test(huevo.text) && /check-row--found/.test(huevo.cls), 'Fila del huevo: «Aparece: …huevo…» (check-row--found)', huevo && huevo.text);
+  await tv.check(!!huevo && huevo.status === 'aparece' && /^Aparece: .*huevo/i.test(huevo.text) && /check-row--(found|ok)/.test(huevo.cls), 'Fila del huevo: «Aparece: …huevo…» (found o ok si el veredicto es «Sí»: cocinado, sin choque con el verde)', huevo && huevo.text);
   await tv.check(!!huevo && huevo.link === '#/claves/huevo-crudo' && huevo.linkText === 'Por qué importa', 'La fila hallada enlaza «Por qué importa» → #/claves/huevo-crudo', JSON.stringify(huevo && [huevo.link, huevo.linkText]));
   const firstNotFound = r2.label ? r2.label.rows.findIndex((x) => !/found|doubt/.test(x.cls)) : -1;
   const lastFound = r2.label ? r2.label.rows.map((x) => /found|doubt/.test(x.cls)).lastIndexOf(true) : -1;
@@ -2490,6 +2490,12 @@ async function s16(t, browser) {
   t.info('Humo 8424289001480', `${outcome} en ${Math.round((Date.now() - t0) / 1000)} s; peticiones a /api/producto: ${reqs.length - before}`);
   await t.check(outcome === 'resultado' || outcome === 'no-encontrado', 'Prueba de humo con 8424289001480: la app termina en una respuesta o en «No lo encuentro…», sin colgarse', outcome);
   await t.check(reqs.length - before <= 1, 'Como mucho UNA llamada a /api/producto', String(reqs.length - before));
+  // El estado real de /api/producto: 200 (con o sin producto). En local, sin clave de Anthropic, 503 es lo esperado;
+  // en producción un 5xx es un fallo real del servicio (la app lo tolera y sigue con OFF y la foto, pero hay que saberlo).
+  const local = /127\.0\.0\.1|localhost/.test(BASE);
+  const bad = t.events.filter((e) => e.type === 'http' && /\/api\/producto/.test(e.url)).map((e) => e.status);
+  t.info('Estado real de /api/producto', bad.length ? bad.join(', ') : '200');
+  await t.check(!bad.length || (local && bad.every((x) => x === 503)), local ? '/api/producto local responde 200 o 503 (sin clave)' : '/api/producto en producción responde 200 (no 5xx)', 'estados ≥ 400: ' + bad.join(', '));
   if (outcome === 'resultado') {
     const r = await resultInfo(page);
     t.info('Humo: resultado', JSON.stringify({ n: r.name, w: r.word, web: r.web && r.web.text, need: r.needTitle, label: r.label && r.label.title }));
@@ -2508,6 +2514,7 @@ function s11(t, list) {
   for (const s of list) {
     for (const e of s.events) {
       const tag = `[${s.id}] ${e.type}`;
+      if (s.id === 16 && /\/api\/producto/.test(e.url || '')) continue; // el humo real lo valora su propio escenario
       const line = `${tag}: ${short(e.text, 200)}${e.url ? ' @ ' + short(e.url, 120) : ''}`;
       if (e.type === 'pageerror') { problems.push(line); continue; }
       const url = e.url || '';

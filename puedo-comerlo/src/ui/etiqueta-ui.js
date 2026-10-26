@@ -97,7 +97,7 @@ function join(list) {
 }
 
 // Una fila por tema. Devuelve { kind: 'found' | 'ok' | 'doubt' | 'absent', text }.
-export function rowFor(r) {
+export function rowFor(r, level = null) {
   const ev = Array.isArray(r.evidence) ? r.evidence.filter(Boolean) : [];
   const verbo = PLURAL.has(r.topic) ? 'Aparecen' : 'Aparece';
   if (r.status === 'aparece') {
@@ -107,6 +107,8 @@ export function rowFor(r) {
     }
     if (r.matiz === 'duda') return { kind: 'doubt', text: `${verbo}: ${join(ev)}. Con esto no lo puedo descartar.` };
     if (r.matiz === 'poca') return { kind: 'found', text: `${verbo}: ${join(ev)}, en poca cantidad.` };
+    // Veredicto «Sí» (producto cocinado): lo que aparece no es un problema; que el aviso no choque con el verde.
+    if (level === 'si') return { kind: 'ok', soft: true, text: `${verbo}: ${join(ev)}. Va cocinado en el producto, así que no es un problema.` };
     return { kind: 'found', text: `${verbo}: ${join(ev)}.` };
   }
   if (r.matiz === 'pasteurizado' && ev.length) {
@@ -117,7 +119,7 @@ export function rowFor(r) {
 }
 
 // «Lo que he mirado en la etiqueta». `heading` cambia si los ingredientes no vienen de una foto.
-export function labelChecks({ ingredientsText, topics, profile, heading = 'Lo que he mirado en la etiqueta' }) {
+export function labelChecks({ ingredientsText, topics, profile, level = null, heading = 'Lo que he mirado en la etiqueta' }) {
   const ids = [...new Set(topics)].filter((id) => CLAVE_BY_ID[id]);
   if (!ids.length || !String(ingredientsText || '').trim()) return null;
   let results = [];
@@ -128,11 +130,11 @@ export function labelChecks({ ingredientsText, topics, profile, heading = 'Lo qu
     return null;
   }
   if (!results.length) return null;
-  const rows = results.map((r) => ({ r, ...rowFor(r) }));
+  const rows = results.map((r) => ({ r, ...rowFor(r, level) }));
   const rank = { found: 0, doubt: 1, ok: 2, absent: 3 };
   rows.sort((a, b) => rank[a.kind] - rank[b.kind]);
 
-  const items = rows.map(({ r, kind, text }) =>
+  const items = rows.map(({ r, kind, text, soft }) =>
     h(
       'li',
       { class: `check-row check-row--${kind}`, dataset: { topic: r.topic, status: r.status } },
@@ -141,7 +143,7 @@ export function labelChecks({ ingredientsText, topics, profile, heading = 'Lo qu
         'span',
         { class: 'check-text' },
         h('span', null, text),
-        kind === 'found' || kind === 'doubt'
+        kind === 'found' || kind === 'doubt' || soft
           ? h(
               'a',
               { class: 'check-link', href: `#/claves/${encodeURIComponent(r.topic)}`, 'aria-label': `Por qué importa: ${CLAVE_BY_ID[r.topic].titulo}` },
