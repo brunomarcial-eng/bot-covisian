@@ -314,7 +314,8 @@ async function mainPill(page, timeout = 6000) {
 async function toneState(page) {
   return page.evaluate(() => {
     const meta = document.querySelector('meta[name="theme-color"]');
-    const marks = [...document.querySelectorAll('#tone span[aria-hidden]')];
+    const marks = [...document.querySelectorAll('#tone span.tm')];
+    const crosses = document.querySelectorAll('#tone .tcross').length;
     const foot = [...document.querySelectorAll('footer, [role=contentinfo]')][0];
     const fl = foot ? [...foot.querySelectorAll('*')].find((e) => e.children.length === 0 && /No sustituye/.test(e.textContent)) || foot : null;
     const word = document.querySelector('article.answer .answer-word');
@@ -325,6 +326,7 @@ async function toneState(page) {
       htmlBg: getComputedStyle(document.documentElement).backgroundColor,
       meta: meta ? meta.getAttribute('content') : null,
       marks: marks.length,
+      cross: crosses,
       marksText: [...new Set(marks.map((m) => m.textContent.trim()))].join(''),
       footColor: fl ? getComputedStyle(fl).color : null,
       footBg: foot ? getComputedStyle(foot).backgroundColor : null,
@@ -589,7 +591,7 @@ async function emptyArt(page) {
     const e = document.querySelector('.empty.empty--art');
     if (!e) return null;
     const art = e.querySelector('.empty-art'); const svg = art && art.querySelector('svg');
-    return { text: e.innerText.replace(/\s+/g, ' ').trim(), artHidden: art ? art.getAttribute('aria-hidden') : null, svg: !!svg, svgBad: svg ? svg.querySelectorAll('text, tspan, image, foreignObject').length : -1, w: svg ? Math.round(svg.getBoundingClientRect().width) : 0 };
+    return { text: e.innerText.replace(/\s+/g, ' ').trim(), artHidden: art ? art.getAttribute('aria-hidden') : null, svg: !!svg, svgBad: svg ? svg.querySelectorAll('text, tspan, image, foreignObject, style').length : -1, w: svg ? Math.round(svg.getBoundingClientRect().width) : 0 };
   });
 }
 
@@ -617,7 +619,7 @@ async function portadaChecks(t, page, label) {
       footTop: fr ? Math.round(fr.top) : null, innerH: innerHeight, innerW: innerWidth,
       noteAfter: !!(seguir && note && (seguir.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING)),
       noteText: note ? note.innerText.replace(/\s+/g, ' ').trim() : null,
-      svgText: svg ? svg.querySelectorAll('text, tspan, image, foreignObject').length : -1,
+      svgText: svg ? svg.querySelectorAll('text, tspan, image, foreignObject, style').length : -1,
       svgW: svg ? Math.round(svg.getBoundingClientRect().width) : 0, artH: art ? Math.round(art.getBoundingClientRect().height) : 0,
       scrollW: document.documentElement.scrollWidth, scrollY: scrollY,
     };
@@ -841,7 +843,7 @@ async function s2(t, browser) {
     const ts = await settledTone(page, 300);
     if (name === 'Ficha') {
       await checkTone(t, page, 'cuidado', 'Ficha tortilla', ts);
-      await t.check(ts.marks >= 1 && ts.marksText === '?', 'Ficha «Con cuidado»: «?» decorativos span[aria-hidden] en #tone', `${ts.marks} «${ts.marksText}»`);
+      await t.check(ts.marks >= 1 && ts.marksText === '?', 'Ficha «Con cuidado»: «?» decorativos (#tone span.tm)', `${ts.marks} «${ts.marksText}»`);
     } else await checkTone(t, page, null, name, ts);
     const n = await navState(page);
     const bottom = n.navs.find((x) => x.bottom >= n.innerHeight - 6 && x.top > n.innerHeight * 0.55);
@@ -953,7 +955,7 @@ async function s3(t, browser) {
     await t.shot('xyzzy');
     // otras: café con cuidado, cerveza 0,0 sí
     const pcafe = await askBuscar(page, 'café');
-    await t.check(pcafe && pcafe.label === 'Con cuidado', 'Buscar «café» → «Con cuidado»', pcafe ? pcafe.label : 'sin respuesta');
+    await t.check(pcafe && pcafe.label === 'Sí', 'Buscar «café» → «Sí» (con «Ojo con esto»: moderación)', pcafe ? pcafe.label : 'sin respuesta');
     const pc00 = await askBuscar(page, 'cerveza 0,0');
     await t.check(pc00 && pc00.label === 'Sí', 'Buscar «cerveza 0,0» → «Sí»', pc00 ? pc00.label : 'sin respuesta');
     // «Ver más» en la respuesta: detalle y fuente; el campo vacío vuelve a la ayuda
@@ -1004,7 +1006,9 @@ async function s4(t, browser) {
     const after = await bodyText(page);
     const add = addedLines(before, after).join(' / ');
     await t.check(add.length > 60 && srcRe.test(add), '«Ver más» despliega detalle y fuente', short(add, 400));
-    await t.check(/¿[^?]+\?/.test(add) || /pregunt|camarero/i.test(add), '«Ver más» incluye la pregunta para el camarero', short(add, 300));
+    const preg = await page.evaluate(() => ({ title: (document.querySelector('article.answer .ojo-q-title') || {}).textContent || null, q: (document.querySelector('article.answer .ojo-q') || {}).textContent || null, inMore: (document.querySelector('article.answer .more') || {}).textContent || '' }));
+    await t.check(preg.title === 'Pregunta' && /¿[^?]+\?/.test(preg.q || ''), 'La pregunta para el camarero va bajo la frase, en el bloque «Pregunta» (.ojo-q)', JSON.stringify(preg.q));
+    await t.check(!!preg.q && !preg.inMore.includes(preg.q.trim()), '…y ya no se repite dentro de «Ver más»', short(preg.inMore, 200));
     await snap(page, t, 'ficha-abierta');
     await t.shot('ficha-ver-mas');
   } catch (e) { await t.check(false, '«Ver más» en la ficha', e.message); }
@@ -1051,9 +1055,10 @@ async function loadingState(page) {
     const anims = svg ? svg.getAnimations({ subtree: true }).length + (art.getAnimations ? art.getAnimations({ subtree: true }).length : 0) : 0;
     return {
       cls: st.className, role: st.getAttribute('role'), live: st.getAttribute('aria-live'),
-      art: !!art, artHidden: art ? art.getAttribute('aria-hidden') : null, svg: !!svg, svgBad: svg ? svg.querySelectorAll('text, tspan, image, foreignObject').length : -1,
+      art: !!art, artHidden: art ? art.getAttribute('aria-hidden') : null, svg: !!svg, svgBad: svg ? svg.querySelectorAll('text, tspan, image, foreignObject, style').length : -1,
       text: (st.querySelector('.status-text') || {}).innerText || '', spinners: document.querySelectorAll('.spinner').length, anims,
       artSize: svg ? Math.round(svg.getBoundingClientRect().width) : 0,
+      skel: document.querySelectorAll('.status-body .skel').length,
     };
   }).catch(() => null);
 }
@@ -1063,6 +1068,7 @@ async function checkLoading(t, page, what) {
   await t.check(/\bstatus--art\b/.test(ld.cls) && ld.art && ld.artHidden === 'true' && ld.svg && ld.svgBad === 0, `${what}: .status--art con .status-art decorativo (SVG sin <text>/<image>)`, JSON.stringify(ld));
   await t.check(ld.role === 'status' && ld.live === 'polite' && ld.text.trim().length > 3, `${what}: el texto vive en .status-text dentro de la región viva`, JSON.stringify({ role: ld.role, live: ld.live, text: ld.text }));
   await t.check(ld.spinners === 0, `${what}: ya no existe .spinner`, String(ld.spinners));
+  await t.check(ld.skel >= 2, `${what}: dos barras .skel junto al texto`, String(ld.skel));
   t.info(`${what}: plato animado`, `${ld.artSize}px, ${ld.anims} animaciones, texto «${short(ld.text, 50)}»`);
 }
 
@@ -1089,9 +1095,9 @@ const CARTA_EXPECT = [
   ['Entrecot poco hecho', /entrecot/, ['Mejor no']],
   ['Ensaladilla', /ensaladilla/, ['Con cuidado']],
   ['Croquetas de jamón', /croqueta/, ['Sí', 'No estoy segura']],
-  ['Gazpacho', /gazpacho/, ['Con cuidado']],
+  ['Gazpacho', /gazpacho/, ['Sí', 'No estoy segura']],
   ['Lubina a la plancha', /lubina/, ['Sí', 'No estoy segura']],
-  ['Tarta de queso', /tarta de queso/, ['Con cuidado']],
+  ['Tarta de queso', /tarta de queso/, ['Sí', 'No estoy segura']],
 ];
 
 async function s5(t, browser) {
@@ -1146,6 +1152,11 @@ async function s5(t, browser) {
       else if (!ok.includes(hit.label)) t.warn(`Carta: «${name}» sale «${hit.label}» (esperado ${ok.join(' o ')})`, short(hit.card));
     }
     t.info('Niveles leídos', rows.join(' · '));
+    // Carta leída con Claude (producción): ≥ 60 % de las filas reconocidas en «Sí». Con OCR local todo es «aproximado»: no se aplica.
+    const sinRuido = r.pills.filter((x) => !/^(entrantes|principales|postres|bebidas|casa marisa|carta del mediodia)\b/.test(norm(x.name)));
+    const nSi = sinRuido.filter((x) => x.label === 'Sí').length;
+    if (!viaOcr) await t.check(sinRuido.length > 0 && nSi / sinRuido.length >= 0.6, 'Carta leída con Claude: al menos el 60 % de las filas en «Sí»', `${nSi}/${sinRuido.length}: ` + sinRuido.map((x) => x.label[0] + ':' + short(x.name, 18)).join(' | '));
+    else t.info('Carta leída con OCR: no se aplica el umbral del 60 % de «Sí»', `${nSi}/${sinRuido.length} en «Sí»`);
     if (viaOcr) {
       const si = r.pills.filter((x) => x.label === 'Sí');
       await t.check(si.length === 0, 'Lectura incierta (OCR): ningún plato queda en «Sí» (baja a «No estoy segura»)', si.map((x) => short(x.card, 80)).join(' | '));
@@ -1556,10 +1567,13 @@ async function colorEnPantalla360(t, browser) {
     const f2 = await footerState(page);
     const over = await page.evaluate(() => {
       const foot = document.querySelector('footer, [role=contentinfo]'); const top = foot ? foot.getBoundingClientRect().top : innerHeight;
-      const els = [...document.querySelectorAll('main a, main button, main h1, main p, main .answer-word')].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; });
+      const els = [...document.querySelectorAll('main a, main button, main h1, main p, main .answer-word')].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(e).visibility !== 'hidden'; });
       const last = els.map((e) => e.getBoundingClientRect().bottom).reduce((a, c) => Math.max(a, c), 0);
-      const wide = [...document.querySelectorAll('main *')].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && (r.right > innerWidth + 1) && !e.closest('.cover-art, #tone'); }).map((e) => e.tagName + '.' + String(e.className).slice(0, 20));
-      return { lastBottom: Math.round(last), footTop: Math.round(top), wide: wide.slice(0, 4), word: (document.querySelector('.answer-word') ? Math.round(document.querySelector('.answer-word').scrollWidth - document.querySelector('.answer-word').clientWidth) : 0) };
+      // lo decorativo (ilustración, destellos, «?», cruz) puede asomar: se recorta con overflow-x: clip; lo que cuenta es el scroll y el texto
+      const wide = [...document.querySelectorAll('main *')].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && (r.right > innerWidth + 1) && !e.closest('.cover-art, #tone, .answer-art, .answer-fx, .entry-thumb, .home-plate, svg') && getComputedStyle(e).visibility !== 'hidden' && !e.closest('[aria-hidden=true]'); }).map((e) => e.tagName + '.' + String(e.className).slice(0, 20));
+      const w = document.querySelector('.answer-word'); let word = 0;
+      if (w) { const rg = document.createRange(); rg.selectNodeContents(w); const rr = rg.getBoundingClientRect(); word = Math.max(0, Math.round(rr.right - innerWidth), Math.round(-rr.left)); }
+      return { lastBottom: Math.round(last), footTop: Math.round(top), wide: wide.slice(0, 4), word };
     });
     await page.evaluate(() => window.scrollTo(0, 0));
     if (b.scrollW > b.innerW + 1) problems.push(`${what}: scroll horizontal ${b.scrollW}`);
@@ -1667,6 +1681,7 @@ async function s9(t, browser) {
     await t.check(contrast(ts.footColor, ts.footBg === 'rgba(0, 0, 0, 0)' ? ts.bg : ts.footBg) >= 4.5, `Ficha ${id}: el pie se lee sobre el color (contraste ≥ 4,5:1)`, `${ts.footColor} sobre ${ts.footBg}/${ts.bg} = ${contrast(ts.footColor, ts.footBg === 'rgba(0, 0, 0, 0)' ? ts.bg : ts.footBg).toFixed(1)}`);
     await t.check(/Fraunces/i.test(p.fontFamily || '') && parseFloat(p.fontSize) >= 40, `.answer-word «${label}» en Fraunces y grande (≥ 40 px)`, `${p.fontFamily} ${p.fontSize}`);
     if (key === 'si' || key === 'no') await t.check(ts.marks === 0, `«${label}»: sin «?» decorativos`, String(ts.marks));
+    await t.check(ts.cross === (key === 'no' ? 1 : 0), key === 'no' ? '«Mejor no»: lleva su cruz (.tcross) y ningún «?»' : `«${label}»: sin cruz de «Mejor no»`, String(ts.cross));
   }
   await go(page, '#/buscar?q=xyzzy');
   const tsd = await settledTone(page);
@@ -1674,7 +1689,7 @@ async function s9(t, browser) {
   await t.check(!!pd && pd.label === 'No estoy segura', 'Buscar «xyzzy»: .answer-word «No estoy segura»', pd ? pd.label : 'sin respuesta');
   await checkTone(t, page, 'duda', 'Buscar «xyzzy»', tsd);
   await t.check(tsd.wordColor === WORD_CREAM && contrast(tsd.wordColor, tsd.bg) >= 4.5, '«No estoy segura»: palabra crema con contraste ≥ 4,5:1', `${tsd.wordColor} ${contrast(tsd.wordColor, tsd.bg).toFixed(1)}`);
-  await t.check(tsd.marks >= 3 && tsd.marksText === '?', '«No estoy segura»: varios «?» decorativos (span[aria-hidden] en #tone)', `${tsd.marks} «${tsd.marksText}»`);
+  await t.check(tsd.marks >= 3 && tsd.marksText === '?', '«No estoy segura»: varios «?» decorativos (#tone span.tm)', `${tsd.marks} «${tsd.marksText}»`);
   if (pd) await t.check(parseFloat(pd.fontSize) >= 52 - 0.5 && parseFloat(pd.fontSize) <= 72 + 0.5, '.answer-word «No estoy segura» entre 3,25 y 4,5 rem', pd.fontSize);
   // Filas: banda suave del nivel con la palabra `.lvl` en su color de texto (Historial con las consultas de antes)
   await go(page, '#/historial');
@@ -1727,16 +1742,16 @@ async function s9(t, browser) {
 }
 
 async function s10(t, browser) {
-  // Con reduced-motion el color llega al instante: así se mide el fondo de las 140 fichas sin esperar al fundido
+  // Con reduced-motion el color llega al instante: así se mide el fondo de las 145 fichas sin esperar al fundido
   const { page } = await t.newPage(browser, { reducedMotion: 'reduce' });
   await seed(page, t);
   const foods = await page.evaluate(async () => {
     const m = await import(new URL('src/engine/foods.js', location.href).href);
-    return m.FOODS.map((f) => ({ id: f.id, name: f.name, level: f.level, source: f.source }));
+    return m.FOODS.map((f) => ({ id: f.id, name: f.name, level: f.level, source: f.source, question: f.question || null, ojo: f.ojo || [] }));
   }).catch((e) => { throw new Error('No puedo importar src/engine/foods.js: ' + e.message); });
   t.info('Fichas de la guía recorridas', String(foods.length));
-  await t.check(foods.length === 140 && new Set(foods.map((f) => f.id)).size === 140, 'La guía tiene 140 alimentos (ids únicos)', String(foods.length));
-  const noAnswer = []; const wrongLevel = []; const badWord = []; const noSource = []; const multi = []; const noName = []; const repeats = []; const noMore = []; const badColor = []; const badMarks = [];
+  await t.check(foods.length === 145 && new Set(foods.map((f) => f.id)).size === 145, 'La guía tiene 145 alimentos (ids únicos)', String(foods.length));
+  const noAnswer = []; const wrongLevel = []; const badWord = []; const noSource = []; const multi = []; const noName = []; const repeats = []; const noMore = []; const badColor = []; const badMarks = []; const badOjo = []; const badArt = [];
   for (const f of foods) {
     await go(page, '#/ficha/' + f.id);
     const p = (await pills(page)).filter((x) => !x.inLo);
@@ -1748,6 +1763,7 @@ async function s10(t, browser) {
     const ts = await toneState(page);
     if (ts.verdict !== f.level || ts.bg !== TONE_BG[f.level] || ts.meta !== TONE_META[f.level] || ts.wordColor !== WORD_CREAM || contrast(ts.wordColor, ts.bg) < 4.5) badColor.push(`${f.id}: ${a.label} → ${ts.verdict}/${ts.bg}/${ts.meta}/${ts.wordColor}`);
     if ((f.level === 'duda' || f.level === 'cuidado') ? ts.marks < 1 : ts.marks !== 0) badMarks.push(`${f.id} (${f.level}): ${ts.marks} «?»`);
+    if (ts.cross !== (f.level === 'no' ? 1 : 0)) badMarks.push(`${f.id} (${f.level}): ${ts.cross} cruz`);
     if (!a.name || norm(a.name) !== norm(f.name)) noName.push(`${f.id} («${f.name}» / «${a.name}»)`);
     if (new RegExp('^(' + LEVEL_WORDS.map(esc).join('|') + ')\\s*([:,]|por\\b)', 'i').test(a.phrase)) repeats.push(`${f.id}: «${short(a.phrase, 60)}»`);
     const vm = page.locator('article.answer button.more-btn');
@@ -1757,6 +1773,15 @@ async function s10(t, browser) {
     } else noMore.push(f.id);
     const more = await page.locator('article.answer .more').first().innerText().catch(() => '');
     if (!/Fuente:\s*.*(AESAN|Ministerio de Sanidad)/.test(more)) noSource.push(`${f.id} (${short(more.split('Fuente:')[1] || '', 40)})`);
+    const af = await answerFacts(page);
+    if (af) {
+      if ((f.level === 'no' || f.level === 'duda') && (af.ojo || af.ojoItems.length)) badOjo.push(`${f.id} (${f.level}): lleva «Ojo con esto»`);
+      if (af.ojo && (af.ojoTitle !== 'Ojo con esto' || af.ojoItems.length < 1 || af.ojoItems.length > 3 || af.ojoItems.some((x) => x.length > 70))) badOjo.push(`${f.id}: ojo ${JSON.stringify(af.ojoItems)}`);
+      if (f.level === 'cuidado' && f.question && !(af.qTitle === 'Pregunta' && af.q)) badOjo.push(`${f.id}: «Con cuidado» sin bloque «Pregunta»`);
+      if (f.level !== 'cuidado' && af.qTitle) badOjo.push(`${f.id} (${f.level}): bloque «Pregunta» fuera de «Con cuidado»`);
+      if (f.level === 'si' && f.ojo.length && !af.ojo) badOjo.push(`${f.id}: «Sí» con aviso en la guía y sin «Ojo con esto»`);
+      if (!af.cat || af.artHidden !== 'true' || af.svgBad || !af.nSvg) badArt.push(`${f.id}: cat=${af.cat} hidden=${af.artHidden} bad=${af.svgBad}`);
+    }
     await snap(page, t, 'ficha-' + f.id);
   }
   await t.check(noAnswer.length === 0, 'Todas las fichas de la guía muestran su respuesta (article.answer)', `${noAnswer.length}/${foods.length} sin respuesta: ${noAnswer.join(', ')}`);
@@ -1768,6 +1793,8 @@ async function s10(t, browser) {
     await t.check(badMarks.length === 0, 'Los «?» decorativos salen solo en las fichas «Con cuidado» y «No estoy segura»', badMarks.slice(0, 8).join(' | '));
     await t.check(noName.length === 0, 'Cada ficha muestra su nombre (.answer-name)', noName.join(', '));
     await t.check(repeats.length === 0, '(d) En las fichas, la frase no empieza repitiendo la palabra del nivel', repeats.join(' | '));
+    await t.check(badOjo.length === 0, '«Ojo con esto» solo en «Sí» y «Con cuidado» (1–3 avisos de ≤ 70 caracteres) y «Pregunta» solo en «Con cuidado»', badOjo.slice(0, 8).join(' | '));
+    await t.check(badArt.length === 0, 'Cada ficha lleva su ilustración .answer-art[data-cat] decorativa y sin text/image/style', badArt.slice(0, 8).join(' | '));
     await t.check(noMore.length === 0, 'Cada ficha tiene «Ver más»', noMore.join(', '));
     await t.check(noSource.length === 0, 'Cada ficha cita AESAN o Ministerio de Sanidad tras «Ver más»', noSource.join(', '));
   }
@@ -1940,13 +1967,19 @@ async function auditScreen(page) {
   if (!(f.found && f.ok && f2.found && f2.ok)) problems.push('pie no visible');
   const over = await page.evaluate(() => {
     const foot = document.querySelector('footer, [role=contentinfo]'); const top = foot ? foot.getBoundingClientRect().top : innerHeight;
-    const els = [...document.querySelectorAll('main a, main button, main h1, main h2, main p, main li, main label')].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && !e.closest('[hidden]'); });
+    const els = [...document.querySelectorAll('main a, main button, main h1, main h2, main p, main li, main label')].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && !e.closest('[hidden]') && getComputedStyle(e).visibility !== 'hidden'; });
     const last = els.map((e) => e.getBoundingClientRect().bottom).reduce((a, c) => Math.max(a, c), 0);
-    const wide = [...document.querySelectorAll('main *')].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.right > innerWidth + 1 && !e.closest('.cover-art, #tone, .tone-marks'); }).map((e) => e.tagName.toLowerCase() + '.' + String(e.className).slice(0, 20));
-    return { lastBottom: Math.round(last), footTop: Math.round(top), wide: wide.slice(0, 4) };
+    // lo decorativo (ilustración, destellos, «?», cruz) puede asomar: se recorta con overflow-x: clip; no cuenta
+    const wide = [...document.querySelectorAll('main *')].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.right > innerWidth + 1 && !e.closest('.cover-art, #tone, .tone-marks, .answer-art, .answer-fx, .entry-thumb, .home-plate, svg') && !e.closest('[aria-hidden=true]') && getComputedStyle(e).visibility !== 'hidden'; }).map((e) => e.tagName.toLowerCase() + '.' + String(e.className).slice(0, 20));
+    const de = document.documentElement; const nav = document.querySelector('.tabbar, nav'); const nr = nav ? nav.getBoundingClientRect() : null;
+    const clip = { html: getComputedStyle(de).overflowX, body: getComputedStyle(document.body).overflowX, sw: de.scrollWidth, cw: de.clientWidth, iw: innerWidth, navRight: nr ? Math.round(nr.right) : null, navLeft: nr ? Math.round(nr.left) : null };
+    return { lastBottom: Math.round(last), footTop: Math.round(top), wide: wide.slice(0, 4), clip };
   });
   if (over.lastBottom > over.footTop + 1) problems.push(`contenido tapado por el pie (${over.lastBottom} > ${over.footTop})`);
   if (over.wide.length) problems.push(`desborda por la derecha: ${over.wide.join(', ')}`);
+  const c = over.clip;
+  if (c.sw > c.iw || c.cw > c.iw || (c.navRight !== null && (c.navRight > c.iw + 1 || c.navLeft < -1))) problems.push(`el layout viewport se ensancha o la barra inferior se sale: ${JSON.stringify(c)}`);
+  if (!/^(clip|hidden)$/.test(c.html) || !/^(clip|hidden)$/.test(c.body)) problems.push(`html/body sin overflow-x: clip ni hidden (${c.html}/${c.body})`);
   await page.evaluate(() => window.scrollTo(0, 0));
   return problems;
 }
@@ -2509,6 +2542,362 @@ async function s16(t, browser) {
   await t.shot('humo-' + outcome);
 }
 
+// ======================================================================
+// N9: «Ojo con esto», «Pregunta», ilustración por categoría y animación (escenarios 17 y 18)
+// ======================================================================
+const CASOS_OJO = [
+  // [texto, nivel, ¿con «Ojo con esto»?, frase, categoría]
+  ['filete de ternera', 'Sí', true, 'omitida', 'carne'],
+  ['pescado a la plancha', 'Sí', true, 'omitida', 'pescado'],
+  ['ensalada mixta', 'Sí', true, 'omitida', 'ensalada'],
+  ['hamburguesa', 'Sí', true, 'distinta', 'carne'],
+  ['café', 'Sí', true, 'distinta', 'bebida'],
+  ['tortilla', 'Con cuidado', false, 'presente', 'huevo'],
+  ['sushi', 'Mejor no', false, 'presente', 'pescado'],
+  ['xyzzy', 'No estoy segura', false, 'presente', 'generico'],
+];
+const CATEGORIAS_NOMBRE = [
+  ['queso fresco', 'queso'], ['paella de marisco', 'arroz'], ['pizza margarita', 'pasta'], ['gazpacho', 'cuenco'], ['tarta de queso', 'postre'],
+  ['jamón serrano', 'embutido'], ['lentejas', 'legumbres'], ['pan con tomate', 'pan'], ['manzana', 'fruta'], 
+  ['pollo asado', 'ave'], ['brócoli', 'verdura'], ['mojito', 'bebida'], ['tabla de quesos', 'queso'],
+];
+// Muestra de carta realista: nombre → nivel esperado con el perfil neutro (el reparto completo lo mide tests/engine.test.js)
+const MUESTRA_CARTA = [
+  ['Filete de ternera a la plancha', 'Sí'], ['Merluza a la plancha', 'Sí'], ['Ensalada mixta', 'Sí'], ['Hamburguesa con patatas', 'Sí'], ['Paella de marisco', 'Sí'],
+  ['Croquetas de jamón', 'Sí'], ['Pizza margarita', 'Sí'], ['Lentejas estofadas', 'Sí'], ['Gazpacho andaluz', 'Sí'], ['Tarta de queso', 'Sí'], ['Helado de vainilla', 'Sí'],
+  ['Café con leche', 'Sí'], ['Carrillera al vino tinto', 'Sí'], ['Empanada de atún', 'Sí'], ['Pollo asado', 'Sí'], ['Pan con tomate', 'Sí'], ['Mejillones al vapor', 'Sí'],
+  ['Macarrones con tomate', 'Sí'], ['Fruta del tiempo', 'Sí'], ['Flan de huevo', 'Sí'],
+  ['Tortilla de patata', 'Con cuidado'], ['Ensaladilla rusa', 'Con cuidado'], ['Ensalada César', 'Con cuidado'], ['Tabla de quesos', 'Con cuidado'], ['Helado casero', 'Con cuidado'],
+  ['Sushi variado', 'Mejor no'], ['Jamón serrano', 'Mejor no'], ['Tiramisú', 'Mejor no'], ['Steak tartar', 'Mejor no'], ['Mojito', 'Mejor no'], ['Entrecot poco hecho', 'Mejor no'],
+];
+
+async function answerFacts(page) {
+  return page.evaluate(() => {
+    const a = document.querySelector('article.answer'); if (!a) return null;
+    const q = (s) => a.querySelector(s);
+    const art = q('.answer-art');
+    const svgs = [...a.querySelectorAll('.answer-art svg')];
+    return {
+      level: a.dataset.level,
+      word: (q('.answer-word') || {}).textContent,
+      phrase: q('.answer-phrase') ? q('.answer-phrase').textContent.trim() : null,
+      ojo: !!q('section.ojo .ojo-title'),
+      ojoTitle: q('.ojo-title') ? q('.ojo-title').textContent.trim() : null,
+      ojoItems: [...a.querySelectorAll('ul.ojo-list li')].map((x) => x.textContent.trim()),
+      qTitle: q('.ojo-q-title') ? q('.ojo-q-title').textContent.trim() : null,
+      q: q('.ojo-q') ? q('.ojo-q').textContent.trim() : null,
+      more: a.querySelector('.more') ? a.querySelector('.more').textContent : '',
+      cat: art ? art.dataset.cat : null,
+      artHidden: art ? art.getAttribute('aria-hidden') : null,
+      fx: !!q('.answer-fx'), fxHidden: q('.answer-fx') ? !!q('.answer-fx').closest('[aria-hidden=true]') : null,
+      svgBad: svgs.reduce((n, s) => n + s.querySelectorAll('text, tspan, image, style, foreignObject, script').length, 0),
+      nSvg: svgs.length,
+    };
+  });
+}
+
+async function s17body(tv, browser, vp) {
+  const { page } = await tv.newPage(browser, { viewport: { width: vp.w, height: vp.h } });
+  await seed(page, tv);
+  await go(page, '#/buscar');
+  const box = page.locator('#buscar-q');
+  let primerSi = false, primerCuidado = false;
+  for (const [q, nivel, tieneOjo, frase, cat] of CASOS_OJO) {
+    await box.fill(q); await box.press('Enter');
+    await page.waitForSelector('article.answer', { timeout: 6000 }).catch(() => {});
+    const ts = await settledTone(page);
+    const f = await answerFacts(page);
+    if (!f) { await tv.check(false, `«${q}»: hay respuesta`); continue; }
+    await tv.check(f.word === nivel, `«${q}» → «${nivel}»`, f.word);
+    if (tieneOjo) {
+      await tv.check(f.ojo && f.ojoTitle === 'Ojo con esto' && f.ojoItems.length >= 1 && f.ojoItems.length <= 3, `«${q}»: section.ojo con «Ojo con esto» y 1–3 avisos`, JSON.stringify(f.ojoItems));
+      await tv.check(f.ojoItems.every((x) => x.length <= 70 && x.length >= 3), `«${q}»: ningún aviso pasa de 70 caracteres`, JSON.stringify(f.ojoItems.map((x) => x.length)));
+      const norm2 = (x) => norm(x).replace(/[^a-z0-9 ]/g, '').replace(/^(si|con cuidado) /, '').trim();
+      const dup = f.phrase !== null && f.ojoItems.some((x) => norm2(x) === norm2(f.phrase));
+      if (frase === 'omitida') await tv.check(!dup, `«${q}»: la frase no repite ningún aviso (se omite si coincide)`, JSON.stringify({ phrase: f.phrase, ojo: f.ojoItems }));
+      else await tv.check(f.phrase !== null && f.phrase.length > 3 && !dup, `«${q}»: frase y aviso distintos, los dos a la vista`, JSON.stringify({ phrase: f.phrase, ojo: f.ojoItems }));
+      tv.info(`«${q}»: frase`, f.phrase === null ? '(omitida)' : f.phrase);
+    } else {
+      await tv.check(!f.ojo && f.ojoItems.length === 0, `«${q}»: sin «Ojo con esto»`, JSON.stringify(f.ojoItems));
+      await tv.check(f.phrase !== null && f.phrase.length > 3, `«${q}»: lleva su frase`, String(f.phrase));
+    }
+    if (nivel === 'Con cuidado') {
+      await tv.check(f.qTitle === 'Pregunta' && /^¿.+\?$/.test(f.q || ''), `«${q}»: bloque «Pregunta» con .ojo-q (una pregunta)`, JSON.stringify([f.qTitle, f.q]));
+      await tv.check(!f.more.includes(f.q || '\u0000'), `«${q}»: la pregunta no se repite en «Ver más»`, short(f.more, 160));
+    } else await tv.check(f.qTitle === null, `«${q}»: sin bloque «Pregunta»`, String(f.qTitle));
+    await tv.check(f.cat === cat && f.artHidden === 'true' && f.svgBad === 0 && f.nSvg >= 1, `«${q}»: ilustración .answer-art[data-cat=${cat}] decorativa (SVG sin text/image/style)`, JSON.stringify({ cat: f.cat, h: f.artHidden, bad: f.svgBad }));
+    await tv.check(nivel === 'Mejor no' ? !f.fx : (f.fx && f.fxHidden), nivel === 'Mejor no' ? `«${q}»: «Mejor no» sin destellos (lleva su cruz)` : `«${q}»: destellos .answer-fx decorativos`, JSON.stringify({ fx: f.fx, hidden: f.fxHidden }));
+    await tv.check(ts.cross === (nivel === 'Mejor no' ? 1 : 0), nivel === 'Mejor no' ? `«${q}»: cruz .tcross` : `«${q}»: sin cruz`, String(ts.cross));
+    if (tieneOjo && !primerSi && nivel === 'Sí') {
+      primerSi = true;
+      const gc = await guidedContrast(page, 'section.ojo');
+      await tv.check(!!gc && gc.n >= 2 && gc.low.length === 0, '«Ojo con esto» sobre el verde con contraste ≥ 4,5:1', gc ? gc.low.join(' | ') : 'sin bloque');
+      const pr = await auditScreen(page);
+      await tv.check(pr.length === 0, '«Sí» con «Ojo con esto»: maquetación sin desborde, controles ≥ 48 px, nada tapado', pr.join(' | '));
+      await tv.shot('si-filete');
+    }
+    if (nivel === 'Con cuidado' && !primerCuidado) {
+      primerCuidado = true;
+      const gc = await guidedContrast(page, 'section.ojo');
+      await tv.check(!!gc && gc.n >= 2 && gc.low.length === 0, '«Pregunta» sobre el naranja con contraste ≥ 4,5:1', gc ? gc.low.join(' | ') : 'sin bloque');
+      const pr = await auditScreen(page);
+      await tv.check(pr.length === 0, '«Con cuidado» con «Pregunta»: maquetación sin desborde, controles ≥ 48 px, nada tapado', pr.join(' | '));
+      await tv.shot('cuidado-tortilla');
+    }
+    await snap(page, tv, 'ojo-' + slug(q));
+  }
+  // Mapeo de categorías por palabras del nombre
+  const malas = [];
+  for (const [q, cat] of CATEGORIAS_NOMBRE) {
+    await box.fill(q); await box.press('Enter');
+    await page.waitForSelector('article.answer', { timeout: 6000 }).catch(() => {});
+    const f = await answerFacts(page);
+    if (!f || f.cat !== cat) malas.push(`${q}: ${f && f.cat} (esperada ${cat})`);
+  }
+  await tv.check(malas.length === 0, `La categoría de la ilustración sale de las palabras del nombre (${CATEGORIAS_NOMBRE.length} muestras)`, malas.join(' | '));
+  // Caso aparte: el nombre de la ficha («marisco cocido») no debe ganar al marisco con la palabra «cocido» (regla de «cuenco»)
+  const cocidos = [];
+  for (const [q, cat] of [['gambas al ajillo', 'marisco'], ['gambas', 'marisco'], ['jamón cocido', 'embutido'], ['huevo cocido', 'huevo']]) {
+    await box.fill(q); await box.press('Enter');
+    await page.waitForSelector('article.answer', { timeout: 6000 }).catch(() => {});
+    const f = await answerFacts(page);
+    if (!f || f.cat !== cat) cocidos.push(`${q}: ${f && f.cat} (esperada ${cat})`);
+  }
+  await tv.check(cocidos.length === 0, 'Un plato con «cocido» en el nombre de su ficha (marisco cocido…) conserva su categoría y no pasa a «cuenco»', cocidos.join(' | '));
+
+  // Filas: miniatura y segunda línea con el primer aviso
+  for (const q of ['filete de ternera', 'tortilla', 'sushi', 'xyzzy', 'gazpacho', 'café']) {
+    await box.fill(q); await box.press('Enter');
+    await page.waitForSelector('article.answer', { timeout: 6000 }).catch(() => {});
+    await tap(page, 'Añadir a la lista', { loose: false });
+  }
+  await go(page, '#/lista');
+  await page.waitForTimeout(600);
+  const rows = await page.evaluate(() => [...document.querySelectorAll('li.entry--shop')].map((li) => ({
+    name: li.querySelector('.entry-name').innerText.trim(), level: li.dataset.level,
+    thumb: li.querySelector('.entry-thumb') ? { cat: li.querySelector('.entry-thumb').dataset.cat, hidden: li.querySelector('.entry-thumb').getAttribute('aria-hidden'), bad: li.querySelectorAll('.entry-thumb svg text, .entry-thumb svg image, .entry-thumb svg style').length } : null,
+    hasThumb: li.classList.contains('has-thumb'),
+    ojo: li.querySelector('.entry-ojo-text') ? li.querySelector('.entry-ojo-text').textContent.trim() : null,
+    phrase: li.querySelector('.entry-phrase') ? li.querySelector('.entry-phrase').textContent.trim() : null,
+    more: li.querySelector('.more') ? li.querySelector('.more').textContent : '',
+    ojoH: li.querySelector('.entry-ojo') ? Math.round(li.querySelector('.entry-ojo').getBoundingClientRect().height) : 0,
+  })));
+  await tv.check(rows.length === 6 && rows.every((x) => x.thumb && x.hasThumb && x.thumb.hidden === 'true' && x.thumb.bad === 0), 'Lista: cada fila lleva .entry-thumb[data-cat] decorativo (li.entry.has-thumb)', JSON.stringify(rows.map((x) => [x.name, x.thumb && x.thumb.cat])));
+  const fil = rows.find((x) => /Filete/.test(x.name)); const cafe = rows.find((x) => /Caf/.test(x.name)); const tor = rows.find((x) => /Tortilla/.test(x.name)); const sus = rows.find((x) => /Sushi/.test(x.name)); const xyz = rows.find((x) => /Xyzzy/.test(x.name)); const gaz = rows.find((x) => /Gazpacho/.test(x.name));
+  await tv.check(!!fil && fil.ojo === null && !!fil.phrase, 'Fila «Sí» cuyo aviso repite la frase (filete): solo la frase, sin segunda línea duplicada', JSON.stringify([fil && fil.ojo, fil && fil.phrase]));
+  await tv.check(!!cafe && !!cafe.ojo && cafe.ojo.length <= 70 && !!cafe.phrase && norm(cafe.phrase) !== norm(cafe.ojo), 'Fila «Sí» con aviso distinto (café): frase y segunda línea .entry-ojo con el aviso', JSON.stringify([cafe && cafe.ojo, cafe && cafe.phrase]));
+  await tv.check(!!gaz && gaz.level === 'si' && !!gaz.ojo && gaz.ojo.length <= 70 && norm(gaz.ojo) !== norm(gaz.phrase || ''), 'Fila «Sí» con 2 avisos (gazpacho): .entry-ojo con uno que no repite la frase', JSON.stringify([gaz && gaz.ojo, gaz && gaz.phrase]));
+  await tv.check(!!sus && sus.ojo === null && !!xyz && xyz.ojo === null && !!tor, 'Filas «Mejor no» y «No estoy segura»: sin .entry-ojo', JSON.stringify([sus && sus.ojo, xyz && xyz.ojo]));
+  await tv.check(rows.every((x) => x.ojo === null || x.ojoH <= 30), 'La línea de aviso de una fila ocupa una sola línea', JSON.stringify(rows.map((x) => x.ojoH)));
+  await snap(page, tv, 'lista-ojo');
+  const prl = await auditScreen(page);
+  await tv.check(prl.length === 0, 'Lista con miniaturas y avisos: sin desborde, controles ≥ 48 px, nada tapado', prl.join(' | '));
+  await tv.shot('lista-con-ojo');
+
+  // Muestra de carta realista (resultado guardado) y su reparto
+  await page.evaluate((names) => {
+    const items = names.map((n) => ({ name: n, ingredients: [], uncertain: false }));
+    localStorage.setItem('pc.v1.result', JSON.stringify({ title: 'La carta', via: 'foto', items: [], notice: null, payload: { kind: 'carta', items } }));
+  }, MUESTRA_CARTA.map((x) => x[0]));
+  await go(page, '#/resultado');
+  await page.waitForTimeout(1200);
+  const res = await pills(page);
+  const malos = MUESTRA_CARTA.filter(([n, lv]) => { const r = res.find((x) => x.name === n); return !r || r.label !== lv; }).map(([n, lv]) => `${n}: ${(res.find((x) => x.name === n) || {}).label} (esperado ${lv})`);
+  await tv.check(res.length === MUESTRA_CARTA.length && malos.length === 0, `Muestra de carta realista (${MUESTRA_CARTA.length} platos): cada plato con su nivel recalibrado`, malos.join(' | '));
+  const cnt = (lv) => res.filter((x) => x.label === lv).length;
+  const riesgo = MUESTRA_CARTA.filter((x) => x[1] === 'Mejor no').length;
+  const sinRiesgo = res.length - riesgo;
+  tv.info('Reparto de la muestra', `Sí ${cnt('Sí')} · Con cuidado ${cnt('Con cuidado')} · Mejor no ${cnt('Mejor no')} · No estoy segura ${cnt('No estoy segura')}`);
+  await tv.check(cnt('Sí') / sinRiesgo >= 0.8 && cnt('Con cuidado') / res.length <= 0.2 && cnt('No estoy segura') === 0, 'Sin contar el riesgo real, la carta sale ≥ 80 % en «Sí» y sin «No estoy segura»', `${cnt('Sí')}/${sinRiesgo}`);
+  const crow = await page.evaluate(() => [...document.querySelectorAll('ul.entries > li.entry')].map((li) => ({ name: li.querySelector('.entry-name').innerText.trim(), level: li.dataset.level, thumb: !!li.querySelector('.entry-thumb[data-cat]'), ojo: li.querySelector('.entry-ojo-text') ? li.querySelector('.entry-ojo-text').textContent.trim() : null, phrase: (li.querySelector('.entry-phrase') || {}).textContent || null })));
+  const emp = await page.evaluate(() => { const li = [...document.querySelectorAll('ul.entries > li.entry')].find((x) => /Empanada/.test(x.querySelector('.entry-name').innerText)); if (!li) return null; const b = li.querySelector('.more-btn'); if (b) b.click(); return { first: (li.querySelector('.entry-ojo-text') || {}).textContent || null, more: (li.querySelector('.more') || {}).textContent || '' }; });
+  await tv.check(!!emp && !!emp.first && /Ojo con esto/.test(emp.more), 'Fila con varios avisos (empanada de atún): el primero en la fila y el resto en «Ver más» bajo «Ojo con esto»', JSON.stringify(emp && [emp.first, short(emp.more, 160)]));
+  await tv.check(crow.every((x) => x.thumb), 'Carta: cada fila lleva su miniatura .entry-thumb[data-cat]', crow.filter((x) => !x.thumb).map((x) => x.name).join(', '));
+  await tv.check(crow.every((x) => x.ojo === null || (x.level !== 'no' && x.level !== 'duda' && x.ojo.length <= 70)), 'Carta: solo las filas «Sí» y «Con cuidado» llevan aviso (≤ 70 caracteres)', JSON.stringify(crow.filter((x) => x.ojo).map((x) => [x.level, x.ojo.length])));
+  await snap(page, tv, 'carta-muestra');
+  const prc = await auditScreen(page);
+  await tv.check(prc.length === 0, 'Carta con miniaturas y avisos: sin desborde, controles ≥ 48 px, nada tapado', prc.join(' | '));
+  await tv.shot('carta-muestra');
+  // Historial
+  await go(page, '#/historial');
+  const hrows = await page.evaluate(() => [...document.querySelectorAll('ul.entries > li.entry')].map((li) => !!li.querySelector('.entry-thumb[data-cat]')));
+  await tv.check(hrows.length >= 3 && hrows.every(Boolean), 'Historial: filas con miniatura', JSON.stringify(hrows));
+
+  // Los avisos de toda la guía: 0–3, ≤ 70 caracteres, sin «evitar» ni «seguro»
+  const foods = await page.evaluate(async () => { const m = await import(new URL('src/engine/foods.js', location.href).href); return m.FOODS.map((f) => ({ id: f.id, ojo: f.ojo || [] })); });
+  const malosOjo = foods.filter((f) => f.ojo.length > 3 || f.ojo.some((x) => x.length > 70 || /\bevitar\b|\bsegur[oa]s?\b/i.test(x))).map((f) => f.id);
+  await tv.check(foods.length === 145 && malosOjo.length === 0, 'Guía: ningún `ojo` pasa de 3 avisos ni de 70 caracteres ni dice «evitar»/«seguro»', malosOjo.join(', ') + ` · ${foods.filter((f) => f.ojo.length).length} fichas con aviso`);
+}
+
+async function s17(t, browser) {
+  for (const vp of VIEWPORTS) await s17body(tagged(t, `${vp.w}×${vp.h}`), browser, vp);
+}
+
+// ---------- 18. Animación e ilustración ----------
+const LENTAS = /chispa|vapor|flota|float|destello|brillo|gota|steam|glint|tm-float/i;
+const anims = (page, only = 'running') => page.evaluate((only) => document.getAnimations().filter((a) => only === 'all' || a.playState === 'running' || a.playState === 'pending').map((a) => ({ name: a.animationName || ('transition:' + a.transitionProperty), infinite: !!(a.effect && a.effect.getComputedTiming().iterations === Infinity), state: a.playState })), only);
+
+async function s18body(tv, browser, vp) {
+  // --- sin reducción de movimiento ---
+  const { page } = await tv.newPage(browser, { viewport: { width: vp.w, height: vp.h } });
+  await seed(page, tv);
+  await go(page, '#/');
+  await page.waitForTimeout(500);
+  const hp = await page.evaluate(() => { const p = document.querySelector('.home-plate'); if (!p) return null; return { hidden: p.getAttribute('aria-hidden'), bad: p.querySelectorAll('text, tspan, image, style').length, n: p.querySelectorAll('svg').length }; });
+  await tv.check(!!hp && hp.hidden === 'true' && hp.bad === 0 && hp.n >= 1, 'Inicio: .home-plate decorativo (cuenco con vapor, sin text/image/style)', JSON.stringify(hp));
+
+  // Dirección de la entrada: adelante, atrás, ninguna al abrir
+  const dir = () => page.evaluate(() => (document.querySelector('main') || {}).dataset ? document.querySelector('main').dataset.dir || null : null);
+  const viewport = () => page.evaluate(() => { const de = document.documentElement; const n = document.querySelector('.tabbar, nav'); const r = n ? n.getBoundingClientRect() : null; return { sw: de.scrollWidth, cw: de.clientWidth, iw: innerWidth, vv: window.visualViewport ? Math.round(window.visualViewport.width) : null, navL: r ? Math.round(r.left) : null, navR: r ? Math.round(r.right) : null }; });
+  const okVp = (v) => v.sw <= v.iw && v.cw <= v.iw && (v.vv === null || v.vv <= v.iw) && v.navL >= -1 && v.navR <= v.iw + 1;
+  const bad = [];
+  const sample = async (what) => { for (const ms of [30, 120, 250, 600]) { await page.waitForTimeout(ms === 30 ? 30 : ms - [0, 30, 120, 250][[30, 120, 250, 600].indexOf(ms)]); const v = await viewport(); if (!okVp(v)) bad.push(`${what} @${ms}ms ${JSON.stringify(v)}`); } };
+  await page.evaluate(() => { location.hash = '#/ficha/agua'; });
+  await page.waitForTimeout(40);
+  const d1 = await dir();
+  await sample('adelante a la ficha');
+  await page.evaluate(() => history.back());
+  await page.waitForTimeout(40);
+  const d2 = await dir();
+  await sample('atrás a Inicio');
+  await page.evaluate(() => history.forward());
+  await page.waitForTimeout(40);
+  const d3 = await dir();
+  await sample('adelante otra vez');
+  await tv.check(d1 === 'fwd' && d2 === 'back' && d3 === 'fwd', 'main[data-dir]: «fwd» al avanzar, «back» al volver', JSON.stringify([d1, d2, d3]));
+  await tv.check(bad.length === 0, 'Navegar adelante y atrás no ensancha el layout viewport ni deja la barra inferior fuera (scrollWidth ≤ innerWidth durante la animación)', bad.join(' | '));
+  const d0 = await (async () => { const { page: p0 } = await tv.newPage(browser, { viewport: { width: vp.w, height: vp.h } }); await seed(p0, tv); const x = await p0.evaluate(() => document.querySelector('main').dataset.dir || null); await p0.close(); return x; })();
+  await tv.check(d0 === 'none', 'Al abrir la app, main[data-dir=none] (sin entrada direccional)', String(d0));
+
+  // Marca de la pestaña: se desliza entre destinos
+  const tabs = {};
+  for (const [name, hash, i] of [['Inicio', '#/', 0], ['Fuera', '#/fuera', 1], ['Súper', '#/super', 2], ['Lista', '#/lista', 3]]) {
+    await go(page, hash); await page.waitForTimeout(700);
+    tabs[name] = await page.evaluate(() => { const l = document.querySelector('.tabbar-list'); const a = getComputedStyle(l, '::after'); const m = a.transform && a.transform !== 'none' ? new DOMMatrix(a.transform).m41 : 0; return { i: getComputedStyle(l).getPropertyValue('--tab-i').trim(), tx: Math.round(m), op: a.opacity, has: !!document.querySelector('.tabbar.has-tab'), content: a.content }; });
+  }
+  await tv.check(['Inicio', 'Fuera', 'Súper', 'Lista'].every((n, i) => tabs[n].i === String(i) && tabs[n].has && tabs[n].op === '1'), 'Marca de pestaña (.tabbar-list::after): --tab-i 0,1,2,3 y visible en cada destino', JSON.stringify(tabs));
+  await tv.check(tabs['Inicio'].tx === 0 && tabs['Fuera'].tx > 0 && tabs['Súper'].tx > tabs['Fuera'].tx && tabs['Lista'].tx > tabs['Súper'].tx, 'La marca se desliza: su desplazamiento crece de Inicio a Lista', JSON.stringify(Object.entries(tabs).map(([k, v]) => [k, v.tx])));
+  await go(page, '#/ficha/agua'); await page.waitForTimeout(700);
+  const noTab = await page.evaluate(() => ({ has: !!document.querySelector('.tabbar.has-tab'), op: getComputedStyle(document.querySelector('.tabbar-list'), '::after').opacity }));
+  await tv.check(!noTab.has && noTab.op === '0', 'En una pantalla sin pestaña la marca desaparece', JSON.stringify(noTab));
+
+  // Ripple: se crea al pulsar y se retira
+  await go(page, '#/');
+  await page.waitForTimeout(600);
+  const rip = await page.evaluate(async () => {
+    const el = document.querySelector('a.tile'); const r = el.getBoundingClientRect();
+    el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: r.left + 40, clientY: r.top + 40, button: 0, pointerType: 'touch' }));
+    const during = el.querySelectorAll('.ripple').length; const hid = el.querySelector('.ripple') ? el.querySelector('.ripple').getAttribute('aria-hidden') : null;
+    await new Promise((res) => setTimeout(res, 1200));
+    return { during, hid, after: el.querySelectorAll('.ripple').length };
+  });
+  await tv.check(rip.during === 1 && rip.hid === 'true' && rip.after === 0, 'Ripple de los botones: se crea (aria-hidden) al pulsar y se retira solo', JSON.stringify(rip));
+
+  // Lista de la compra: check que se dibuja
+  await go(page, '#/ficha/agua'); await tap(page, 'Añadir a la lista', { loose: false });
+  await go(page, '#/lista'); await page.waitForTimeout(500);
+  const tick = await page.evaluate(() => { const w = document.querySelector('.buy-wrap'); const t = w && w.querySelector('.buy-tick'); return t ? { hidden: t.getAttribute('aria-hidden'), path: t.querySelectorAll('path, polyline').length, bad: t.querySelectorAll('text, image, style').length } : null; });
+  await tv.check(!!tick && tick.hidden === 'true' && tick.path >= 1 && tick.bad === 0, 'Casilla de compra: .buy-tick decorativo con el trazo del check', JSON.stringify(tick));
+  await page.locator('input.buy-box').first().click();
+  await page.waitForTimeout(150);
+  const arr = await page.evaluate(() => ({ arriving: document.querySelectorAll('li.entry.is-arriving').length, checked: document.querySelectorAll('input.buy-box:checked').length }));
+  await tv.check(arr.checked === 1, 'Marcar comprado: la casilla queda marcada (y la fila llega con .is-arriving)', JSON.stringify(arr));
+  await page.waitForTimeout(1200);
+  const arr2 = await page.evaluate(() => document.querySelectorAll('li.entry.is-arriving').length);
+  tv.info('Filas .is-arriving a los 1,3 s', String(arr2));
+
+  // Claves: acordeón sin `hidden`
+  await go(page, '#/claves'); await page.waitForTimeout(500);
+  const acc0 = await page.evaluate(() => [...document.querySelectorAll('li.clave')].map((l) => { const p = l.querySelector('.clave-panel'); const cs = getComputedStyle(p); return { hiddenAttr: p.hasAttribute('hidden'), vis: cs.visibility, h: Math.round(p.getBoundingClientRect().height), inner: !!l.querySelector('.clave-panel-in'), exp: l.querySelector('.clave-head').getAttribute('aria-expanded') }; }));
+  await tv.check(acc0.length === 8 && acc0.every((x) => !x.hiddenAttr && x.inner && x.exp === 'false' && (x.vis === 'hidden' || x.h === 0)), 'Claves cerradas: sin `hidden`, con .clave-panel-in, aria-expanded=false y contenido invisible (visibility:hidden o altura 0)', JSON.stringify(acc0[0]));
+  await page.locator('li.clave .clave-head').nth(1).click();
+  await page.waitForTimeout(900);
+  const acc1 = await page.evaluate(() => { const l = document.querySelectorAll('li.clave')[1]; const p = l.querySelector('.clave-panel'); const cs = getComputedStyle(p); return { hiddenAttr: p.hasAttribute('hidden'), vis: cs.visibility, h: Math.round(p.getBoundingClientRect().height), exp: l.querySelector('.clave-head').getAttribute('aria-expanded'), others: [...document.querySelectorAll('li.clave')].filter((x, i) => i !== 1 && getComputedStyle(x.querySelector('.clave-panel')).visibility !== 'hidden' && x.querySelector('.clave-panel').getBoundingClientRect().height > 0).length }; });
+  await tv.check(acc1.exp === 'true' && acc1.vis === 'visible' && acc1.h > 40 && !acc1.hiddenAttr && acc1.others === 0, 'Clave abierta: aria-expanded=true y el contenido se ve; las demás siguen invisibles', JSON.stringify(acc1));
+  const prc = await auditScreen(page);
+  await tv.check(prc.length === 0, 'Claves (acordeón): sin desborde, controles ≥ 48 px, nada tapado por el pie', prc.join(' | '));
+
+  // Respuesta «Sí»: hay animaciones al entrar y, pasados ~2 s, solo quedan bucles lentos permitidos
+  await go(page, '#/buscar?q=' + encodeURIComponent('filete de ternera'));
+  await page.waitForTimeout(250);
+  const enter = await anims(page);
+  await tv.check(enter.length > 0, '«Sí» (filete): hay animaciones al entrar (barrido, chispas, pop de la ilustración)', JSON.stringify(enter.slice(0, 6)));
+  await page.waitForTimeout(2600);
+  const later = await anims(page);
+  const raras = later.filter((a) => !a.infinite || !LENTAS.test(a.name));
+  tv.info('«Sí» a los ~2,8 s: animaciones en marcha', JSON.stringify(later.map((a) => a.name)));
+  await tv.check(raras.length === 0, 'A los ~2 s solo quedan los bucles lentos permitidos (chispas, vapor, «?»); nada más corre', JSON.stringify(raras));
+
+  // Carga con .skel
+  const ctx2 = page.context();
+  await ctx2.route('**/world.openfoodfacts.org/api/v2/product/*', async (route) => { await sleep(2500); route.fulfill({ status: 404, contentType: 'application/json', body: '{"status":0}' }).catch(() => {}); });
+  await ctx2.route('**/api/producto', (route) => route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"sin_vision"}' }));
+  await go(page, '#/super');
+  await codeSubmit(page, '8412345600001');
+  await page.waitForSelector('.status', { timeout: 4000 }).catch(() => {});
+  const sk = await page.evaluate(() => ({ n: document.querySelectorAll('.status-body .skel').length, hidden: [...document.querySelectorAll('.status-body .skel')].every((x) => x.getAttribute('aria-hidden') === 'true'), text: (document.querySelector('.status-body .status-text') || {}).textContent || '', empty: [...document.querySelectorAll('.status-body .skel')].every((x) => x.textContent.trim() === '') }));
+  await tv.check(sk.n >= 2 && sk.hidden && sk.empty && /Buscando/.test(sk.text), 'Carga: dos barras .skel (aria-hidden, sin texto) junto al texto en .status-text', JSON.stringify(sk));
+  await tv.shot('carga-skel');
+
+  // --- con reducción de movimiento ---
+  const { page: rp } = await tv.newPage(browser, { viewport: { width: vp.w, height: vp.h }, reducedMotion: 'reduce' });
+  await seed(rp, tv);
+  for (const [q, lv, key] of [['filete de ternera', 'Sí', 'si'], ['tortilla', 'Con cuidado', 'cuidado'], ['sushi', 'Mejor no', 'no'], ['xyzzy', 'No estoy segura', 'duda']]) {
+    await go(rp, '#/buscar?q=' + encodeURIComponent(q));
+    await rp.waitForTimeout(1600);
+    const all = await anims(rp, 'all');
+    const vis = await rp.evaluate(() => { const op = (s) => { const e = document.querySelector(s); return e ? Number(getComputedStyle(e).opacity) : null; }; const c = document.querySelector('#tone .tcross'); return { word: op('.answer-word'), art: op('.answer-art'), name: op('.answer-name'), phrase: op('.answer-phrase'), tm: [...document.querySelectorAll('#tone .tm')].map((x) => Number(getComputedStyle(x).opacity)), cross: c ? Number(getComputedStyle(c).opacity) : null }; });
+    await tv.check(all.length === 0, `Reduced-motion «${lv}» (${q}): document.getAnimations().length === 0 a los 1,6 s`, JSON.stringify(all.slice(0, 6)));
+    await tv.check(vis.word === 1 && vis.art === 1 && vis.name === 1 && (vis.phrase === null || vis.phrase === 1), `Reduced-motion «${lv}»: palabra, ilustración, nombre y frase visibles (opacidad 1)`, JSON.stringify(vis));
+    if (key === 'no') await tv.check(vis.cross !== null && vis.cross > 0.05, 'Reduced-motion «Mejor no»: la cruz ya está dibujada y se ve', JSON.stringify(vis.cross));
+    if (key === 'cuidado' || key === 'duda') await tv.check(vis.tm.length >= 1 && vis.tm.every((o) => o > 0.05), `Reduced-motion «${lv}»: los «?» quietos y visibles`, JSON.stringify(vis.tm));
+    const ts = await toneState(rp);
+    await tv.check(ts.verdict === key && ts.bg === TONE_BG[key], `Reduced-motion «${lv}»: fondo ya en su color`, JSON.stringify({ v: ts.verdict, bg: ts.bg }));
+  }
+  const rip2 = await rp.evaluate(async () => { await new Promise((r) => setTimeout(r, 50)); const el = document.querySelector('.btn'); if (!el) return null; const r = el.getBoundingClientRect(); el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: r.left + 10, clientY: r.top + 10, button: 0 })); return document.querySelectorAll('.ripple').length; });
+  await tv.check(rip2 === 0, 'Reduced-motion: no se crea ningún ripple', String(rip2));
+  await go(rp, '#/'); await go(rp, '#/ficha/agua');
+  const dirR = await rp.evaluate(() => document.querySelector('main').dataset.dir || null);
+  await rp.waitForTimeout(400);
+  const aR = await anims(rp, 'all');
+  await tv.check(aR.length === 0, 'Reduced-motion: tras navegar no queda ninguna animación (ni entrada direccional)', JSON.stringify({ dir: dirR, a: aR.slice(0, 5) }));
+}
+
+async function s18svg(tv, browser) {
+  // Los SVG de src/ui/art/*: ni <text>, <image>, <style>, <script> ni <foreignObject>; decorativos con aria-hidden
+  const { page } = await tv.newPage(browser);
+  await seed(page, tv);
+  const r = await page.evaluate(async () => {
+    const base = (f) => new URL('src/ui/art/' + f, location.href).href;
+    const out = [];
+    const check = (name, markup, expectHidden) => {
+      const doc = new DOMParser().parseFromString(markup, 'image/svg+xml');
+      const svg = doc.documentElement;
+      const err = doc.querySelector('parsererror');
+      out.push({ name, xml: !err, bad: svg.querySelectorAll('text, tspan, image, style, script, foreignObject, use').length, hidden: svg.getAttribute('aria-hidden') === 'true', size: markup.length, expectHidden });
+    };
+    const mesa = await import(base('mesa.js'));
+    check('mesa', mesa.mesaSvg({ animada: false, decorativa: true, encuadre: 'xMidYMax' }), true);
+    const platos = await import(base('platos.js'));
+    for (const t of ['tortilla', 'ensalada', 'fruta', 'cuenco']) check('plato-' + t, platos.platoSvg(t, { decorativa: true }), true);
+    check('cargando', platos.cargandoSvg({ decorativa: true, animada: false }), true);
+    const cat = await import(base('categorias.js'));
+    for (const id of cat.CATEGORIAS) { check('cat-' + id, cat.categoriaSvg(id, { decorativa: true, animada: true }), true); check('cat-q-' + id, cat.categoriaSvg(id, { decorativa: true, animada: false }), true); }
+    const dz = await import(base('destellos.js'));
+    for (const t of ['si', 'cuidado', 'duda', 'no', 'si-check']) check('destello-' + t, dz.destellosSvg(t, { decorativa: true, animada: true }), true);
+    return out;
+  });
+  const malos = r.filter((x) => !x.xml || x.bad || (x.expectHidden && !x.hidden));
+  await tv.check(r.length >= 40 && malos.length === 0, `Los ${r.length} SVG de src/ui/art/* (mesa, platos, 18 categorías, destellos) son XML válido, decorativos (aria-hidden) y sin <text>, <image>, <style>, <script> ni <foreignObject>`, malos.map((x) => `${x.name}: xml=${x.xml} bad=${x.bad} hidden=${x.hidden}`).join(' | '));
+  const gordos = r.filter((x) => x.size > 80000);
+  await tv.check(gordos.length === 0, 'Ningún SVG pasa de 80 KB', gordos.map((x) => `${x.name} ${x.size}`).join(', '));
+}
+
+async function s18(t, browser) {
+  await s18svg(tagged(t, 'svg'), browser);
+  for (const vp of VIEWPORTS) await s18body(tagged(t, `${vp.w}×${vp.h}`), browser, vp);
+}
+
 function s11(t, list) {
   const problems = []; const third = []; const expected = [];
   for (const s of list) {
@@ -2627,6 +3016,8 @@ const SCENARIOS = [
   [14, 'Claves del embarazo', s14],
   [15, 'Lista de la compra', s15],
   [16, 'Prueba de humo de /api/producto (una llamada real)', s16],
+  [17, '«Ojo con esto», «Pregunta», categorías y carta realista', s17],
+  [18, 'Animación e ilustración (con y sin reduced-motion)', s18],
 ];
 
 async function main() {
