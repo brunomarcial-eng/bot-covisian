@@ -2556,7 +2556,7 @@ const CASOS_OJO = [
   ['hamburguesa', 'Sí', true, 'distinta', 'carne'],
   ['café', 'Sí', true, 'distinta', 'bebida'],
   ['tortilla', 'Con cuidado', false, 'presente', 'huevo'],
-  ['sushi', 'Mejor no', false, 'presente', 'pescado'],
+  ['sushi', 'Mejor no', false, 'presente', 'generico'],
   ['xyzzy', 'No estoy segura', false, 'presente', 'generico'],
 ];
 const CATEGORIAS_NOMBRE = [
