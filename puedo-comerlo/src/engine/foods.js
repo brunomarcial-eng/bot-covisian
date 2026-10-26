@@ -1564,7 +1564,7 @@ export const FOODS = [
     name: 'Caldo gallego',
     aliases: [
       'caldo gallego', 'caldo galego', 'caldo de grelos', 'sopa de ajo', 'sopa castellana', 'sopa de cocido',
-      'sopa de verduras', 'sopa de fideos', 'sopa de pollo',
+      'sopa de pollo',
     ],
     groups: ['restaurante'],
     level: 'si',

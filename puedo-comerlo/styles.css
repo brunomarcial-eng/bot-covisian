@@ -74,6 +74,8 @@ html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
   /* Sin fondo propio: el del body se propaga al lienzo entero, también al rebotar el scroll. */
+  /* La entrada direccional de cada pantalla (translateX) no debe ensanchar la página en el móvil. */
+  overflow-x: clip;
 }
 
 body {
@@ -88,6 +90,7 @@ body {
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
   overflow-x: hidden;
+  overflow-x: clip;
   transition: background-color 0.3s ease;
 }
 
