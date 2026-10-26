@@ -120,6 +120,7 @@ export function render({ main, profile, setTab }) {
       verdictAnswer(v, {
         level: 1,
         title: result.title,
+        product: p,
         eyebrow: bits.length ? bits.join(' · ') : null,
         afterPhrase: guided.some(Boolean) ? h('div', { class: 'guided' }, guided) : null,
         actions: addToListButton(entryFor(v, 0), { small: true, variant: 'secondary', inline: true }),

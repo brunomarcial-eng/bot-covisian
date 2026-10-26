@@ -163,6 +163,36 @@ Petición de la clienta: «Dale más animación a la aplicación: un movimiento,
 
 **Uso recomendado.** Categoría: de 96 a 140 px (a 96 todavía se distingue qué es) y hasta 160 px en pantallas de respuesta; a un lado de la palabra o bajo el nombre, sin taparla. Funciona sobre crema y sobre los cuatro colores del veredicto (la sombra dura de tinta se pierde en el vino, pero el plato blanco o la tabla de madera dan el contraste). Destellos: capa decorativa de 160 a 240 px, `position:absolute` detrás o al lado de la palabra, nunca sobre el texto; `si-check` y `no` se pueden usar solos de 56 a 96 px. Los destellos son solo para fondos de color: sobre crema, el crema y el dorado no se ven.
 
+### N9 · Más vida y «Ojo con esto» (Michi, UX/UI)
+
+Petición de la clienta: «un poquito más de animación… un destello, un brillo, una imagen de algo; no puede ser solamente texto», y «demasiado restrictivo: comida segura (un filete de ternera) en VERDE y debajo “ojo con esto, pregunta lo otro”». El motor (Beto) ya trae `verdict.ojo` (0–3 avisos); la ilustradora, `categorias.js`, `destellos.js` y `art-css.js`.
+
+**«Ojo con esto» y «Pregunta»** (`ojoBlock` en `components.js`): en las pantallas de una respuesta, justo bajo la frase, con icono de ojo en trazo fino y las líneas de `verdict.ojo`; si el Verdict no trae `ojo` (array), el bloque no sale. En «Con cuidado», la pregunta (`verdict.question`) va en ese mismo bloque bajo una pastilla «Pregunta» (y deja de repetirse en «Ver más»). En las filas de listas (carta, lista, historial, «Lo último»): una segunda línea discreta con el primer aviso (una línea, elipsis) y el resto de avisos en «Ver más» bajo «Ojo con esto».
+
+**Qué se anima** (solo `transform`, `opacity` y `clip-path`, salvo el trazo del check, que anima `stroke-dashoffset`; lo infinito es mínimo y solo en adornos pequeños):
+- «Sí»: un barrido de luz cruza la palabra una vez (0,8 s tras llegar) y las chispas doradas de `destellosSvg('si')` hacen twinkle junto a la ilustración.
+- «Mejor no»: la palabra cae y se asienta (`settle`, 0,55 s) y una cruz fina oscura se dibuja en la esquina inferior derecha (`.tcross`, en la capa de `tone.js`; no uso la cruz de `destellosSvg('no')` porque quedaba tras las letras).
+- «Con cuidado» y «No estoy segura»: los «?» de siempre con un leve flotar (propiedad `translate`, 5–7 s, sin tocar `transform`), los destellos de la ilustradora a su lado, y en «Con cuidado» un pulso suave (3 veces, no para siempre) de la pastilla «Pregunta».
+- Transición entre pantallas: entrada direccional de 14 px (desde la derecha al avanzar, desde la izquierda al volver; `main[data-dir=fwd|back|none]`, pila de pantallas en `app.js`).
+- Botones y accesos de Inicio: escala 0,98 al pulsar y un ripple tenue desde el punto de contacto (`feedback.js`).
+- Lista de la compra: el check se dibuja (`.buy-tick`), y la fila que pasa a «En el carro» (o vuelve) llega deslizándose (`.is-arriving`); la miniatura de lo comprado se atenúa.
+- Claves: el acordeón abre y cierra en altura (rejilla `0fr → 1fr`), sin `hidden` ni `display`; cerrado, el contenido no se ve ni se enfoca (`visibility`).
+- Navegación inferior: la marca de la pestaña activa es un solo trazo que se desliza entre destinos (`--tab-i`, clase `.has-tab`); desaparece en pantallas sin pestaña.
+- Carga: dos barras con «shimmer» junto al plato que gira.
+- Inicio: un cuenco pequeño con vapor (tres trazos) junto al título, y título, texto, accesos y buscador entran escalonados.
+- Portada: un destello muy sutil cruza «Seguir» (4 veces, cada 6,5 s).
+- **`prefers-reduced-motion`**: todo instantáneo y quieto (sin barrido, sin asentado, cruz ya dibujada, «?» y destellos quietos y visibles, sin ripple, sin entrada direccional, sin deslizamiento de la marca ni del acordeón). Comprobado en computed style.
+
+**Ilustración por categoría** (`categoryFor` en `src/ui/art-ui.js`): en las respuestas de una sola respuesta, la ilustración flota a la derecha del nombre (6,75 rem, entrada con «pop» tras la iluminación, retrasada 0,5 s) con los destellos del veredicto detrás; en las filas de listas, una miniatura quieta de 3,5 rem (sustituye al «?» pequeño de esas filas). Mapeo, por este orden: palabras del nombre (título escrito o leído, nombre de la ficha) → categorías de Open Food Facts del producto → grupo de la guía → `generico`. Reglas por palabras, de lo más específico a lo menos: pasta (pizza, lasaña, ñoquis, empanada…), arroz (paella, risotto), cuenco (sopa, gazpacho, cocido), legumbres, ensalada (ensaladilla, germinados), pan (bocadillo, tostada, croquetas), huevo (tortilla, mayonesa), postre (tarta, helado, galletas), embutido, marisco, pescado, ave, carne, bebida, queso (lácteos y leche), verdura, fruta. Así «Pizza de jamón york» es pasta (no embutido) y «Café con leche» es bebida (no queso). «La carta» y lo no reconocido usan el plato genérico.
+
+**Notas técnicas que importan**
+- **Bug real evitado**: una animación `translateX` en toda la pantalla ensanchaba el *layout viewport* de móvil (405 px en vez de 390) y dejaba la barra inferior fuera de pantalla; el `overflow-x: hidden` del body no lo impedía. Solución: `overflow-x: clip` en `html` y en `body` (con `hidden` como respaldo en el body).
+- `ART_CSS` (la animación de la ilustradora) está **copiado** en `styles.css` (sección «Ilustración · categorías») porque el servidor solo sirve `.js` bajo `src/`; si ella lo cambia, hay que volver a pegarlo. Los SVG llevan `animada: true` en las respuestas (las miniaturas, `false`).
+- Sin CSP hoy; si se añade, el CSS no está inline en los SVG, así que no hace falta `unsafe-inline` por ellos.
+- `.tabbar-list::after` sustituye a `.tab[aria-current]::before` (la marca antigua).
+
+**Para las pruebas.** Textos: «Ojo con esto», «Pregunta». Selectores nuevos: `section.ojo` (`.ojo-title`, `ul.ojo-list li`, `.ojo-q-title`, `.ojo-q`), `.entry-ojo`, `.answer-main`, `.answer-art[data-cat]` (con `.answer-fx`), `.entry-thumb[data-cat]` y `li.entry.has-thumb`, `main[data-dir]`, `.buy-wrap`, `.buy-tick`, `.entry.is-arriving`, `.clave-panel-in`, `.status-body .skel`, `.home-plate`, `.tcross`. Cambios de estructura: el nombre y la frase de una respuesta van dentro de `.answer-main` (siguen siendo `.answer-name` y `.answer-phrase`); el panel de una clave ya no usa `hidden` (se comprueba `aria-expanded` o la visibilidad del contenido); los «?» pequeños de las filas «Con cuidado»/«No estoy segura» se sustituyen por la miniatura.
+
 ## Publicación
 
 ### N3 · Publicar en Vercel y proteger /api/leer (Beto-infra)

@@ -71,23 +71,23 @@ export function loadingStatus(firstText) {
 // Facts y, si no, por el grupo de la guía. Nunca decide el semáforo.
 
 const RULES = [
+  ['pasta', /pasta|macarron|espagueti|lasana|canelon|noqui|pizza|ravioli|fideo|tallarin|carbonara|bolonesa|gyoza|pad thai|cuscus|empanada|burrito|taco\b|tacos/],
+  ['arroz', /arroz|paella|risotto|fideua|sushi arroz|poke/],
+  ['cuenco', /sopa|crema de|gazpacho|salmorejo|caldo|puré|pure\b|potaje|guiso|pringa|cocido/],
+  ['legumbres', /legumbre|lenteja|garbanzo|alubia|fabada|hummus|falafel|soja|tofu|seitan/],
+  ['ensalada', /ensalada|ensaladilla|germinado|brote|guacamole/],
+  ['pan', /pan\b|tostada|bocadillo|bocata|sandwich|croissant|cereal|muesli|avena|harina|tortita|bollo|croqueta|nugget/],
+  ['huevo', /huevo|tortilla|revuelto|mayonesa|alioli|poche|yema/],
+  ['postre', /tarta|flan|helado|natilla|tiramisu|pastel|bizcocho|mousse|coulant|brownie|panna|chocolate|dulce|mermelada|miel\b|galleta|bolleria|donut|churro|torrija|postre|crema catalana|profiterol|gelatina/],
   ['embutido', /jamon|chorizo|salchichon|fuet|lomo embuchado|sobrasada|fiambre|embutido|salami|mortadela|chopped|york|panceta|butifarra|morcilla|pate\b|foie|paleta/],
   ['marisco', /marisco|gamba|langostino|mejillon|almeja|ostra|cangrejo|calamar|pulpo|sepia|berberecho|surimi|gulas|bogavante|percebe|navaja/],
   ['pescado', /pescado|merluza|lubina|dorada|salmon|atun|bacalao|sardina|boquer|anchoa|rape\b|trucha|lenguado|pez espada|emperador|caballa|sushi|sashimi|ceviche|tiburon|cazon|lucio|mero\b|rodaballo|ahumado/],
   ['ave', /pollo|pavo|pato|gallina|codorniz|ave\b|aves\b|pechuga/],
   ['carne', /carne|ternera|filete|solomillo|cerdo|chuleta|chuleton|hamburguesa|cordero|costilla|entrecot|cochinillo|tartar|carpaccio|higado|caza|albondiga|cachopo|san jacobo|flamenquin/],
-  ['huevo', /huevo|tortilla|revuelto|mayonesa|alioli|poche|yema/],
+  ['bebida', /cafe|\bte\b|cerveza|vino|cava|sidra|agua\b|refresco|cola\b|infusion|zumo|batido|licor|alcohol|vermut|sangria|mojito|cubata|manzanilla|tila|tonica|bebida|kombucha|descafeinado|energetica|poleo|rooibos|jengibre|edulcorante/],
   ['queso', /queso|brie|camembert|roquefort|gorgonzola|cabrales|mozzarella|burrata|requeson|feta|rulo|mantequilla|nata\b|leche|yogur|horchata/],
-  ['postre', /tarta|flan|helado|natilla|tiramisu|pastel|bizcocho|mousse|coulant|brownie|panna|chocolate|dulce|mermelada|miel\b|galleta|bolleria|donut|churro|torrija|postre|crema catalana|profiterol|gelatina/],
-  ['pasta', /pasta|macarron|espagueti|lasana|canelon|noqui|pizza|ravioli|fideo|tallarin|carbonara|bolonesa|gyoza|pad thai|cuscus|empanada|burrito|taco\b|tacos/],
-  ['arroz', /arroz|paella|risotto|fideua|sushi arroz|poke/],
-  ['legumbres', /legumbre|lenteja|garbanzo|alubia|fabada|hummus|falafel|soja|tofu|seitan|cocido/],
-  ['cuenco', /sopa|crema de|gazpacho|salmorejo|caldo|puré|pure\b|potaje|guiso|pringa/],
-  ['ensalada', /ensalada|ensaladilla|germinado|brote|guacamole/],
   ['verdura', /verdura|hortaliza|brocoli|calabac|espinaca|berenjena|champinon|seta\b|setas|judia verde|pimiento|alcachofa|esparrago|coliflor|zanahoria|patata|tomate|cebolla|acelga|puerro/],
   ['fruta', /fruta|manzana|naranja|platano|fresa|uva\b|uvas|pera\b|melon|sandia|kiwi|melocoton|cereza|mandarina|limon|frutos secos|pipas|aguacate/],
-  ['pan', /pan\b|tostada|bocadillo|bocata|sandwich|croissant|cereal|muesli|avena|harina|tortita|bollo|empanado|rebozado/],
-  ['bebida', /cafe|\bte\b|cerveza|vino|cava|sidra|agua\b|refresco|cola\b|infusion|zumo|batido|licor|alcohol|vermut|sangria|mojito|cubata|manzanilla|tila|tonica|bebida|kombucha|descafeinado|energetica|poleo|rooibos|jengibre|edulcorante/],
 ];
 
 // Categorías de Open Food Facts (en:cheeses, es:quesos-frescos…) → categoría de la ilustración.

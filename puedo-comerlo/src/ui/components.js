@@ -7,6 +7,7 @@ import { claveLabel, CLAVE_BY_ID } from '../engine/claves.js';
 import { addToList, isInList } from '../store.js';
 import { h, icon, levelMark, uid, announce, fill } from './dom.js';
 import { trimPhrase } from './phrase.js';
+import { categoryFor, answerArt, thumbArt } from './art-ui.js';
 
 const KNOWN = ['si', 'cuidado', 'no', 'duda'];
 const capFirst = (t) => { const x = String(t || ''); return x.charAt(0).toLocaleUpperCase('es-ES') + x.slice(1); };
@@ -132,11 +133,46 @@ export function verdictMore(v, opts = {}) {
   return { button, panel };
 }
 
+// Avisos de «Ojo con esto» sin los que repiten lo que ya dice la frase (p. ej. «Hecho del todo, sin partes crudas.»
+// y «Que esté hecho del todo, sin partes crudas.»): misma idea = mismas palabras significativas.
+function words(t) {
+  return new Set(
+    String(t || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9ñ ]+/g, ' ')
+      .split(/\s+/)
+      .filter((w) => w.length > 3 && !['que', 'este', 'esta', 'esten', 'estan', 'sean', 'para', 'con', 'sin'].includes(w)),
+  );
+}
+function repeatsPhrase(t, phrase) {
+  const w = words(t);
+  if (!w.size || !phrase.size) return false;
+  let common = 0;
+  for (const x of w) if (phrase.has(x)) common++;
+  return common / Math.min(w.size, phrase.size) >= 0.75;
+}
+// `raw: true` devuelve todos los avisos; por defecto, sin los que repiten la frase (filas de lista).
+export function ojoLines(v, { raw = false } = {}) {
+  if (!v || !Array.isArray(v.ojo)) return [];
+  const lines = v.ojo.map((t) => String(t || '').trim()).filter(Boolean);
+  if (raw) return lines;
+  const phrase = words(phraseOf(v));
+  return lines.filter((t) => !repeatsPhrase(t, phrase));
+}
+// En «Sí», si un aviso dice lo mismo que la frase, la frase sobra: el aviso va bajo «Ojo con esto».
+export function phraseRedundant(v) {
+  if (!v || v.level !== 'si') return false;
+  const phrase = words(phraseOf(v));
+  return ojoLines(v, { raw: true }).some((t) => repeatsPhrase(t, phrase));
+}
+
 // «Ojo con esto»: avisos cortos del motor (`verdict.ojo`, 0–3) y, en «Con cuidado», la pregunta para el
 // camarero. Si el veredicto no trae `ojo` (motor antiguo), no sale nada. Devuelve { node, hasQuestion }.
 export function ojoBlock(v, { level = 2 } = {}) {
   if (!v || !Array.isArray(v.ojo)) return { node: null, hasQuestion: false };
-  const lines = v.ojo.map((t) => String(t || '').trim()).filter(Boolean);
+  const lines = ojoLines(v, { raw: v.level === 'si' });
   const askQ = v.level === 'cuidado' && typeof v.question === 'string' && v.question.trim() !== '';
   if (!lines.length && !askQ) return { node: null, hasQuestion: false };
   const id = uid('ojo');
@@ -169,16 +205,23 @@ export function verdictAnswer(v, opts = {}) {
   const { level = 2, title = v.title, eyebrow = null, sheet = false, actions = null, hideName = false, afterPhrase = null } = opts;
   const lv = norm(v.level);
   const nameId = uid('nombre');
-  const phrase = phraseOf(v);
+  const phrase = phraseRedundant(v) ? '' : phraseOf(v);
   const ojo = ojoBlock(v, { level });
   const { button, panel } = verdictMore(v, { ...opts, hideQuestion: ojo.hasQuestion });
+  // La ilustración de la categoría del alimento (con los destellos del veredicto) flota junto al nombre.
+  const cat = categoryFor({ foodId: v.foodId, title: typeof title === 'string' ? title : v.title, product: opts.product || null });
   return h(
     'article',
     { class: `answer lv-${lv}${sheet ? ' answer--sheet' : ''}`, 'aria-labelledby': nameId, dataset: { level: lv } },
     eyebrow ? h('p', { class: 'eyebrow' }, eyebrow) : null,
     h('p', { class: 'answer-word' }, LEVEL_LABEL[lv]),
-    h(`h${level}`, { class: hideName ? 'visually-hidden' : 'answer-name', id: nameId }, capFirst(title) || 'Sin nombre'),
-    phrase ? h('p', { class: 'answer-phrase' }, phrase) : null,
+    h(
+      'div',
+      { class: 'answer-main' },
+      answerArt(cat, lv),
+      h(`h${level}`, { class: hideName ? 'visually-hidden' : 'answer-name', id: nameId }, capFirst(title) || 'Sin nombre'),
+      phrase ? h('p', { class: 'answer-phrase' }, phrase) : null,
+    ),
     ojo.node,
     afterPhrase,
     actions ? h('div', { class: 'answer-actions' }, actions) : null,
@@ -192,19 +235,20 @@ export function verdictAnswer(v, opts = {}) {
 export function entryItem(v, opts = {}) {
   const { level = 2, title = v.title, aside = null } = opts;
   const lv = norm(v.level);
-  const { button, panel } = verdictMore(v, { ...opts, ojoRest: Array.isArray(v.ojo) ? v.ojo.slice(1) : null });
+  const { button, panel } = verdictMore(v, { ...opts, ojoRest: Array.isArray(v.ojo) ? ojoLines(v).slice(1) : null });
   const nameId = uid('nombre');
   const phrase = phraseOf(v);
   return h(
     'li',
-    { class: `entry lv-${lv}`, dataset: { level: lv } },
+    { class: `entry has-thumb lv-${lv}`, dataset: { level: lv } },
+    thumbArt(categoryFor({ foodId: v.foodId, title })),
     h(
       'div',
       { class: 'entry-body' },
       h('span', { class: 'lvl' }, LEVEL_LABEL[lv]),
       h(`h${level}`, { class: 'entry-name', id: nameId }, capFirst(title) || 'Sin nombre'),
       phrase ? h('p', { class: 'entry-phrase' }, phrase) : null,
-      ojoLine(v.ojo),
+      ojoLine(ojoLines(v)),
       button || aside ? h('div', { class: 'more-bar' }, button, aside) : null,
       panel,
     ),
@@ -212,7 +256,7 @@ export function entryItem(v, opts = {}) {
 }
 
 // Fila de lista que es un enlace entero (historial, «Lo último», favoritos).
-export function entryLink({ href = null, level, title, phrase, meta = null, onClick = null, headingLevel = null, ojo = null }) {
+export function entryLink({ href = null, level, title, phrase, meta = null, onClick = null, headingLevel = null, ojo = null, category = null }) {
   const lv = norm(level);
   const text = trimPhrase(phrase || '', lv);
   const name = headingLevel
@@ -228,9 +272,9 @@ export function entryLink({ href = null, level, title, phrase, meta = null, onCl
   if (href) {
     const a = h('a', { class: 'entry-body entry-link', href }, body);
     if (onClick) a.addEventListener('click', onClick);
-    return h('li', { class: `entry lv-${lv}` }, a);
+    return h('li', { class: `entry${category ? ' has-thumb' : ''} lv-${lv}` }, category ? thumbArt(category) : null, a);
   }
-  return h('li', { class: `entry lv-${lv}` }, h('div', { class: 'entry-body' }, body));
+  return h('li', { class: `entry${category ? ' has-thumb' : ''} lv-${lv}` }, category ? thumbArt(category) : null, h('div', { class: 'entry-body' }, body));
 }
 
 // rise: las filas entran una a una (solo donde llegan de golpe, como la carta leída).

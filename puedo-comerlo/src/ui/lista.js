@@ -6,9 +6,9 @@ import { verdictForFood, FOOD_BY_ID } from '../engine/index.js';
 import { LEVEL_LABEL } from '../engine/levels.js';
 import { getList, removeFromList, getFavorites, setListDone, clearListDone } from '../store.js';
 import { h, icon, announce, fill } from './dom.js';
-import { entryLink, entries, sectionHead, verdictMore, phraseOf, ojoLine } from './components.js';
+import { entryLink, entries, sectionHead, verdictMore, phraseOf, ojoLine, ojoLines } from './components.js';
 import { refreshEntry } from './recalc.js';
-import { emptyState } from './art-ui.js';
+import { emptyState, categoryFor, thumbArt } from './art-ui.js';
 
 const RANK = { si: 0, cuidado: 1, duda: 2, no: 3 };
 const KNOWN = ['si', 'cuidado', 'no', 'duda'];
@@ -50,7 +50,7 @@ export function render({ main, profile }) {
     const { entry, fresh, level } = item;
     const done = !!entry.done;
     const verdict = fresh.verdict || { level: fresh.level, phrase: fresh.phrase };
-    const { button, panel } = verdictMore(verdict, { level: 2, fichaLink: !!fresh.verdict, ojoRest: Array.isArray(verdict.ojo) ? verdict.ojo.slice(1) : null });
+    const { button, panel } = verdictMore(verdict, { level: 2, fichaLink: !!fresh.verdict, ojoRest: Array.isArray(verdict.ojo) ? ojoLines(verdict).slice(1) : null });
     const title = capFirst(entry.title) || 'Sin nombre';
     const phrase = phraseOf(verdict);
     const topics = Array.isArray(verdict.topics) ? verdict.topics : [];
@@ -86,7 +86,8 @@ export function render({ main, profile }) {
 
     return h(
       'li',
-      { class: `entry entry--shop lv-${level}${done ? ' is-done' : ''}${arrivingId === entry.id ? ' is-arriving' : ''}`, dataset: { level, done: String(done) } },
+      { class: `entry entry--shop has-thumb lv-${level}${done ? ' is-done' : ''}${arrivingId === entry.id ? ' is-arriving' : ''}`, dataset: { level, done: String(done) } },
+      thumbArt(categoryFor({ foodId: fresh.foodId || entry.foodId, title: entry.title, product: entry.payload && entry.payload.product })),
       h('label', { class: 'buy' }, h('span', { class: 'buy-wrap' }, box, tick), h('span', { class: 'buy-text' }, 'Comprado')),
       h(
         'div',
@@ -94,7 +95,7 @@ export function render({ main, profile }) {
         h('span', { class: 'lvl' }, LEVEL_LABEL[level]),
         h('h3', { class: 'entry-name' }, title),
         phrase ? h('p', { class: 'entry-phrase' }, phrase) : null,
-        ojoLine(verdict.ojo),
+        ojoLine(ojoLines(verdict)),
         note,
         h('div', { class: 'more-bar' }, button, quitar),
         panel,
