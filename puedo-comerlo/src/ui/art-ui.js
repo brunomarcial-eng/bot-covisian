@@ -71,6 +71,8 @@ export function loadingStatus(firstText) {
 // Facts y, si no, por el grupo de la guía. Nunca decide el semáforo.
 
 const RULES = [
+  // Lo crudo no lleva el dibujo de un plato cocinado (un sushi con un pescado a la plancha despista).
+  ['generico', /sushi|sashimi|ceviche|cebiche|tartar|carpaccio|tataki|nigiri|maki\b/],
   ['pasta', /pasta|macarron|espagueti|lasana|canelon|noqui|pizza|ravioli|fideo|tallarin|carbonara|bolonesa|gyoza|pad thai|cuscus|empanada|burrito|taco\b|tacos/],
   ['arroz', /arroz|paella|risotto|fideua|sushi arroz|poke/],
   ['cuenco', /sopa|crema de|gazpacho|salmorejo|caldo|puré|pure\b|potaje|guiso|pringa|(?<!jamon |huevo |marisco |gambas |pulpo |pavo |york |langostino |mejillon )cocido(?! en lonchas)/],
@@ -78,7 +80,7 @@ const RULES = [
   ['ensalada', /ensalada|ensaladilla|germinado|brote|guacamole/],
   ['pan', /pan\b|tostada|bocadillo|bocata|sandwich|croissant|cereal|muesli|avena|harina|tortita|bollo|croqueta|nugget/],
   ['huevo', /huevo|tortilla|revuelto|mayonesa|alioli|poche|yema/],
-  ['postre', /tarta|flan|helado|natilla|tiramisu|pastel|bizcocho|mousse|coulant|brownie|panna|chocolate|dulce|mermelada|miel\b|galleta|bolleria|donut|churro|torrija|postre|crema catalana|profiterol|gelatina/],
+  ['postre', /tarta|flan|helado|natilla|tiramisu|pastel|bizcocho|mousse|coulant|brownie|panna|chocolate|nutella|cacao|dulce|mermelada|miel\b|galleta|bolleria|donut|churro|torrija|postre|crema catalana|profiterol|gelatina/],
   ['embutido', /jamon|chorizo|salchichon|fuet|lomo embuchado|sobrasada|fiambre|embutido|salami|mortadela|chopped|york|panceta|butifarra|morcilla|pate\b|foie|paleta/],
   ['marisco', /marisco|gamba|langostino|mejillon|almeja|ostra|cangrejo|calamar|pulpo|sepia|berberecho|surimi|gulas|bogavante|percebe|navaja/],
   ['pescado', /pescado|merluza|lubina|dorada|salmon|atun|bacalao|sardina|boquer|anchoa|rape\b|trucha|lenguado|pez espada|emperador|caballa|sushi|sashimi|ceviche|tiburon|cazon|lucio|mero\b|rodaballo|ahumado/],

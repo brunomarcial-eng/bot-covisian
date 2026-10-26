@@ -17,7 +17,9 @@ matrona, el ginecólogo o el médico. No da consejo personalizado.
   no decide nada: devuelve los nombres y los ingredientes que lee.
 - El semáforo lo calcula siempre un motor de reglas fijas que funciona en el propio móvil (`src/engine/`), a partir
   de ese texto y del perfil guardado.
-- Los códigos de barras se consultan en Open Food Facts.
+- Los códigos de barras se consultan en Open Food Facts. Si el producto no está o no trae ingredientes, `api/producto.js`
+  lo busca en internet con Claude: solo viajan el código y, si se conoce, el nombre y la marca. Los datos de internet no
+  dan nunca «Sí» sin confirmarlos con la foto de la etiqueta.
 
 ## Arrancar en local
 
@@ -31,7 +33,8 @@ ANTHROPIC_API_KEY=… npm start
 Abre http://localhost:5173 (mejor en el móvil o con la vista móvil del navegador).
 
 Sin `ANTHROPIC_API_KEY` la app funciona igual, pero la lectura de fotos cae al OCR local (tesseract.js en el
-navegador), que es menos fiable; esas lecturas se marcan como inciertas.
+navegador), que es menos fiable; esas lecturas se marcan como inciertas, y la búsqueda de productos en internet
+(`/api/producto`) no está disponible: queda Open Food Facts y la foto de los ingredientes.
 
 ## Tests
 
@@ -46,12 +49,13 @@ Ejecuta los tests con `node --test` (el motor de reglas es puro y se importa des
 No hay paso de build: son HTML, CSS y módulos ES nativos.
 
 1. Publica la carpeta del proyecto en cualquier hosting estático.
-2. Despliega `api/leer.js` como función sin estado al estilo Vercel (`POST /api/leer`).
-3. Configura la variable de entorno `ANTHROPIC_API_KEY` en esa función. Sin ella, `/api/leer` responde 503 y la app
-   usa el OCR local.
+2. Despliega `api/leer.js` y `api/producto.js` como funciones sin estado al estilo Vercel (`POST /api/leer` y
+   `POST /api/producto`).
+3. Configura la variable de entorno `ANTHROPIC_API_KEY` en esas funciones. Sin ella, `/api/leer` y `/api/producto` responden 503 y la app
+   usa el OCR local y Open Food Facts.
 
-En Vercel, con `puedo-comerlo/` como carpeta raíz del proyecto, se sirven los estáticos y `api/leer.js` se reconoce
-como función.
+En Vercel, con `puedo-comerlo/` como carpeta raíz del proyecto, se sirven los estáticos y `api/leer.js` y `api/producto.js` se
+reconocen como funciones.
 
 ## Estructura
 
@@ -66,6 +70,7 @@ puedo-comerlo/
     index.js y resto                                       normalizar, buscar y clasificar
   src/capture/                                             cámara, compresión, lectura de fotos, códigos, Open Food Facts
   api/leer.js                                              función sin estado: foto → transcripción en JSON
+  api/producto.js                                          función sin estado: código de barras → ficha del producto (búsqueda web)
   server.js                                                servidor de desarrollo (estáticos + /api/leer)
   tests/                                                   tests del motor y pruebas de extremo a extremo
   docs/especificacion.md                                   el encargo original

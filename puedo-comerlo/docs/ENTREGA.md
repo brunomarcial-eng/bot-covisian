@@ -1,36 +1,48 @@
 # Entrega — «¿Puedo comerlo?»
 
-**Dirección:** https://puedo-comerlo.vercel.app (25-10-2026, última publicación: pantalla entera de color, portada con la mesa y clave de Anthropic activa)
+**Dirección:** https://puedo-comerlo.vercel.app
 
-**Última versión:** 25-10-2026, rediseño de la interfaz y arranque de 4 pasos (sin la pregunta de embutidos). `docs/GUIA-DE-USO.md` y sus capturas están al día con esa versión.
+**Última versión:** 26-10-2026.
+
+## Qué incluye esta versión
+- Arranque de 4 pasos (portada con la mesa de 12 platos, alergias e intolerancias, dietas y restricciones,
+  privacidad). Ya no se pregunta por embutidos: la app aplica siempre la misma regla prudente.
+- Respuestas con la pantalla entera del color del veredicto, dibujo del tipo de comida, destello en «Sí», cruz
+  en «Mejor no» y «?» en las dudas (se quita con «Reducir movimiento» del móvil).
+- «Sí» con avisos cortos («Ojo con esto»); «Con cuidado» solo cuando depende de un dato que no se ve, con una
+  «Pregunta» para el camarero.
+- Foto de la carta leída con Claude (Sonnet 5.5) en unos 4 segundos, sin avisos de lectura aproximada.
+- Escaneo guiado en el Súper: «Me faltan los ingredientes», foto de los ingredientes y «Lo que he mirado en
+  la etiqueta», tema por tema. Si el producto no está en Open Food Facts, búsqueda en internet (10–20 s, con
+  «Cancelar»; límite de 6 por persona cada 10 minutos); lo de internet nunca sale «Sí» hasta comprobarlo con
+  la etiqueta.
+- «Las claves del embarazo»: 8 temas (listeria, toxoplasmosis, mercurio, huevo crudo, pescado crudo, alcohol,
+  cafeína, hierbas e infusiones), enlazados desde las respuestas.
+- Lista de la compra: «Comprado», «Pendiente», «En el carro», «Compartir la lista» (solo lo pendiente, sin
+  semáforo) y «Vaciar lo comprado».
+- `docs/GUIA-DE-USO.md` y sus capturas están al día con esta versión (capturas hechas sobre la dirección
+  publicada).
 
 ## Comprobado
-- 116 tests del motor y de la captura en verde (`npm test`).
-- 11 escenarios de extremo a extremo en verde **contra la dirección publicada**: arranque sin datos
-  clínicos, pie y navegación, «sushi» → Mejor no, «tortilla» → Con cuidado, ficha y lista, foto de carta
-  (lectura local) e imagen ilegible con mensaje honesto, cámara y sin cámara, súper con Open Food Facts
-  real (Nutella con alergias), persistencia y borrado, diseño, lenguaje del semáforo en las 140 fichas
-  y consola sin errores.
+- 247 tests del motor y de la captura en verde (`npm test`).
+- 18 escenarios de extremo a extremo en verde (`tests/e2e/run.cjs`).
+- Foto de la carta de ejemplo en la dirección publicada: 11 platos leídos con Claude en unos segundos (6–8 s desde que
+  se elige la foto), sin lectura aproximada.
 - Archivos internos (`package.json`, `docs/`, `tests/`, credenciales) responden 404 en producción.
-- 293 platos y productos habituales: ninguno queda en «No estoy segura».
 
 ## Sin comprobar
-- Lectura de fotos con Claude (falta `ANTHROPIC_API_KEY` en Vercel). Sin ella, las fotos se leen en el
-  propio móvil y los platos salen como lectura aproximada.
-- Un iPhone y un Android reales (probado con perfiles de móvil en Chromium).
+- Un iPhone y un Android reales (probado solo con pantallas de móvil simuladas en Chromium).
+- La cobertura de códigos de barras con productos reales de marca blanca: Open Food Facts trae ingredientes en
+  unos 3 de cada 10 de los que se probaron, y Mercadona no publica sus códigos en la web. La búsqueda en
+  internet y la foto de los ingredientes cubren el resto, pero no está medido en producción.
 
 ## Lo que tiene que hacer la dueña
-1. console.anthropic.com: workspace propio con límite de gasto mensual y una clave solo para esta app.
-2. vercel.com → proyecto `puedo-comerlo` → Settings → Environment Variables → `ANTHROPIC_API_KEY`
-   (Production y Preview) → Save → Deployments → último → Redeploy.
-3. Abrir la dirección en el móvil, instalarla (Ajustes → «Instalar en el móvil») y seguir el guion de
+1. Abrir la dirección en el móvil, instalarla (Ajustes → «Instalar en el móvil») y seguir el guion de
    prueba de 5 minutos de `docs/GUIA-DE-USO.md`.
+2. Vigilar el gasto en console.anthropic.com (workspace propio con límite mensual): la lectura de fotos y la
+   búsqueda de productos en internet usan la clave `ANTHROPIC_API_KEY` de Vercel.
 
 ## Decisiones
-Todas en `docs/DECISIONES.md`. Las principales: lo cocinado dentro del plato sale «Sí»; el york frío de
-bandeja, «Mejor no»; modelo de lectura Sonnet 5.5; límite de 20 fotos cada 10 minutos por persona.
-
-## Actualización 25-10-2026 (tarde)
-- Clave `ANTHROPIC_API_KEY` activa en Vercel (Production y Preview). Comprobado en la dirección pública: la carta de ejemplo se lee con Claude Sonnet 5.5 en unos 4 s, 11 platos, sin lectura aproximada y sin colar el nombre del local.
-- 11 escenarios e2e y 396 comprobaciones en verde contra la dirección publicada; 125 tests del motor y la captura en verde.
-- Pendiente de la dueña: probarla en un iPhone y un Android reales (solo probada con pantallas de móvil simuladas).
+Todas en `docs/DECISIONES.md`. Las principales: lo cocinado dentro del plato sale «Sí»; el fiambre de bandeja
+en frío, «Mejor no»; «Sí» significa que se puede tal como se sirve normalmente; modelo de lectura Sonnet 5.5;
+límite de 20 fotos cada 10 minutos por persona.
