@@ -73,7 +73,7 @@ export function loadingStatus(firstText) {
 const RULES = [
   ['pasta', /pasta|macarron|espagueti|lasana|canelon|noqui|pizza|ravioli|fideo|tallarin|carbonara|bolonesa|gyoza|pad thai|cuscus|empanada|burrito|taco\b|tacos/],
   ['arroz', /arroz|paella|risotto|fideua|sushi arroz|poke/],
-  ['cuenco', /sopa|crema de|gazpacho|salmorejo|caldo|puré|pure\b|potaje|guiso|pringa|cocido/],
+  ['cuenco', /sopa|crema de|gazpacho|salmorejo|caldo|puré|pure\b|potaje|guiso|pringa|(?<!jamon |huevo |marisco |gambas |pulpo |pavo |york |langostino |mejillon )cocido(?! en lonchas)/],
   ['legumbres', /legumbre|lenteja|garbanzo|alubia|fabada|hummus|falafel|soja|tofu|seitan/],
   ['ensalada', /ensalada|ensaladilla|germinado|brote|guacamole/],
   ['pan', /pan\b|tostada|bocadillo|bocata|sandwich|croissant|cereal|muesli|avena|harina|tortita|bollo|croqueta|nugget/],
