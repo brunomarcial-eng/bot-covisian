@@ -2431,7 +2431,7 @@ async function s15body(tv, browser, vp) {
   await page.locator('button[data-action=compartir]').click();
   await page.waitForTimeout(500);
   const clip = await page.evaluate(() => navigator.clipboard.readText()).catch((e) => 'ERROR ' + e.message);
-  await tv.check(clip === 'Mi lista de la compra\n- Xyzzy\n- Sushi', 'Compartir copia «Mi lista de la compra» y «- Nombre» de lo pendiente', JSON.stringify(clip));
+  await tv.check(clip === 'Mi lista de la compra\n- Xyzzy\n- Sushi\n\nHecha con ¿Puedo comerlo? · by Bruno Marcial\nhttps://puedo-comerlo.vercel.app', 'Compartir copia «Mi lista de la compra» y «- Nombre» de lo pendiente', JSON.stringify(clip));
   await tv.check(!/S[ií]\b|Con cuidado|Mejor no|No estoy segura|embarazo|semáforo|listeria/i.test(clip.replace(/Sushi/g, '')), 'El texto compartido no lleva semáforo, frases ni «embarazo»', JSON.stringify(clip));
   s = await state();
   await tv.check(s.msg === 'Lista copiada.', 'Aviso «Lista copiada.»', s.msg);
@@ -2441,7 +2441,7 @@ async function s15body(tv, browser, vp) {
   await page.locator('button[data-action=compartir]').click();
   await page.waitForTimeout(400);
   const shared = await page.evaluate(() => window.__shared || null);
-  await tv.check(!!shared && shared.title === 'Mi lista de la compra' && shared.text === 'Mi lista de la compra\n- Sushi', 'Con navigator.share se comparte solo lo pendiente (Xyzzy ya está en el carro)', JSON.stringify(shared));
+  await tv.check(!!shared && shared.title === 'Mi lista de la compra' && shared.text === 'Mi lista de la compra\n- Sushi\n\nHecha con ¿Puedo comerlo? · by Bruno Marcial\nhttps://puedo-comerlo.vercel.app', 'Con navigator.share se comparte solo lo pendiente (Xyzzy ya está en el carro)', JSON.stringify(shared));
   s = await state();
   await tv.check(s.msg === 'Lista compartida.', 'Aviso «Lista compartida.»', s.msg);
   // Sin pendientes no hay «Compartir la lista»

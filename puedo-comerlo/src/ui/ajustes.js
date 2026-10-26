@@ -109,7 +109,7 @@ export function render({ main }) {
     ),
     // Firma permanente: se quita vaciando AUTOR en firma.js
     h(
-      'footer',
+      'div',
       { class: 'firma' },
       hayFirma() ? h('p', { class: 'firma-autor' }, hechoPorAnio()) : null,
       h('p', { class: 'firma-version' }, `¿Puedo comerlo? · versión ${APP_VERSION}`),
