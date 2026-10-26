@@ -1155,7 +1155,10 @@ async function s5(t, browser) {
     // Carta leída con Claude (producción): ≥ 60 % de las filas reconocidas en «Sí». Con OCR local todo es «aproximado»: no se aplica.
     const sinRuido = r.pills.filter((x) => !/^(entrantes|principales|postres|bebidas|casa marisa|carta del mediodia)\b/.test(norm(x.name)));
     const nSi = sinRuido.filter((x) => x.label === 'Sí').length;
-    if (!viaOcr) await t.check(sinRuido.length > 0 && nSi / sinRuido.length >= 0.6, 'Carta leída con Claude: al menos el 60 % de las filas en «Sí»', `${nSi}/${sinRuido.length}: ` + sinRuido.map((x) => x.label[0] + ':' + short(x.name, 18)).join(' | '));
+    // La carta de ejemplo incluye a propósito riesgos reales (sushi, entrecot poco hecho, tiramisú, tinto de verano): el 60 %
+    // se mide sobre los platos que NO salen «Mejor no».
+    const sinRiesgo = sinRuido.filter((x) => x.label !== 'Mejor no');
+    if (!viaOcr) await t.check(sinRiesgo.length > 0 && nSi / sinRiesgo.length >= 0.6, 'Carta leída con Claude: al menos el 60 % de las filas sin riesgo real («Mejor no») en «Sí»', `${nSi}/${sinRiesgo.length} (de ${sinRuido.length}): ` + sinRuido.map((x) => x.label[0] + ':' + short(x.name, 18)).join(' | '));
     else t.info('Carta leída con OCR: no se aplica el umbral del 60 % de «Sí»', `${nSi}/${sinRuido.length} en «Sí»`);
     if (viaOcr) {
       const si = r.pills.filter((x) => x.label === 'Sí');
