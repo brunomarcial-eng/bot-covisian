@@ -30,7 +30,14 @@
       "continue": true
     },
     {
-      "src": "^/(?!(?:index\\.html|styles\\.css|manifest\\.webmanifest|(?:icon|apple-touch-icon|favicon)[a-z0-9-]*\\.(?:png|svg|ico)|src/(?:[A-Za-z0-9_-]+/)*[A-Za-z0-9_-]+\\.js|api/(?:leer|producto))?$).*$",
+      "src": "/fonts/(.*)\\.woff2",
+      "headers": {
+        "Cache-Control": "public, max-age=31536000, immutable"
+      },
+      "continue": true
+    },
+    {
+      "src": "^/(?!(?:index\\.html|styles\\.css|manifest\\.webmanifest|(?:icon|apple-touch-icon|favicon)[a-z0-9-]*\\.(?:png|svg|ico)|src/(?:[A-Za-z0-9_-]+/)*[A-Za-z0-9_-]+\\.js|fonts/(?:[a-z0-9-]+\\.woff2|OFL\\.txt)|api/(?:leer|producto))?$).*$",
       "status": 404,
       "dest": "/404"
     }

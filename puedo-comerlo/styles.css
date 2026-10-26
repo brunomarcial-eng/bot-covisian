@@ -1,3 +1,19 @@
+/* Fuentes propias (fonts/, licencia OFL en fonts/OFL.txt): variables, subconjunto latin (basta para español) */
+@font-face {
+  font-family: 'Fraunces';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('fonts/fraunces-latin-var.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Source Sans 3';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('fonts/sourcesans3-latin-var.woff2') format('woff2');
+}
+
 /* ¿Puedo comerlo? — sistema visual
    Adulta y serena. Una columna, ~32 rem. La respuesta es la protagonista: la palabra del
    semáforo, grande y en su color. Lo demás es tipografía, espacio y filetes finos.

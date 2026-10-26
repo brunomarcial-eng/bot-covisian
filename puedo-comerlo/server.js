@@ -5,7 +5,7 @@
 //   HOST=0.0.0.0 node server.js → accesible desde la red local (por defecto solo 127.0.0.1)
 //
 // Sirve SOLO los archivos públicos de la app (index.html, styles.css, manifest.webmanifest, icon.svg, iconos
-// y lo que hay bajo src/) y las funciones POST /api/leer y POST /api/producto. Nada de node_modules, tests, docs, api, .git ni
+// y lo que hay bajo src/ y fonts/) y las funciones POST /api/leer y POST /api/producto. Nada de node_modules, tests, docs, api, .git ni
 // package.json. No registra peticiones ni cuerpos.
 
 import http from 'node:http';
@@ -20,7 +20,7 @@ export const ROOT = path.dirname(fileURLToPath(import.meta.url));
 
 const ROOT_FILES = new Set(['index.html', 'styles.css', 'manifest.webmanifest', 'icon.svg']);
 const ROOT_ICON = /^(?:icon|apple-touch-icon|favicon)[a-z0-9-]*\.(?:png|svg|ico)$/;
-const STATIC_DIRS = new Set(['src']);
+const STATIC_DIRS = new Set(['src', 'fonts']);
 
 export const MIME = Object.freeze({
   '.html': 'text/html; charset=utf-8',
@@ -107,7 +107,8 @@ async function serveStatic(req, res, pathname, root) {
     ...SECURITY_HEADERS,
     'Content-Type': MIME[path.extname(real).toLowerCase()] ?? 'application/octet-stream',
     'Content-Length': info.size,
-    'Cache-Control': 'no-cache',
+    // Las fuentes no cambian (su nombre lleva la versión): caché larga. Lo demás, siempre revalidado.
+    'Cache-Control': path.extname(real).toLowerCase() === '.woff2' ? 'public, max-age=31536000, immutable' : 'no-cache',
   });
   if (req.method === 'HEAD') {
     res.end();
