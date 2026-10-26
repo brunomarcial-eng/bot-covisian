@@ -4,6 +4,7 @@
 import { FOODS, GROUPS, FOOD_BY_ID } from './foods.js';
 import { LEVEL_LABEL, levelRank } from './levels.js';
 import { normalize } from './normalize.js';
+import { checkLabel } from './etiqueta.js';
 import { topicsForFood, missingForFood, mergeTopics, MISSING_UNKNOWN, MISSING_MAX } from './temas.js';
 import {
   KEYWORD_RULES,
@@ -539,6 +540,82 @@ function neutralPiece() {
   };
 }
 
+// Producto con ingredientes fiables y sin ficha que lo describa: lo que dice la lista de ingredientes.
+// `hits` son los temas que `checkLabel` encuentra («aparece», con o sin matiz; lo pasteurizado ya no cuenta).
+//  - «Con cuidado»: queso fresco sin «pasteurizada», fiambre, ahumado, paté, jamón, alcohol, pescado crudo…
+//  - «Sí» con aviso: cafeína, cacao, atún, hinojo o tila, huevo, carne picada (se vigilan, no cambian el plato).
+//  - Nada que aparezca: «Sí» con la frase neutra.
+const LABEL_ORDER = ['listeria', 'toxoplasmosis', 'mercurio', 'huevo-crudo', 'pescado-crudo', 'alcohol', 'cafeina', 'hierbas'];
+const LABEL_MILK = /\b(?:queso|quesos|leche|nata|requeson|burrata|mozzarella|mozarella|ricotta|feta|mascarpone|brie|camembert|rulo)\b/i;
+
+function quoted(ev) {
+  const t = String(ev || '').replace(/\s+/g, ' ').trim();
+  const cut = t.length > 60 ? `${t.slice(0, 59).trimEnd()}…` : t;
+  return /^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]/.test(cut) ? cut[0].toLowerCase() + cut.slice(1) : cut;
+}
+
+function labelFinding(h) {
+  const ev = quoted(h.evidence[0]);
+  const soft = h.matiz === 'poca' || h.matiz === 'duda';
+  switch (h.topic) {
+    case 'listeria':
+      return LABEL_MILK.test(normalize(h.evidence[0] || ''))
+        ? { level: 'cuidado', phrase: `Lleva ${ev}: mira que sea de leche pasteurizada.`, question: '¿Es de leche pasteurizada? En la etiqueta suele decirlo.' }
+        : { level: 'cuidado', phrase: `Lleva ${ev}: puede llevar listeria.`, question: '¿Se come frío o va cocinado dentro del plato?' };
+    case 'toxoplasmosis':
+      return h.matiz === 'duda'
+        ? { level: 'si', phrase: `Sí: lleva ${ev}; que esté bien cocinado.`, ojo: 'Que la carne esté bien cocinada.' }
+        : { level: 'cuidado', phrase: `Lleva ${ev}: mira que vaya bien cocinado.`, question: '¿Va cocinado del todo o se come curado?' };
+    case 'mercurio':
+      return h.matiz === 'duda'
+        ? { level: 'si', phrase: `Sí, con moderación: lleva ${ev}.`, ojo: 'Con moderación: el atún acumula algo de mercurio.' }
+        : { level: 'cuidado', phrase: `Lleva ${ev}: pescado con mucho mercurio.`, question: '¿Qué pescado es exactamente?' };
+    case 'huevo-crudo':
+      return { level: 'si', phrase: `Sí: lleva ${ev}, que en un envasado va cocinado o pasteurizado.`, ojo: 'Si es de nevera, que el huevo vaya pasteurizado.' };
+    case 'pescado-crudo':
+      return { level: 'cuidado', phrase: `Lleva ${ev}: mira que no vaya crudo.`, question: '¿Va crudo, curado o cocinado?' };
+    case 'alcohol':
+      return { level: 'cuidado', phrase: `Lleva ${ev}: mira si queda alcohol.`, question: '¿Queda alcohol en el producto o se ha cocido del todo?' };
+    case 'cafeina':
+      return {
+        level: 'si',
+        phrase: `Sí, con moderación: lleva ${ev}.`,
+        ojo: h.matiz === 'poca' ? 'Con moderación: el cacao lleva algo de cafeína.' : 'Con moderación: lleva cafeína.',
+      };
+    case 'hierbas':
+      return soft
+        ? { level: 'si', phrase: `Sí, con moderación: lleva ${ev}.`, ojo: 'No a diario ni en cantidad.' }
+        : { level: 'cuidado', phrase: `Lleva ${ev}: planta que no conviene en el embarazo.`, question: '¿Cuánta lleva y para qué se usa?' };
+    default:
+      return { level: 'cuidado', phrase: `Lleva ${ev}.`, question: null };
+  }
+}
+
+function labelPiece(hits) {
+  const source = 'La propia app: a partir de los ingredientes';
+  if (!hits.length) return { ...neutralPiece(), topics: [], ojo: [] };
+  const found = LABEL_ORDER.map((t) => hits.find((h) => h.topic === t))
+    .filter(Boolean)
+    .map((h) => ({ h, f: labelFinding(h) }));
+  const cuidado = found.filter((x) => x.f.level === 'cuidado');
+  const lead = cuidado[0] || found[0];
+  const level = cuidado.length ? 'cuidado' : 'si';
+  const listed = joinList([...new Set(found.map((x) => quoted(x.h.evidence[0])))]);
+  return {
+    id: null,
+    level,
+    phrase: lead.f.phrase,
+    detail:
+      `He comparado los ingredientes con los temas que se repiten en el embarazo y aparece: ${listed}. ` +
+      'Fuente: la propia app, a partir de la lista de ingredientes.',
+    question: level === 'cuidado' ? lead.f.question || null : null,
+    alternative: null,
+    source,
+    topics: level === 'cuidado' ? cuidado.map((x) => x.h.topic) : [],
+    ojo: level === 'si' ? [...new Set(found.map((x) => x.f.ojo).filter(Boolean))].slice(0, 3) : [],
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Alergias, «otra cosa», forma de comer
 // ---------------------------------------------------------------------------
@@ -694,7 +771,7 @@ function classifyDoc(
   doc,
   {
     title, profile, context, extraMatches = [], declared = [], traces = [], labels = [], uncertain = false,
-    ingredients = [], forceMissing = false, downgrade = null,
+    ingredients = [], forceMissing = false, downgrade = null, labelHits = null,
   },
 ) {
   const p = sanitizeProfile(profile);
@@ -713,11 +790,11 @@ function classifyDoc(
   const byRelevance = entries
     .slice()
     .sort((a, b) => levelRank(b.piece.level) - levelRank(a.piece.level) || a.piece.order - b.piece.order);
-  const topics = mergeTopics(
+  let topics = mergeTopics(
     byRelevance.filter((e) => e.piece.level === 'cuidado' || e.piece.level === 'no').map((e) => topicsForFood(e.food)),
   );
   const missingList = missingFor(byRelevance, text);
-  const ojo = ojoFrom(
+  let ojo = ojoFrom(
     byRelevance.filter(
       (e) =>
         (e.piece.level === 'si' || e.piece.level === 'cuidado') &&
@@ -728,10 +805,22 @@ function classifyDoc(
   let base = pieces.length ? mergePieces(pieces) : unknownPiece();
   // Producto: un «Sí» solo puede hablar con la voz de un alimento emparejado por el nombre (o la categoría) del
   // producto. Si lo único que lo decide son ingredientes («leche pasteurizada» en unos ñoquis), la frase de esa
-  // ficha describiría el ingrediente y no el producto: frase neutra. «Con cuidado» y «Mejor no» sí se quedan.
-  if (context === 'product' && pieces.length && base.level === 'si') {
+  // ficha describiría el ingrediente y no el producto: frase de la propia app. «Con cuidado» y «Mejor no» sí se quedan.
+  // Con ingredientes fiables (`labelHits` ≠ null) la propia app los lee: nada que vigilar → «Sí»; algo que aparece
+  // → «Con cuidado» (o «Sí» con aviso si solo hay que moderar). Así nunca contradice «Lo que he mirado en la etiqueta».
+  let labelBase = null;
+  if (context === 'product') {
     const byName = entries.filter((e) => e.m.where !== 'ingredient').map((e) => e.piece);
-    base = byName.length ? mergePieces(byName) : neutralPiece();
+    if (pieces.length && base.level === 'si') {
+      if (byName.length) base = mergePieces(byName);
+      else base = labelHits ? (labelBase = labelPiece(labelHits)) : neutralPiece();
+    } else if (!pieces.length && labelHits) {
+      base = labelBase = labelPiece(labelHits);
+    }
+  }
+  if (labelBase) {
+    topics = labelBase.topics;
+    ojo = labelBase.ojo;
   }
   const foodIds = [...new Set(matches.map((m) => m.id))];
 
@@ -861,6 +950,11 @@ export function classifyProduct(product, profile) {
   const sinIngredientes = !ingredientsText.trim();
   const web = pr.ingredientsSource === 'web' || pr.source === 'web';
   const incomplete = sinIngredientes ? INCOMPLETE.sinIngredientes : web ? INCOMPLETE.web : null;
+  // Ingredientes fiables (de OFF o de la etiqueta): la propia app los lee con el mismo léxico que «checkLabel».
+  // Lo pasteurizado es tranquilizador, no un hallazgo.
+  const labelHits = incomplete
+    ? null
+    : checkLabel(ingredientsText).filter((r) => r.status === 'aparece' && r.matiz !== 'pasteurizado');
 
   return classifyDoc(doc, {
     title: name || 'Producto sin nombre',
@@ -873,6 +967,7 @@ export function classifyProduct(product, profile) {
     ingredients: splitTopLevel(ingredientsText),
     forceMissing: !!incomplete,
     downgrade: incomplete,
+    labelHits,
   });
 }
 

@@ -66,7 +66,7 @@ const DEFS = {
       // Quesos frescos: sin decir «pasteurizada», la palabra no basta.
       sig(
         'quesos? fresc[oa]s?|requeson|burrata|mozzarella|mozarella|mozzarela|feta|ricotta|mascarpone|queso de burgos|' +
-          'quesos? blanc[oa]s?|quesos? tiern[oa]s?|queso batido|queso de cabra|quesos? de oveja',
+          'quesos? blanc[oa]s?|quesos? tiern[oa]s?|queso batido|queso de cabra|quesos? de oveja|queso (?:de|para) untar|queso crema|quesos? cremos[oa]s?|cottage|quark|mato',
         { matiz: 'duda' },
       ),
     ],

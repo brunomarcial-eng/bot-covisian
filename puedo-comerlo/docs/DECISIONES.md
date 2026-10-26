@@ -302,6 +302,17 @@ Petición de la clienta: «Está siendo demasiado restrictivo. […] Un filete d
 
 **Alimentos nuevos (5):** `guiso-vino`, `tarta-queso-fria`, `helado-casero`, `mayonesa-dudosa`, `empanada` (empanadas y empanadillas, «Sí»; salían «No estoy segura»). Alias añadidos: pinchos morunos y brochetas (carne hecha), sopa de ajo y sopa castellana (caldo gallego). La guía pasa de 140 a 145 alimentos: **el e2e (escenario 10) comprueba «140 alimentos»; Alfred debe actualizarlo.**
 
+**Productos con ingredientes fiables y nombre que no casa (corrección de N4).** Antes, un producto de nombre desconocido y ingredientes lisos (galletas del obrador: «harina de trigo, azúcar, aceite de girasol») salía «No estoy segura» aunque la etiqueta ya se hubiera mirado. Ahora `classifyProduct` lee la lista con `checkLabel` sobre los 8 temas cuando los ingredientes son fiables (de OFF o de etiqueta; no `web`, no vacíos) y solo cuando ninguna ficha describe el producto por su nombre o categoría (nada reconocido, o reconocido solo por ingredientes):
+- **Nada que aparezca** → «Sí» con la frase neutra «He mirado los ingredientes y no veo nada que haya que vigilar.» (fuente «La propia app: a partir de los ingredientes», `question`/`alternative` null, `ojo`, `topics` y `missing` vacíos). Lo «pasteurizado» es tranquilizador, no un hallazgo (queso fresco «de leche pasteurizada» → «Sí»).
+- **Algo aparece** (incluido matiz `duda` o `poca`) → nunca la frase neutra, y la frase nombra el ingrediente (primera `evidence`), de modo que no contradice la fila «Lo que he mirado en la etiqueta»:
+  - «Con cuidado», con `question` y `topics`: listeria («Lleva queso fresco: mira que sea de leche pasteurizada.»; fiambre, ahumado, paté o brotes: «puede llevar listeria»), toxoplasmosis sin matiz, pescado crudo o anchoas, alcohol, hierbas sin matiz, mercurio sin matiz.
+  - «Sí» con aviso en `ojo` (se vigilan, no cambian el plato, regla de oro): cafeína y cacao («Sí, con moderación: lleva extracto de té verde.»), atún, hinojo o tila, carne picada o lomo («que esté bien cocinada»), huevo («en un envasado va cocinado o pasteurizado»).
+  - Con varios, manda el «Con cuidado»; los avisos se unen (máx. 3).
+- **Los alimentos que ya casan por ingrediente siguen decidiendo** si son «Con cuidado» o «Mejor no» (queso azul, jamón cocido, leche cruda, vino en los ingredientes…): esto no los toca. Un producto con **nombre reconocido** conserva la frase de su ficha aunque sus ingredientes tengan, por ejemplo, mozzarella (pizza, lasaña, croquetas van cocinadas); la lectura de la lista no lo rebaja.
+- **Datos de internet** siguen en «No estoy segura»; sin ingredientes, pide la foto. Alergias y trazas mandan como siempre.
+- Efecto en pruebas: «Hogaza del obrador» con «harina de trigo, agua, sal» pasó de «No estoy segura» a «Sí». `checkLabel` añade quesos de untar, crema, cottage, quark y mató a los quesos frescos (matiz `duda`).
+- Texto sin tocar: «pavo» suelto sigue siendo carne hecha («Sí»), «lomo» a secas «Sí» y «plato combinado» queda «No estoy segura» (sin alcohol).
+
 **Medición (corpus nuevo de 199 platos de carta y 43 productos de súper, con el nivel esperado revisado a mano; está en `tests/engine.test.js`).**
 | | Sí | Con cuidado | Mejor no | No estoy segura |
 |---|---|---|---|---|
