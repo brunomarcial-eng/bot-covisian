@@ -5,35 +5,39 @@ import { C, n, r0, rng, T, disco, puntos, hebras, loza, lozaOval, gajo, ramita }
 
 const circ = (r) => `<circle r="${r}"/>`;
 
+// Mejillón abierto y gamba cocida (se reutilizan en «marisco» y «arroz»).
+export const mej = (x, y, a, k = 1) =>
+`<g transform="${T(x, y, a, k)}"><path d="M-10 0C-9-6 5-7 11 0C5 7-9 6-10 0Z" fill="#2b2e3f"/><path d="M-8 0C-7-4.5 4-5 9 0C4 5-7 4.5-8 0Z" fill="#eaa25d"/><path d="M-5 -.5C-2-2.5 2-2.5 4 -.5" stroke="#f6cf9b" stroke-width="1.3" fill="none" stroke-linecap="round"/></g>`;
+
+export const gamba = (x, y, a, k = 1) =>
+  `<g transform="${T(x, y, a, k)}"><path d="M-11 -2C-11-11 7-12 11-3C14 3 9 9 2 9" fill="none" stroke="#e2693d" stroke-width="7" stroke-linecap="round"/>` +
+  `<path d="M-11 -2C-11-11 7-12 11-3C14 3 9 9 2 9" fill="none" stroke="#a8431f" stroke-width="7" stroke-dasharray="1 3.6"/>` +
+  `<path d="M-9 -8C-3-12 4-11 8-6" fill="none" stroke="#f3a07a" stroke-width="1.4" stroke-linecap="round"/>` +
+  `<path d="M2 9l-5 3M2 9l-1 6M2 9l4 4" stroke="#d65a30" stroke-width="2.2" stroke-linecap="round"/>` +
+  `<path d="M-11 -2l-8-6M-11 -2l-9 2" stroke="#a8431f" stroke-width=".9" stroke-linecap="round"/><circle cx="-10" cy="-3" r="1.2" fill="#241f1a"/></g>`;
+
 // 1 · Paella ---------------------------------------------------------------------
-export function paella() {
+export function paella({ ligera = false } = {}) {
   const r = rng(7);
   let s = '';
   s += `<g fill="#3b342d"><rect x="-93" y="-5.5" width="32" height="11" rx="5.5"/><rect x="61" y="-5.5" width="32" height="11" rx="5.5"/></g>`;
   s += `<circle r="70" fill="#3b342d"/><circle r="66.5" fill="#5b5145"/><circle r="63" fill="#dba92f"/>`;
   s += `<circle r="60" fill="none" stroke="#a8701c" stroke-width="6" stroke-opacity=".5" stroke-dasharray="16 3 7 5 24 4"/>`;
   s += `<circle cx="-6" cy="-4" r="40" fill="#e9bd42" fill-opacity=".7"/>`;
-  s += hebras(r, disco(r, 50, 58, 0), '#c68a22', 2.3, 4);
-  s += hebras(r, disco(r, 58, 58, 0), '#f1d271', 2.3, 4);
-  s += hebras(r, disco(r, 28, 58, 0), '#b8532a', 2, 3, ' stroke-opacity=".6"');
+  s += hebras(r, disco(r, ligera ? 20 : 50, 58, 0), '#c68a22', 2.6, 4);
+  s += hebras(r, disco(r, ligera ? 24 : 58, 58, 0), '#f1d271', 2.6, 4);
+  s += hebras(r, disco(r, ligera ? 10 : 28, 58, 0), '#b8532a', 2, 3, ' stroke-opacity=".6"');
   // pimiento en tiras
   s += `<g fill="none" stroke="#c63b2b" stroke-width="3.6" stroke-linecap="round">` +
     `<path d="M-30 -12q8-8 18-5"/><path d="M8 -26q10 2 16 10"/><path d="M-4 20q9 6 18 0"/><path d="M-44 6q4 10 14 12"/><path d="M30 6q10 0 14 10"/><path d="M-12 -46q8-3 15 2"/></g>`;
-  s += puntos(disco(r, 14, 50, 6), '#6d9c3b', 3.6);
-  // mejillones abiertos
-  const mej = (x, y, a) =>
-    `<g transform="${T(x, y, a)}"><path d="M-10 0C-9-6 5-7 11 0C5 7-9 6-10 0Z" fill="#2b2e3f"/><path d="M-8 0C-7-4.5 4-5 9 0C4 5-7 4.5-8 0Z" fill="#eaa25d"/><path d="M-5 -.5C-2-2.5 2-2.5 4 -.5" stroke="#f6cf9b" stroke-width="1.3" fill="none" stroke-linecap="round"/></g>`;
-  s += mej(-40, -30, 30) + mej(28, -42, -50) + mej(46, 14, 100) + mej(-8, 48, 8) + mej(-50, 24, -35) + mej(10, -8, 70);
-  // gambas
-  const gamba = (x, y, a) =>
-    `<g transform="${T(x, y, a)}"><path d="M-11 -2C-11-11 7-12 11-3C14 3 9 9 2 9" fill="none" stroke="#e2693d" stroke-width="7" stroke-linecap="round"/>` +
-    `<path d="M-11 -2C-11-11 7-12 11-3C14 3 9 9 2 9" fill="none" stroke="#a8431f" stroke-width="7" stroke-dasharray="1 3.6"/>` +
-    `<path d="M-9 -8C-3-12 4-11 8-6" fill="none" stroke="#f3a07a" stroke-width="1.4" stroke-linecap="round"/>` +
-    `<path d="M2 9l-5 3M2 9l-1 6M2 9l4 4" stroke="#d65a30" stroke-width="2.2" stroke-linecap="round"/>` +
-    `<path d="M-11 -2l-8-6M-11 -2l-9 2" stroke="#a8431f" stroke-width=".9" stroke-linecap="round"/><circle cx="-10" cy="-3" r="1.2" fill="#241f1a"/></g>`;
-  s += gamba(-14, -22, 20) + gamba(24, -6, -40) + gamba(-26, 20, 140) + gamba(14, 30, -10);
-  s += gajo(58, -22, 70, 10) + gajo(-56, 36, -110, 10);
-  s += hebras(r, disco(r, 20, 52, 5), '#3f6d2f', 1.4, 3);
+  s += puntos(disco(r, ligera ? 8 : 14, 50, 6), '#6d9c3b', 3.6);
+  s += mej(-40, -30, 30) + mej(28, -42, -50) + mej(46, 14, 100) + mej(-8, 48, 8);
+  if (!ligera) s += mej(-50, 24, -35) + mej(10, -8, 70);
+  s += gamba(-14, -22, 20) + gamba(24, -6, -40) + gamba(-26, 20, 140);
+  if (!ligera) s += gamba(14, 30, -10);
+  s += gajo(58, -22, 70, 10);
+  if (!ligera) s += gajo(-56, 36, -110, 10);
+  if (!ligera) s += hebras(r, disco(r, 20, 52, 5), '#3f6d2f', 1.4, 3);
   return {
     svg: s,
     sh: `${circ(70)}<rect x="-93" y="-5.5" width="186" height="11" rx="5.5"/>`,
@@ -87,14 +91,14 @@ export function tortilla() {
 }
 
 // 3 · Ensalada mixta ------------------------------------------------------------------
-export function ensalada() {
+export function ensalada({ ligera = false } = {}) {
   const R = 56;
   const r = rng(33);
   let s = loza(R, { band: C.salvia });
   const hoja = (x, y, a, c, k = 1) =>
     `<g transform="${T(x, y, a, k)}"><path d="M-15 0q1-8 8-8q5-5 10 1q8-1 9 6q3 7-5 9q-5 5-10 0q-8 3-11-3q-3-3-1-5Z" fill="${c}"/><path d="M-12 0Q0 -2 12 1" stroke="#dfeaa8" stroke-width=".9" fill="none" stroke-opacity=".8"/></g>`;
   const verdes = ['#7fa545', '#6c9a3c', '#a2c15f', '#5c8a38', '#8db652'];
-  const hs = disco(r, 11, 30, 11);
+  const hs = disco(r, ligera ? 8 : 11, 30, 11);
   hs.forEach(([x, y], i) => (s += hoja(x, y, r() * 360, verdes[i % 5], 0.85 + r() * 0.35)));
   // tomate en gajos
   const tom = (x, y, a) =>
@@ -104,13 +108,13 @@ export function ensalada() {
   const pep = (x, y) => `<g transform="translate(${x} ${y})"><circle r="6.6" fill="#8fb35a"/><circle r="5.2" fill="#d4e6a6"/><circle r="2.7" fill="#e9f2c8"/>${puntos([[-2, 0], [2, 1], [0, -2.4]], '#a9c47a', 1)}</g>`;
   s += pep(-4, -4) + pep(22, 4) + pep(-14, 26);
   // cebolla en aros
-  s += `<g fill="none" stroke="#e1bfd3" stroke-width="1.6" stroke-linecap="round"><path d="M-8 -24a9 9 0 0 1 14 2"/><path d="M12 24a8 8 0 0 1 11-4"/><path d="M-30 -2a8 8 0 0 1 3-10"/></g>`;
+  if (!ligera) s += `<g fill="none" stroke="#e1bfd3" stroke-width="1.6" stroke-linecap="round"><path d="M-8 -24a9 9 0 0 1 14 2"/><path d="M12 24a8 8 0 0 1 11-4"/><path d="M-30 -2a8 8 0 0 1 3-10"/></g>`;
   // huevo duro, atún, aceitunas, maíz
   s += `<g transform="${T(-2, 22, 20)}"><ellipse rx="8" ry="6.2" fill="${C.hoja}" stroke="#d6ccb8"/><circle r="3.4" fill="#f0c43a"/></g>`;
   s += `<g transform="${T(24, -8, 15)}"><ellipse rx="8" ry="6.2" fill="${C.hoja}" stroke="#d6ccb8"/><circle r="3.4" fill="#f0c43a"/></g>`;
   s += `<path d="M-16 -30c4-4 9-3 10 1c-2 4-8 5-10-1ZM28 18c4-3 8-2 8 2c-3 3-8 3-8-2Z" fill="#ebcfa7" stroke="#cfa877" stroke-width=".8"/>`;
   s += `<g fill="#2f2a24"><circle cx="-34" cy="14" r="3.4"/><circle cx="30" cy="-24" r="3.4"/><circle cx="8" cy="-8" r="3.4"/></g><g fill="#8a7d6e"><circle cx="-34" cy="14" r="1.2"/><circle cx="30" cy="-24" r="1.2"/><circle cx="8" cy="-8" r="1.2"/></g>`;
-  s += puntos(disco(r, 7, 32, 7), '#f2cf45', 2.4);
+  if (!ligera) s += puntos(disco(r, 7, 32, 7), '#f2cf45', 2.4);
   return { svg: s, sh: circ(R), R };
 }
 

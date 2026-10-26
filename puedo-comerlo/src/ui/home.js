@@ -7,7 +7,7 @@ import { entryRow } from './entries.js';
 import { recordSearch } from './buscar.js';
 import { buildHash, navigate } from './router.js';
 import { installHint } from './instalar.js';
-import { emptyState } from './art-ui.js';
+import { emptyState, homePlate } from './art-ui.js';
 
 // Dos accesos grandes: la tipografía manda; no hay icono ni círculo.
 function tile(href, title, kicker, variant = '') {
@@ -52,6 +52,7 @@ export function render({ main, profile }) {
   });
 
   main.append(
+    homePlate(),
     h('h1', null, '¿Qué vas a comer?'),
     h('p', { class: 'lead' }, 'En la mesa o en el súper. La respuesta, primero.'),
     h(

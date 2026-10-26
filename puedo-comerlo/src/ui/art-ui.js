@@ -31,6 +31,17 @@ export function emptyState(tipo, ...text) {
   );
 }
 
+// Inicio: un cuenco pequeño con vapor junto al título (decorativo, ligero: tres trazos que suben y se apagan).
+export function homePlate() {
+  const wrap = h('div', { class: 'home-plate', 'aria-hidden': 'true' });
+  wrap.append(svgNode(platoSvg('cuenco', { decorativa: true })));
+  wrap.insertAdjacentHTML(
+    'beforeend',
+    '<svg class="home-vapor" viewBox="0 0 60 44" width="60" height="44" aria-hidden="true" focusable="false"><path d="M16 40c-6-8 6-12 0-20"/><path d="M30 42c-6-8 6-12 0-24"/><path d="M44 40c-6-8 6-12 0-20"/></svg>',
+  );
+  return wrap;
+}
+
 // «Leyendo…»: el plato con tenedor y cuchillo que giran, y el texto de estado (región viva).
 export function loadingStatus(firstText) {
   const text = h('span', { class: 'status-text' }, firstText);
@@ -38,7 +49,14 @@ export function loadingStatus(firstText) {
     'div',
     { class: 'status status--art', role: 'status', 'aria-live': 'polite' },
     h('span', { class: 'status-art', 'aria-hidden': 'true' }, svgNode(cargandoSvg({ decorativa: true, animada: false }))),
-    text,
+    // Texto de estado y dos barras de «shimmer» (no son texto: vacías y aria-hidden)
+    h(
+      'span',
+      { class: 'status-body' },
+      text,
+      h('span', { class: 'skel', 'aria-hidden': 'true' }),
+      h('span', { class: 'skel skel--short', 'aria-hidden': 'true' }),
+    ),
   );
   return { el, text };
 }

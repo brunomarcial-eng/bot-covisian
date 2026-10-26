@@ -30,7 +30,6 @@ export function render({ main, segs }) {
 
   const setOpen = (card, open) => {
     card.btn.setAttribute('aria-expanded', String(open));
-    card.panel.hidden = !open;
     card.el.classList.toggle('is-open', open);
     card.state.textContent = open ? 'Cerrar' : 'Abrir';
   };
@@ -40,11 +39,12 @@ export function render({ main, segs }) {
     const state = h('span', { class: 'clave-state' }, 'Abrir');
     const btn = h(
       'button',
-      { type: 'button', class: 'clave-head', 'aria-expanded': 'false', 'aria-controls': panelId },
+      { type: 'button', class: 'clave-head', id: `${panelId}-t`, 'aria-expanded': 'false', 'aria-controls': panelId },
       h('span', { class: 'clave-head-text' }, h('span', { class: 'clave-title' }, c.titulo), h('span', { class: 'clave-resumen' }, c.resumen)),
       state,
     );
-    const panel = h('div', { class: 'clave-panel', id: panelId, hidden: true }, panelFor(c));
+    // El panel crece y se encoge en altura (rejilla 0fr → 1fr); cerrado, no se ve ni se enfoca (visibility).
+    const panel = h('div', { class: 'clave-panel', id: panelId, role: 'region', 'aria-labelledby': `${panelId}-t` }, h('div', { class: 'clave-panel-in' }, panelFor(c)));
     const el = h('li', { class: 'clave', id: `clave-${c.id}`, dataset: { clave: c.id } }, h('h2', { class: 'clave-h' }, btn), panel);
     const card = { id: c.id, el, btn, panel, state };
     cards.push(card);

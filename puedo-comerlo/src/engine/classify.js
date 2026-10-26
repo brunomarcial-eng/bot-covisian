@@ -345,7 +345,10 @@ function applyContext(matches, doc, context) {
       context === 'product' && list.filter((m) => m.id === 'alcohol').every((m) => m.where === 'ingredient');
     if (cooking || onlyIngredient) {
       remove('alcohol');
-      add('salsa-vino');
+      // Vino que hierve de verdad en un guiso → «Sí»; salsa, flambé o vino al final → «Con cuidado».
+      const guiso =
+        cooking && !CTX.flambe.test(text) && (CTX.guisoLargo.test(text) || !CTX.salsaVino.test(text));
+      add(guiso ? 'guiso-vino' : 'salsa-vino');
     }
   }
 
@@ -357,7 +360,8 @@ function applyContext(matches, doc, context) {
     remove('cerveza-sin');
   }
   if (has('descafeinado')) remove('cafe', 'te');
-  if (has('mayonesa-bote')) remove('mayonesa-casera');
+  if (has('mayonesa-bote')) remove('mayonesa-casera', 'mayonesa-dudosa');
+  if (has('mayonesa-casera')) remove('mayonesa-dudosa');
   if (has('pescado-mercurio')) remove('atun-plancha', 'atun-lata', 'pescado-blanco-plancha', 'pescado-azul-pequeno', 'salmon-hecho');
   if (has('pescado-ahumado') || has('pescado-crudo') || has('boquerones-vinagre')) {
     remove('pescado-blanco-plancha', 'pescado-azul-pequeno', 'salmon-hecho', 'atun-plancha');
@@ -495,7 +499,7 @@ function applyEmbutidoProfile(piece, food, profile) {
 function applyPasteurized(piece, text) {
   if (!PASTEURIZABLE_CHEESE.has(piece.id) || piece.level === 'no') return piece;
   if (!CTX.pasteurizado.test(text) || CTX.noPasteurizado.test(text)) return piece;
-  return { ...piece, level: 'si', phrase: PHRASES.quesoPasteurizado };
+  return { ...piece, level: 'si', phrase: PHRASES.quesoPasteurizado, pasteurized: true };
 }
 
 function mergePieces(pieces) {
@@ -604,7 +608,7 @@ function finish(
   base,
   {
     title, foodIds, profile, allergyFound, otraFound, traces = [], uncertain = false, notes, ingredients,
-    topics = [], missingList = [], forceMissing = false, downgrade = null,
+    topics = [], missingList = [], forceMissing = false, downgrade = null, ojo = [],
   },
 ) {
   let level = base.level;
@@ -679,6 +683,9 @@ function finish(
     topics: level === 'cuidado' || level === 'no' ? topics : [],
     // Temas que no se pueden descartar sin ver la etiqueta: «No estoy segura», o producto sin ingredientes fiables.
     missing: level === 'duda' || forceMissing ? missingList : [],
+    // «Ojo con esto»: avisos cortos de lo que conviene vigilar en un «Sí» (o junto a un «Con cuidado»). En
+    // «Mejor no» y «No estoy segura»: [].
+    ojo: level === 'si' || level === 'cuidado' ? ojo : [],
   };
 }
 
@@ -710,6 +717,14 @@ function classifyDoc(
     byRelevance.filter((e) => e.piece.level === 'cuidado' || e.piece.level === 'no').map((e) => topicsForFood(e.food)),
   );
   const missingList = missingFor(byRelevance, text);
+  const ojo = ojoFrom(
+    byRelevance.filter(
+      (e) =>
+        (e.piece.level === 'si' || e.piece.level === 'cuidado') &&
+        !e.piece.pasteurized &&
+        (context !== 'product' || e.m.where !== 'ingredient'),
+    ),
+  );
   let base = pieces.length ? mergePieces(pieces) : unknownPiece();
   // Producto: un «Sí» solo puede hablar con la voz de un alimento emparejado por el nombre (o la categoría) del
   // producto. Si lo único que lo decide son ingredientes («leche pasteurizada» en unos ñoquis), la frase de esa
@@ -753,7 +768,18 @@ function classifyDoc(
     missingList,
     forceMissing,
     downgrade,
+    ojo,
   });
+}
+
+// Avisos de «Ojo con esto» de los alimentos emparejados: sin repetir, los más importantes primero, máximo 3.
+export const OJO_MAX = 3;
+function ojoFrom(entries) {
+  const out = [];
+  for (const e of entries) {
+    for (const o of e.food.ojo || []) if (!out.includes(o)) out.push(o);
+  }
+  return out.slice(0, OJO_MAX);
 }
 
 // Qué no se puede descartar sin ver la etiqueta, según lo que se reconoce. Nada reconocido: la regla 7.
@@ -880,6 +906,7 @@ export function verdictForFood(foodId, profile) {
     ingredients: [],
     topics: risky ? topicsForFood(food) : [],
     missingList: missingForFood(food).slice(0, MISSING_MAX),
+    ojo: (food.ojo || []).slice(0, OJO_MAX),
   });
 }
 

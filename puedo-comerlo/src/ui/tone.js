@@ -182,6 +182,16 @@ function buildMarks(level, ignite) {
   host.classList.remove('is-out');
   host.dataset.level = level;
   host.replaceChildren();
+  if (level === 'no') {
+    // «Mejor no»: una cruz fina que se dibuja (dos trazos), oscura y tenue como los «?».
+    const cross = document.createElement('span');
+    cross.className = 'tcross';
+    cross.setAttribute('aria-hidden', 'true');
+    cross.style.setProperty('--d', `${ignite ? 520 : 160}ms`);
+    cross.innerHTML = '<i></i><i></i>';
+    host.append(cross);
+    return;
+  }
   list.forEach((m, i) => {
     const s = document.createElement('span');
     s.className = 'tm';
@@ -201,7 +211,7 @@ function setMarks(level, { ignite }) {
   if (!host) return;
   const token = ++marksToken;
   const has = host.childElementCount > 0 && host.dataset.level;
-  if (!MARKS[level]) {
+  if (!MARKS[level] && level !== 'no') {
     clearMarks(false);
     return;
   }

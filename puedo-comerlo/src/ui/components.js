@@ -67,7 +67,7 @@ export function addToListButton(entry, { small = true, variant = 'secondary', in
 
 // «Ver más»: botón (aria-expanded) + panel con detalle, pregunta, alternativa, notas y fuente.
 export function verdictMore(v, opts = {}) {
-  const { level = 2, fichaLink = true, listEntry = null, startOpen = false, extraMore = null, listButtonOpts = {} } = opts;
+  const { level = 2, fichaLink = true, listEntry = null, startOpen = false, extraMore = null, listButtonOpts = {}, ojoRest = null, hideQuestion = false } = opts;
   const moreId = uid('mas');
   const sub = `h${Math.min(level + 1, 6)}`;
   const parts = [];
@@ -77,7 +77,11 @@ export function verdictMore(v, opts = {}) {
     parts.push(h(sub, { class: 'more-label' }, 'Ingredientes leídos'));
     parts.push(h('p', null, v.ingredients.join(', ')));
   }
-  if (v.question) {
+  if (Array.isArray(ojoRest) && ojoRest.length) {
+    parts.push(h(sub, { class: 'more-label' }, 'Ojo con esto'));
+    parts.push(h('ul', { class: 'more-notes' }, ojoRest.map((t) => h('li', null, t))));
+  }
+  if (v.question && !hideQuestion) {
     parts.push(h(sub, { class: 'more-label' }, 'Qué preguntar o mirar'));
     parts.push(h('p', null, v.question));
   }
@@ -128,15 +132,46 @@ export function verdictMore(v, opts = {}) {
   return { button, panel };
 }
 
+// «Ojo con esto»: avisos cortos del motor (`verdict.ojo`, 0–3) y, en «Con cuidado», la pregunta para el
+// camarero. Si el veredicto no trae `ojo` (motor antiguo), no sale nada. Devuelve { node, hasQuestion }.
+export function ojoBlock(v, { level = 2 } = {}) {
+  if (!v || !Array.isArray(v.ojo)) return { node: null, hasQuestion: false };
+  const lines = v.ojo.map((t) => String(t || '').trim()).filter(Boolean);
+  const askQ = v.level === 'cuidado' && typeof v.question === 'string' && v.question.trim() !== '';
+  if (!lines.length && !askQ) return { node: null, hasQuestion: false };
+  const id = uid('ojo');
+  const sub = `h${Math.min(level + 1, 6)}`;
+  const node = h(
+    'section',
+    { class: 'ojo', 'aria-labelledby': lines.length ? id : null, 'aria-label': lines.length ? null : 'Pregunta' },
+    lines.length
+      ? [
+          h(sub, { class: 'ojo-title', id }, icon('eye', 20, 1.6), h('span', null, 'Ojo con esto')),
+          h('ul', { class: 'ojo-list' }, lines.map((t) => h('li', null, t))),
+        ]
+      : null,
+    askQ ? [h(sub, { class: 'ojo-q-title' }, h('span', null, 'Pregunta')), h('p', { class: 'ojo-q' }, v.question.trim())] : null,
+  );
+  return { node, hasQuestion: askQ };
+}
+
+// Segunda línea discreta de una fila de lista: el primer aviso, en una sola línea con elipsis.
+export function ojoLine(ojo) {
+  const first = Array.isArray(ojo) ? String(ojo[0] || '').trim() : '';
+  if (!first) return null;
+  return h('span', { class: 'entry-ojo' }, icon('eye', 15, 1.6), h('span', { class: 'entry-ojo-text' }, first));
+}
+
 // Respuesta única: la palabra grande en su color, el nombre como contexto, la frase debajo.
 //   eyebrow: línea pequeña encima (grupo de la guía)   sheet: dentro de una hoja
 //   actions: nodos bajo la frase (antes de «Ver más»)   listEntry: añade «Añadir a la lista» en «Ver más»
 export function verdictAnswer(v, opts = {}) {
   const { level = 2, title = v.title, eyebrow = null, sheet = false, actions = null, hideName = false, afterPhrase = null } = opts;
   const lv = norm(v.level);
-  const { button, panel } = verdictMore(v, opts);
   const nameId = uid('nombre');
   const phrase = phraseOf(v);
+  const ojo = ojoBlock(v, { level });
+  const { button, panel } = verdictMore(v, { ...opts, hideQuestion: ojo.hasQuestion });
   return h(
     'article',
     { class: `answer lv-${lv}${sheet ? ' answer--sheet' : ''}`, 'aria-labelledby': nameId, dataset: { level: lv } },
@@ -144,6 +179,7 @@ export function verdictAnswer(v, opts = {}) {
     h('p', { class: 'answer-word' }, LEVEL_LABEL[lv]),
     h(`h${level}`, { class: hideName ? 'visually-hidden' : 'answer-name', id: nameId }, capFirst(title) || 'Sin nombre'),
     phrase ? h('p', { class: 'answer-phrase' }, phrase) : null,
+    ojo.node,
     afterPhrase,
     actions ? h('div', { class: 'answer-actions' }, actions) : null,
     button ? h('div', { class: 'more-bar' }, button) : null,
@@ -156,7 +192,7 @@ export function verdictAnswer(v, opts = {}) {
 export function entryItem(v, opts = {}) {
   const { level = 2, title = v.title, aside = null } = opts;
   const lv = norm(v.level);
-  const { button, panel } = verdictMore(v, opts);
+  const { button, panel } = verdictMore(v, { ...opts, ojoRest: Array.isArray(v.ojo) ? v.ojo.slice(1) : null });
   const nameId = uid('nombre');
   const phrase = phraseOf(v);
   return h(
@@ -168,6 +204,7 @@ export function entryItem(v, opts = {}) {
       h('span', { class: 'lvl' }, LEVEL_LABEL[lv]),
       h(`h${level}`, { class: 'entry-name', id: nameId }, capFirst(title) || 'Sin nombre'),
       phrase ? h('p', { class: 'entry-phrase' }, phrase) : null,
+      ojoLine(v.ojo),
       button || aside ? h('div', { class: 'more-bar' }, button, aside) : null,
       panel,
     ),
@@ -175,7 +212,7 @@ export function entryItem(v, opts = {}) {
 }
 
 // Fila de lista que es un enlace entero (historial, «Lo último», favoritos).
-export function entryLink({ href = null, level, title, phrase, meta = null, onClick = null, headingLevel = null }) {
+export function entryLink({ href = null, level, title, phrase, meta = null, onClick = null, headingLevel = null, ojo = null }) {
   const lv = norm(level);
   const text = trimPhrase(phrase || '', lv);
   const name = headingLevel
@@ -185,6 +222,7 @@ export function entryLink({ href = null, level, title, phrase, meta = null, onCl
     h('span', { class: 'lvl' }, LEVEL_LABEL[lv]),
     name,
     text ? h('span', { class: 'entry-phrase' }, text) : null,
+    ojoLine(ojo),
     meta,
   ];
   if (href) {

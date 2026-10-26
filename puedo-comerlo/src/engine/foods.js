@@ -3,7 +3,8 @@
 // cafeína) y notas del Ministerio de Sanidad. Sin dependencias: se importa desde el navegador y desde Node.
 //
 // Forma de cada alimento (ver docs/CONTRATO.md, «Base de alimentos»):
-// { id, name, aliases[], groups[], level, phrase, detail, question|null, alternative|null, source, tags[], embutido? }
+// { id, name, aliases[], groups[], level, phrase, detail, question|null, alternative|null, source, ojo?: string[0-3], tags[], embutido? }
+// «ojo»: avisos muy cortos (≤ 70 caracteres) de lo que conviene vigilar en un «Sí» («Verdura bien lavada.»).
 
 export const GROUPS = [
   { id: 'todo', label: 'Todo' },
@@ -153,6 +154,7 @@ export const FOODS = [
     question: '¿El embutido va cocinado dentro del plato o se pone encima al servir?',
     alternative: `Otras proteínas: ${ALT_PROTEINAS.charAt(0).toLowerCase()}${ALT_PROTEINAS.slice(1)}`,
     source: 'AESAN',
+    ojo: ['Que llegue bien caliente.'],
     tags: ['carne', 'cerdo', 'embutido'],
   },
   {
@@ -191,6 +193,7 @@ export const FOODS = [
     question: '¿El fiambre va horneado o a la plancha, o se pone en frío al servir?',
     alternative: null,
     source: 'AESAN',
+    ojo: ['Que vaya cocinado, no puesto en frío al servir.'],
     tags: ['carne', 'cerdo'],
   },
 
@@ -227,6 +230,7 @@ export const FOODS = [
     question: 'En los de granja, mira que ponga leche pasteurizada.',
     alternative: null,
     source: 'AESAN',
+    ojo: ['En los de granja, que sea de leche pasteurizada.'],
     tags: ['leche', 'lactosa'],
   },
   {
@@ -238,13 +242,14 @@ export const FOODS = [
       'queso crema', 'queso de untar', 'queso para untar', 'mascarpone', 'queso de cabra fresco',
     ],
     groups: ['lacteos', 'supermercado'],
-    level: 'cuidado',
-    phrase: 'Con cuidado: solo si es de leche pasteurizada.',
+    level: 'si',
+    phrase: 'Sí: de leche pasteurizada, como los del súper.',
     detail:
-      'El queso fresco, el de Burgos, el requesón o la mozzarella no se curan, y si la leche no está pasteurizada pueden llevar listeria. AESAN recomienda en el embarazo tomar solo quesos elaborados con leche pasteurizada. En los envasados, la etiqueta lo indica.',
+      'El queso fresco, el de Burgos, el requesón o la mozzarella del súper se hacen con leche pasteurizada, que es lo que AESAN recomienda en el embarazo. Solo en uno artesano o de granja, sin etiqueta, conviene asegurarse de que la leche no sea cruda, porque podría llevar listeria.',
     question: '¿Es de leche pasteurizada? En el súper, mira la etiqueta.',
-    alternative: 'Un queso fresco envasado en el que ponga leche pasteurizada.',
+    alternative: null,
     source: 'AESAN',
+    ojo: ['Que el queso sea de leche pasteurizada.'],
     tags: ['leche', 'lactosa', 'listeria'],
   },
   {
@@ -256,13 +261,14 @@ export const FOODS = [
       'queso zamorano', 'emmental', 'gouda', 'cheddar', 'gruyère',
     ],
     groups: ['lacteos', 'supermercado'],
-    level: 'cuidado',
-    phrase: 'Con cuidado: mejor si es de leche pasteurizada.',
+    level: 'si',
+    phrase: 'Sí: curado, y mejor si es de leche pasteurizada.',
     detail:
-      'Los quesos curados tienen menos humedad y menos riesgo que los blandos, pero algunos, como ciertos manchegos o el parmesano, se hacen con leche cruda. AESAN recomienda en el embarazo los quesos elaborados con leche pasteurizada. La etiqueta lo dice.',
+      'Los quesos curados tienen menos humedad y menos riesgo que los blandos. Algunos, como ciertos manchegos o el parmesano, se hacen con leche cruda, y AESAN recomienda en el embarazo los quesos elaborados con leche pasteurizada. La etiqueta lo dice.',
     question: 'Mira en la etiqueta si es de leche pasteurizada o cruda.',
-    alternative: 'Un curado o semicurado en el que ponga leche pasteurizada.',
+    alternative: null,
     source: 'AESAN',
+    ojo: ['Mejor de leche pasteurizada.'],
     tags: ['leche', 'lactosa'],
   },
   {
@@ -351,6 +357,7 @@ export const FOODS = [
     question: '¿El queso va al horno o a la plancha, o se pone en frío al servir?',
     alternative: null,
     source: 'AESAN',
+    ojo: ['Que vaya cocinado, no puesto en frío al final.'],
     tags: ['leche', 'lactosa'],
   },
 
@@ -388,6 +395,7 @@ export const FOODS = [
     question: 'Mira que sea envasada y que, una vez abierta, se haya guardado en frío.',
     alternative: null,
     source: 'AESAN',
+    ojo: ['Una vez abierta, guardada en frío.'],
     tags: ['huevo'],
   },
   {
@@ -428,20 +436,35 @@ export const FOODS = [
   },
   {
     id: 'mayonesa-casera',
-    name: 'Mayonesa casera o alioli',
+    name: 'Mayonesa o alioli casero',
     aliases: [
-      'mayonesa casera', 'mahonesa casera', 'mayonesa de la casa', 'alioli', 'allioli', 'alioli casero',
-      'salsa alioli', 'ajoaceite', 'salsa tártara casera', 'salsa rosa casera',
+      'mayonesa casera', 'mahonesa casera', 'mayonesa de la casa', 'alioli casero', 'salsa tártara casera',
+      'salsa rosa casera',
     ],
     groups: ['huevos', 'restaurante'],
     level: 'no',
     phrase: 'Con huevo crudo, mejor no.',
     detail:
-      'La mayonesa casera y muchos alioli se montan con huevo crudo. AESAN recomienda en el embarazo tomar el huevo bien cocinado, por el riesgo de salmonela. La mayonesa de bote, hecha con huevo pasteurizado, no tiene ese problema.',
+      'La mayonesa y el alioli caseros se montan con huevo crudo. AESAN recomienda en el embarazo tomar el huevo bien cocinado, por el riesgo de salmonela. La mayonesa de bote, hecha con huevo pasteurizado, no tiene ese problema.',
     question: '¿La mayonesa o el alioli es casero o de bote?',
     alternative: 'Mayonesa de bote, o un alioli sin huevo, solo de ajo y aceite.',
     source: 'AESAN',
     tags: ['huevo', 'crudo'],
+  },
+  {
+    id: 'mayonesa-dudosa',
+    name: 'Mayonesa o alioli',
+    aliases: ['mayonesa', 'mahonesa', 'alioli', 'allioli', 'salsa alioli', 'ajoaceite'],
+    groups: ['huevos', 'restaurante'],
+    level: 'cuidado',
+    phrase: 'Con cuidado: casera lleva huevo crudo; de bote, no.',
+    detail:
+      'En un restaurante la mayonesa y el alioli suelen ser caseros, y se montan con huevo crudo. AESAN recomienda en el embarazo tomar el huevo bien cocinado, por el riesgo de salmonela. La mayonesa de bote, hecha con huevo pasteurizado, no tiene ese problema; si dicen que es casera, pasa a «Mejor no».',
+    question: '¿La mayonesa o el alioli es casero o de bote?',
+    alternative: 'Mayonesa de bote, o un alioli sin huevo, solo de ajo y aceite.',
+    source: 'AESAN',
+    ojo: [],
+    tags: ['huevo'],
   },
   {
     id: 'tortilla-patata',
@@ -468,13 +491,14 @@ export const FOODS = [
       'revuelto de bacalao',
     ],
     groups: ['huevos', 'restaurante'],
-    level: 'cuidado',
-    phrase: 'Solo si el huevo queda cuajado, sin partes líquidas.',
+    level: 'si',
+    phrase: 'Sí, con el huevo bien cuajado, sin partes líquidas.',
     detail:
-      'Un revuelto puede salir bien hecho o muy jugoso, según la cocina. AESAN recomienda en el embarazo tomar el huevo bien cocinado, por el riesgo de salmonela.',
+      'Un revuelto bien hecho tiene el huevo cuajado y es un plato sin problema. Si sale muy jugoso o cremoso, el huevo está poco hecho y pasa a «Mejor no». AESAN recomienda en el embarazo tomar el huevo bien cocinado, por el riesgo de salmonela.',
     question: '¿Me lo pueden hacer bien cuajado, no jugoso?',
-    alternative: 'Pídelo bien hecho, o una tortilla francesa cuajada del todo.',
+    alternative: null,
     source: 'AESAN',
+    ojo: ['Que el huevo esté cuajado, sin partes líquidas.'],
     tags: ['huevo'],
   },
 
@@ -484,10 +508,12 @@ export const FOODS = [
     name: 'Carne bien hecha',
     aliases: [
       'carne bien hecha', 'carne muy hecha', 'pollo', 'pollo asado', 'pollo a la plancha', 'pollo al ajillo',
-      'pollo frito', 'pechuga de pollo', 'alitas de pollo', 'ternera asada', 'ternera guisada', 'estofado de ternera',
-      'carne guisada', 'carne estofada', 'albóndigas', 'cordero asado', 'lechazo', 'cochinillo', 'costillas',
-      'carrillada', 'carrilleras', 'chuletas de cordero', 'lomo de cerdo', 'lomo adobado', 'cinta de lomo',
-      'filete de ternera', 'escalope', 'torreznos', 'conejo al ajillo', 'pato confitado',
+      'pollo frito', 'pechuga de pollo', 'alitas de pollo', 'ternera asada', 'ternera guisada',
+      'estofado de ternera', 'carne guisada', 'carne estofada', 'albóndigas', 'cordero asado', 'lechazo',
+      'cochinillo', 'costillas', 'carrillada', 'carrilleras', 'chuletas de cordero', 'lomo de cerdo',
+      'lomo adobado', 'cinta de lomo', 'filete de ternera', 'escalope', 'torreznos', 'conejo al ajillo',
+      'pato confitado', 'pinchos morunos', 'pincho moruno', 'pinchito moruno', 'brocheta de pollo',
+      'brochetas de carne', 'brocheta de ternera',
     ],
     groups: ['carne', 'restaurante'],
     level: 'si',
@@ -497,6 +523,7 @@ export const FOODS = [
     question: '¿Me la pueden hacer bien hecha, sin nada rosado?',
     alternative: null,
     source: 'AESAN',
+    ojo: ['Que esté hecha del todo, sin partes rosadas.'],
     tags: ['carne'],
   },
   {
@@ -607,13 +634,14 @@ export const FOODS = [
       'hamburguesa de vaca', 'hamburguesa completa', 'carne picada',
     ],
     groups: ['carne', 'restaurante', 'supermercado'],
-    level: 'cuidado',
-    phrase: 'Con cuidado: hecha del todo, sin nada rosado por dentro.',
+    level: 'si',
+    phrase: 'Sí, hecha del todo, sin nada rosado por dentro.',
     detail:
-      'Al picar la carne, lo que estaba en la superficie queda repartido por dentro, así que la hamburguesa tiene que hacerse hasta el centro. Muchos sitios la sirven al punto si no se pide otra cosa. AESAN recomienda en el embarazo cocinar bien la carne.',
+      'Al picar la carne, lo que estaba en la superficie queda repartido por dentro, así que la hamburguesa tiene que hacerse hasta el centro. Hecha del todo es un plato normal; muchos sitios la sirven al punto si no se pide otra cosa. AESAN recomienda en el embarazo cocinar bien la carne.',
     question: '¿Me la pueden hacer muy hecha, sin rosado?',
-    alternative: 'La misma hamburguesa, hecha del todo, o pollo a la plancha.',
+    alternative: null,
     source: 'AESAN',
+    ojo: ['Que esté hecha del todo, sin partes rosadas.'],
     tags: ['carne'],
   },
 
@@ -635,6 +663,7 @@ export const FOODS = [
     question: '¿Está hecho del todo, sin partes crudas por dentro?',
     alternative: null,
     source: 'AESAN',
+    ojo: ['Que esté hecho del todo, sin partes crudas.'],
     tags: ['pescado'],
   },
   {
@@ -653,6 +682,7 @@ export const FOODS = [
     question: '¿Está hecho, o es en vinagre?',
     alternative: null,
     source: 'AESAN',
+    ojo: ['Que esté hecho, no en vinagre.'],
     tags: ['pescado'],
   },
   {
@@ -670,6 +700,7 @@ export const FOODS = [
     question: '¿Está hecho del todo, sin el centro crudo?',
     alternative: null,
     source: 'AESAN',
+    ojo: ['Que esté hecho del todo, sin el centro crudo.'],
     tags: ['pescado'],
   },
   {
@@ -691,6 +722,7 @@ export const FOODS = [
     question: '¿El marisco está hecho del todo?',
     alternative: null,
     source: 'AESAN',
+    ojo: ['Que el marisco esté hecho del todo.'],
     tags: ['marisco'],
   },
   {
@@ -744,6 +776,7 @@ export const FOODS = [
     question: '¿El ahumado se cocina con el plato o se pone en frío por encima?',
     alternative: null,
     source: 'AESAN',
+    ojo: ['Que se cocine con el plato, no puesto en frío encima.'],
     tags: ['pescado'],
   },
   {
@@ -807,13 +840,14 @@ export const FOODS = [
       'ventresca de bonito',
     ],
     groups: ['pescado', 'supermercado'],
-    level: 'cuidado',
-    phrase: 'Con cuidado: sin pasarse, porque el atún acumula algo de mercurio.',
+    level: 'si',
+    phrase: 'Sí, con moderación: el atún acumula algo de mercurio.',
     detail:
       'El atún en lata suele ser atún claro o bonito, especies con menos mercurio que el atún rojo, pero sigue llevando algo. AESAN recomienda en el embarazo variar el pescado y no basarse siempre en el atún.',
     question: 'Mira que sea atún claro o bonito, no atún rojo.',
-    alternative: 'Sardinas o caballa en lata, que tienen menos mercurio.',
+    alternative: null,
     source: 'AESAN',
+    ojo: ['Con moderación: el atún acumula algo de mercurio.', 'Atún claro o bonito, no atún rojo.'],
     tags: ['pescado', 'mercurio'],
   },
   {
@@ -824,13 +858,14 @@ export const FOODS = [
       'bonito a la plancha', 'bonito con tomate', 'marmitako',
     ],
     groups: ['pescado', 'restaurante'],
-    level: 'cuidado',
-    phrase: 'Con cuidado: que no sea atún rojo, hecho del todo y sin pasarse.',
+    level: 'si',
+    phrase: 'Sí, hecho del todo y que no sea atún rojo; con moderación.',
     detail:
-      'El atún que no es rojo, como el bonito o el atún claro, tiene menos mercurio, pero AESAN recomienda en el embarazo variar el pescado y no abusar del atún. Además, tiene que ir hecho del todo: a la plancha se sirve a menudo crudo por dentro.',
+      'El atún que no es rojo, como el bonito o el atún claro, tiene menos mercurio, pero AESAN recomienda en el embarazo variar el pescado y no abusar del atún. Tiene que ir hecho del todo: a la plancha se sirve a menudo crudo por dentro, y entonces es «Mejor no».',
     question: '¿Es atún rojo? ¿Me lo pueden hacer del todo, sin crudo por dentro?',
-    alternative: 'Merluza, lubina o salmón a la plancha.',
+    alternative: null,
     source: 'AESAN',
+    ojo: ['Que no sea atún rojo y esté hecho del todo.', 'Con moderación: acumula algo de mercurio.'],
     tags: ['pescado', 'mercurio'],
   },
 
@@ -875,13 +910,14 @@ export const FOODS = [
       'canónigos', 'rúcula', 'lechuga', 'tomate aliñado', 'verdura cruda', 'crudités',
     ],
     groups: ['restaurante'],
-    level: 'cuidado',
-    phrase: 'Con cuidado: verdura bien lavada, y mira lo que lleva encima.',
+    level: 'si',
+    phrase: 'Sí, con la verdura bien lavada.',
     detail:
-      'AESAN recomienda en el embarazo lavar bien las frutas y verduras que se comen crudas, porque la tierra puede transmitir toxoplasmosis. En una ensalada, además, importa lo que lleve encima: brotes crudos, queso sin pasteurizar, embutido, pescado ahumado o una salsa casera con huevo.',
+      'AESAN recomienda en el embarazo lavar bien las frutas y verduras que se comen crudas, porque la tierra puede transmitir toxoplasmosis. Una ensalada sencilla, con aliño de aceite y vinagre, es un plato normal. Lo que lleve encima puede cambiarlo: brotes crudos, queso sin pasteurizar, embutido, pescado ahumado o una salsa casera con huevo.',
     question: '¿Lleva brotes, queso, embutido, pescado ahumado o salsa casera?',
-    alternative: 'Una ensalada sencilla de la casa, con aliño de aceite y vinagre.',
+    alternative: null,
     source: 'AESAN',
+    ojo: ['Verdura bien lavada.'],
     tags: [],
   },
   {
@@ -891,31 +927,51 @@ export const FOODS = [
       'gazpacho', 'gazpacho andaluz', 'salmorejo', 'salmorejo cordobés', 'porra antequerana',
     ],
     groups: ['restaurante', 'supermercado'],
-    level: 'cuidado',
-    phrase: 'Con cuidado: verdura cruda bien lavada y, en el salmorejo, sin jamón por encima.',
+    level: 'si',
+    phrase: 'Sí, con la verdura bien lavada; el salmorejo, sin jamón por encima.',
     detail:
-      'El gazpacho y el salmorejo son verdura cruda triturada, así que importa que esté bien lavada, como recomienda AESAN en el embarazo. El salmorejo suele llevar por encima jamón curado, que va sin cocinar, y huevo duro, que sí está hecho. Casi siempre llevan pan.',
+      'El gazpacho y el salmorejo son verdura cruda triturada, así que importa que esté bien lavada, como recomienda AESAN en el embarazo. El salmorejo suele llevar por encima jamón curado, que va sin cocinar, y huevo duro, que sí está hecho. Sin el jamón es un plato normal.',
     question: '¿Lleva jamón por encima? ¿Me lo pueden poner sin él?',
-    alternative: 'Pídelo sin jamón, solo con huevo duro y aceite.',
+    alternative: null,
     source: 'AESAN',
+    ojo: ['Verdura bien lavada.', 'Sin jamón curado por encima.'],
     tags: ['gluten'],
   },
   {
     id: 'tarta-queso',
     name: 'Tarta de queso',
     aliases: [
-      'tarta de queso', 'cheesecake', 'tarta de queso al horno', 'tarta de queso cremosa', 'tarta de queso de la viña',
-      'tarta de queso fría', 'tarta de queso con arándanos',
+      'tarta de queso', 'cheesecake', 'tarta de queso al horno', 'tarta de queso cremosa',
+      'tarta de queso de la viña', 'tarta de queso con arándanos',
+    ],
+    groups: ['restaurante', 'supermercado'],
+    level: 'si',
+    phrase: 'Sí, horneada del todo y con queso pasteurizado.',
+    detail:
+      'Una tarta de queso horneada del todo y hecha con queso pasteurizado no plantea problemas especiales. Las versiones muy cremosas pueden quedar con el centro poco cuajado, y en las artesanas conviene saber si el queso es pasteurizado. La fría, sin hornear, tiene su propia ficha. AESAN recomienda en el embarazo los lácteos pasteurizados y el huevo bien cocinado.',
+    question: '¿El queso es pasteurizado? ¿El centro queda líquido o cuajado?',
+    alternative: null,
+    source: 'AESAN',
+    ojo: ['Que el queso sea pasteurizado.', 'Que el centro esté cuajado.'],
+    tags: ['leche', 'lactosa', 'huevo', 'gluten'],
+  },
+  {
+    id: 'tarta-queso-fria',
+    name: 'Tarta de queso fría o sin hornear',
+    aliases: [
+      'tarta de queso fría', 'tarta de queso sin hornear', 'tarta de queso sin horno', 'cheesecake sin hornear',
+      'cheesecake frío', 'tarta fría de queso',
     ],
     groups: ['restaurante', 'supermercado'],
     level: 'cuidado',
-    phrase: 'Con cuidado: que el queso sea pasteurizado y el centro esté cuajado.',
+    phrase: 'Con cuidado: sin horno, el queso o la nata deben ser pasteurizados.',
     detail:
-      'Una tarta de queso horneada del todo y hecha con queso pasteurizado no plantea problemas especiales. Las versiones muy cremosas pueden quedar con el centro poco cuajado, y en las artesanas conviene saber si el queso es pasteurizado. AESAN recomienda en el embarazo los lácteos pasteurizados y el huevo bien cocinado.',
-    question: '¿El queso es pasteurizado? ¿El centro queda líquido o cuajado?',
-    alternative: 'Una porción bien horneada, o un flan o unas natillas.',
+      'Una tarta de queso fría no pasa por el horno, así que nada la cocina: el queso y la nata tienen que ser pasteurizados, y si lleva huevo, que no vaya crudo. AESAN recomienda en el embarazo los lácteos pasteurizados y el huevo bien cocinado. Si lo son, es un postre normal.',
+    question: '¿El queso y la nata son pasteurizados? ¿Lleva huevo crudo?',
+    alternative: 'Una tarta de queso horneada, o un flan o unas natillas.',
     source: 'AESAN',
-    tags: ['leche', 'lactosa', 'huevo', 'gluten'],
+    ojo: [],
+    tags: ['leche', 'lactosa', 'gluten', 'listeria'],
   },
   {
     id: 'helado',
@@ -925,14 +981,30 @@ export const FOODS = [
       'cucurucho',
     ],
     groups: ['restaurante', 'supermercado'],
-    level: 'cuidado',
-    phrase: 'Con cuidado: el artesano puede llevar huevo crudo o leche sin pasteurizar.',
+    level: 'si',
+    phrase: 'Sí: el de tienda y heladería lleva mezcla pasteurizada.',
     detail:
-      'Los helados industriales suelen hacerse con mezclas pasteurizadas. En los artesanos conviene preguntar, porque algunos llevan huevo crudo o leche sin pasteurizar. AESAN recomienda en el embarazo tomar los lácteos pasteurizados y el huevo bien cocinado.',
-    question: '¿El helado es artesano? ¿Lleva huevo crudo o leche sin pasteurizar?',
-    alternative: 'Un helado envasado o un sorbete de fruta.',
+      'Los helados industriales y los de heladería suelen hacerse con mezclas pasteurizadas. Solo en uno casero, o en algún artesano pequeño, el huevo puede ir crudo o la leche sin pasteurizar. AESAN recomienda en el embarazo tomar los lácteos pasteurizados y el huevo bien cocinado.',
+    question: 'Si es artesano, ¿la mezcla va pasteurizada?',
+    alternative: null,
     source: 'AESAN',
+    ojo: ['Que sea pasteurizado, no casero.'],
     tags: ['leche', 'lactosa'],
+  },
+  {
+    id: 'helado-casero',
+    name: 'Helado casero',
+    aliases: ['helado casero', 'helado hecho en casa', 'helado de la casa', 'helados caseros', 'gelato casero'],
+    groups: ['restaurante'],
+    level: 'cuidado',
+    phrase: 'Con cuidado: el casero puede llevar huevo crudo o leche sin pasteurizar.',
+    detail:
+      'Un helado casero suele montarse con yemas o con leche sin pasteurizar, y no pasa por una pasteurización industrial. AESAN recomienda en el embarazo tomar los lácteos pasteurizados y el huevo bien cocinado.',
+    question: '¿La mezcla lleva huevo crudo o leche sin pasteurizar?',
+    alternative: 'Un helado envasado o de heladería, o un sorbete de fruta.',
+    source: 'AESAN',
+    ojo: [],
+    tags: ['leche', 'lactosa', 'huevo', 'crudo'],
   },
   {
     id: 'pizza',
@@ -951,6 +1023,7 @@ export const FOODS = [
     question: '¿Lo que lleva encima va al horno o se pone al final, en frío?',
     alternative: 'Una pizza con todo horneado, por ejemplo de verduras.',
     source: 'AESAN',
+    ojo: ['Lo de encima, al horno y no puesto al final.'],
     tags: ['gluten', 'leche', 'lactosa'],
   },
   {
@@ -961,13 +1034,14 @@ export const FOODS = [
       'arroz a banda', 'arroz caldoso', 'arroz meloso', 'arroz con bogavante', 'arroz del senyoret',
     ],
     groups: ['restaurante'],
-    level: 'cuidado',
-    phrase: 'Con cuidado: que el marisco esté hecho y el alioli no sea casero.',
+    level: 'si',
+    phrase: 'Sí: arroz cocinado; que el marisco esté hecho del todo.',
     detail:
-      'La paella y la fideuá son platos cocinados, pero conviene mirar dos cosas: que el marisco esté bien hecho, sin partes crudas, y el alioli que suele acompañarlas, que si es casero lleva huevo crudo. AESAN recomienda en el embarazo cocinar bien pescados y mariscos y tomar el huevo bien cocinado.',
+      'La paella y la fideuá son platos cocinados. Conviene mirar que el marisco esté bien hecho, sin partes crudas, y el alioli que suele acompañarlas, que si es casero lleva huevo crudo (el alioli se valora aparte). AESAN recomienda en el embarazo cocinar bien pescados y mariscos y tomar el huevo bien cocinado.',
     question: '¿El alioli es casero? ¿El marisco está hecho del todo?',
-    alternative: 'La paella sin alioli, o con alioli de bote.',
+    alternative: null,
     source: 'AESAN',
+    ojo: ['Que el marisco esté hecho del todo.'],
     tags: [],
   },
   {
@@ -1002,6 +1076,7 @@ export const FOODS = [
     question: '¿Los brotes van salteados en caliente o crudos por encima?',
     alternative: null,
     source: 'AESAN',
+    ojo: ['Que los brotes vayan cocinados, no crudos encima.'],
     tags: [],
   },
   {
@@ -1048,6 +1123,7 @@ export const FOODS = [
     question: '¿Va solo con tomate y aceite, o lleva jamón encima?',
     alternative: null,
     source: 'AESAN',
+    ojo: ['Sin jamón curado encima.'],
     tags: ['gluten'],
   },
   {
@@ -1066,6 +1142,7 @@ export const FOODS = [
     question: '¿Llevan chorizo o embutido guisado dentro?',
     alternative: null,
     source: 'AESAN',
+    ojo: ['Si llevan chorizo, que esté guisado con ellas.'],
     tags: [],
   },
   {
@@ -1099,13 +1176,14 @@ export const FOODS = [
       'flat white', 'macchiato', 'cold brew', 'café frappé', 'café en cápsulas', 'café molido',
     ],
     groups: ['bebidas', 'supermercado'],
-    level: 'cuidado',
-    phrase: 'Con cuidado: tope orientativo de 200 mg de cafeína al día; un café grande puede acercarse.',
+    level: 'si',
+    phrase: 'Sí, con moderación: tope orientativo de 200 mg de cafeína al día.',
     detail:
       'AESAN recomienda en el embarazo no pasar de unos 200 mg de cafeína al día, sumando todo lo que la lleva: café, té, cola, bebidas energéticas o chocolate. La cafeína de un café cambia mucho según cómo se prepare y el tamaño de la taza, así que un solo café grande ya puede acercarse a ese tope. Es una cifra orientativa, no una cuenta exacta.',
     question: '¿Me lo pones pequeño, o descafeinado?',
-    alternative: 'Un descafeinado, o una infusión como la manzanilla.',
+    alternative: null,
     source: 'AESAN',
+    ojo: ['Con moderación: lleva cafeína.'],
     tags: ['cafeina'],
   },
   {
@@ -1116,13 +1194,14 @@ export const FOODS = [
       'té chai', 'chai latte', 'té helado', 'té con leche', 'earl grey', 'té moruno', 'té con menta', 'yerba mate',
     ],
     groups: ['bebidas', 'supermercado'],
-    level: 'cuidado',
-    phrase: 'Con cuidado: también lleva cafeína, y cuenta en el mismo tope diario.',
+    level: 'si',
+    phrase: 'Sí, con moderación: también lleva cafeína, y suma al mismo tope diario.',
     detail:
       'El té verde, negro o matcha lleva cafeína, que se suma a la del café y la cola. AESAN recomienda en el embarazo no pasar de unos 200 mg de cafeína al día entre todo. El matcha, que se toma la hoja entera molida, suele llevar más.',
     question: '¿Lo tenéis descafeinado?',
-    alternative: 'Una manzanilla o un té descafeinado.',
+    alternative: null,
     source: 'AESAN',
+    ojo: ['Con moderación: lleva cafeína.'],
     tags: ['cafeina'],
   },
   {
@@ -1133,13 +1212,14 @@ export const FOODS = [
       'cola zero', 'pepsi', 'pepsi max',
     ],
     groups: ['bebidas', 'supermercado'],
-    level: 'cuidado',
-    phrase: 'Con cuidado: lleva cafeína, que cuenta en el mismo tope diario.',
+    level: 'si',
+    phrase: 'Sí, con moderación: lleva cafeína, que suma al mismo tope diario.',
     detail:
       'Los refrescos de cola llevan cafeína, también en sus versiones zero o light. AESAN recomienda en el embarazo no pasar de unos 200 mg de cafeína al día, sumando café, té, cola y el resto.',
     question: '¿La tenéis sin cafeína?',
-    alternative: 'Una cola sin cafeína, agua con gas o una cerveza 0,0.',
+    alternative: null,
     source: 'AESAN',
+    ojo: ['Con moderación: lleva cafeína.'],
     tags: ['cafeina'],
   },
   {
@@ -1205,6 +1285,7 @@ export const FOODS = [
     question: null,
     alternative: null,
     source: 'AESAN',
+    ojo: ['Con moderación: lleva algo de cafeína.'],
     tags: ['cafeina'],
   },
   {
@@ -1222,6 +1303,7 @@ export const FOODS = [
     question: 'Mira que en la etiqueta ponga 0,0.',
     alternative: null,
     source: 'Ministerio de Sanidad',
+    ojo: ['Mira que ponga 0,0 en la etiqueta.'],
     tags: ['gluten'],
   },
   {
@@ -1268,10 +1350,9 @@ export const FOODS = [
     id: 'salsa-vino',
     name: 'Salsa o guiso con vino',
     aliases: [
-      'salsa de vino', 'salsa al vino', 'salsa con vino', 'al vino tinto', 'al vino blanco', 'guiso con vino',
-      'estofado al vino', 'carrillada al vino', 'cocinado con vino', 'reducción de vino', 'reducción de pedro ximénez',
+      'salsa de vino', 'salsa al vino', 'salsa con vino', 'reducción de vino', 'reducción de pedro ximénez',
       'salsa de pedro ximénez', 'al pedro ximénez', 'al jerez', 'al oporto', 'salsa al oporto', 'al cava',
-      'a la cerveza', 'a la sidra', 'a la marinera', 'flambeado', 'flameado', 'rabo de toro',
+      'flambeado', 'flameado',
     ],
     groups: ['restaurante', 'bebidas'],
     level: 'cuidado',
@@ -1281,6 +1362,25 @@ export const FOODS = [
     question: '¿El vino ha hervido con el guiso o se añade al final?',
     alternative: 'Un guiso sin vino, o una salsa de tomate o de verduras.',
     source: 'AESAN y Ministerio de Sanidad',
+    tags: ['alcohol'],
+  },
+  {
+    id: 'guiso-vino',
+    name: 'Guiso o estofado con vino',
+    aliases: [
+      'guiso con vino', 'estofado al vino', 'carrillada al vino', 'carrillera al vino', 'ternera al vino',
+      'pollo al vino', 'cocinado con vino', 'al vino tinto', 'al vino blanco', 'a la sidra', 'a la marinera',
+      'a la cerveza', 'rabo de toro', 'coq au vin', 'ternera guisada al vino', 'carne al vino',
+    ],
+    groups: ['restaurante', 'bebidas'],
+    level: 'si',
+    phrase: 'Sí: el vino hierve largo con el guiso y casi no queda alcohol.',
+    detail:
+      'En un guiso, un estofado o un braseado el vino cuece durante mucho rato y se va la mayor parte del alcohol. AESAN y el Ministerio de Sanidad recomiendan no tomar alcohol en el embarazo; cocinado así, en el plato queda muy poco. Si el vino se añade al final o el plato se flamea, es otro caso (salsa con vino).',
+    question: '¿El vino ha hervido con el guiso?',
+    alternative: null,
+    source: 'AESAN y Ministerio de Sanidad',
+    ojo: ['Que el vino haya hervido de verdad.'],
     tags: ['alcohol'],
   },
   {
@@ -1327,13 +1427,14 @@ export const FOODS = [
       'stevia', 'estevia', 'acesulfamo', 'ciclamato', 'eritritol',
     ],
     groups: ['bebidas', 'supermercado'],
-    level: 'cuidado',
-    phrase: 'Con cuidado: los autorizados se pueden tomar, con moderación.',
+    level: 'si',
+    phrase: 'Sí, con moderación: los autorizados se pueden tomar.',
     detail:
       'Los edulcorantes que se venden en la Unión Europea están autorizados después de una evaluación, con una cantidad diaria que no conviene superar. AESAN recomienda en general moderar los productos endulzados, con azúcar o sin él.',
     question: 'Mira en la etiqueta si lleva edulcorantes y cuáles.',
-    alternative: 'Agua, o la fruta entera en lugar de algo endulzado.',
+    alternative: null,
     source: 'AESAN',
+    ojo: ['Con moderación.'],
     tags: [],
   },
   {
@@ -1344,13 +1445,14 @@ export const FOODS = [
       'zumo envasado', 'néctar', 'mosto', 'smoothie', 'batido de frutas', 'licuado',
     ],
     groups: ['bebidas', 'supermercado'],
-    level: 'cuidado',
-    phrase: 'Con cuidado: mejor la fruta entera.',
+    level: 'si',
+    phrase: 'Sí, mejor la fruta entera.',
     detail:
-      'El zumo concentra el azúcar de varias piezas de fruta y pierde buena parte de la fibra. Las recomendaciones de AESAN dan preferencia a la fruta entera frente al zumo, también al natural.',
+      'El zumo concentra el azúcar de varias piezas de fruta y pierde buena parte de la fibra, así que se puede tomar, con moderación. Las recomendaciones de AESAN dan preferencia a la fruta entera frente al zumo, también al natural.',
     question: 'Si es envasado, mira que no lleve azúcar añadido.',
-    alternative: 'Una pieza de fruta bien lavada.',
+    alternative: null,
     source: 'AESAN',
+    ojo: ['Mejor la fruta entera.', 'Con moderación.'],
     tags: [],
   },
   {
@@ -1369,6 +1471,7 @@ export const FOODS = [
     question: null,
     alternative: null,
     source: 'AESAN',
+    ojo: ['Bien lavada.'],
     tags: [],
   },
   // ─────────────── Cuestionario de la clienta (respondido el 24-10-2026, docs/CUESTIONARIO.md) ───────────────
@@ -1388,7 +1491,26 @@ export const FOODS = [
     question: '¿De qué son las croquetas? ¿Llegan bien calientes por dentro?',
     alternative: null,
     source: 'AESAN',
+    ojo: ['Que lleguen bien calientes por dentro.'],
     tags: ['gluten', 'leche', 'lactosa', 'huevo'],
+  },
+  {
+    id: 'empanada',
+    name: 'Empanada o empanadilla',
+    aliases: [
+      'empanada', 'empanadas', 'empanada gallega', 'empanada de atún', 'empanada de carne', 'empanada de bonito',
+      'empanadilla', 'empanadillas', 'empanadillas de atún', 'empanadillas de carne', 'pastel de carne',
+    ],
+    groups: ['restaurante', 'supermercado'],
+    level: 'si',
+    phrase: 'Sí: masa horneada o frita con el relleno ya cocinado.',
+    detail:
+      'La empanada y las empanadillas llevan un relleno cocinado (atún, carne, verdura) dentro de una masa que se hornea o se fríe. Si llegan bien calientes por dentro, no tienen un riesgo especial en el embarazo. AESAN recomienda en general cocinar bien la carne y el pescado.',
+    question: '¿Llevan el relleno bien hecho y llegan calientes por dentro?',
+    alternative: null,
+    source: 'AESAN',
+    ojo: ['Que lleguen bien calientes por dentro.'],
+    tags: ['gluten'],
   },
   {
     id: 'anchoas-salazon',
@@ -1420,6 +1542,7 @@ export const FOODS = [
     question: '¿Van salteadas en caliente? En el súper, mira los alérgenos de la etiqueta.',
     alternative: null,
     source: 'AESAN',
+    ojo: ['Salteadas o calentadas hasta que estén bien calientes.'],
     tags: ['pescado', 'huevo', 'gluten'],
   },
   {
@@ -1439,7 +1562,10 @@ export const FOODS = [
   {
     id: 'caldo-gallego',
     name: 'Caldo gallego',
-    aliases: ['caldo gallego', 'caldo galego', 'caldo de grelos'],
+    aliases: [
+      'caldo gallego', 'caldo galego', 'caldo de grelos', 'sopa de ajo', 'sopa castellana', 'sopa de cocido',
+      'sopa de verduras', 'sopa de fideos', 'sopa de pollo',
+    ],
     groups: ['restaurante'],
     level: 'si',
     phrase: 'Sí: es un guiso cocinado; que llegue bien caliente.',
@@ -1448,6 +1574,7 @@ export const FOODS = [
     question: null,
     alternative: null,
     source: 'AESAN',
+    ojo: ['Que llegue bien caliente.'],
     tags: ['carne', 'cerdo'],
   },
   {
@@ -1515,6 +1642,7 @@ export const FOODS = [
     question: '¿Llegan bien calientes por dentro?',
     alternative: null,
     source: 'AESAN',
+    ojo: ['Que salgan bien calientes por dentro.'],
     tags: ['gluten', 'leche', 'lactosa', 'carne'],
   },
   {
@@ -1539,13 +1667,14 @@ export const FOODS = [
     name: 'Perrito caliente',
     aliases: ['perrito caliente', 'perritos calientes', 'perrito', 'perritos', 'hot dog', 'hot dogs', 'hotdog'],
     groups: ['restaurante'],
-    level: 'cuidado',
-    phrase: 'Con cuidado: que la salchicha esté bien hecha y caliente por dentro.',
+    level: 'si',
+    phrase: 'Sí, con la salchicha bien hecha y caliente por dentro.',
     detail:
-      'La salchicha de un perrito suele ser de tipo Frankfurt, un producto cocido y envasado en el que la listeria puede crecer en la nevera. AESAN recomienda en el embarazo calentar estos productos hasta que estén bien calientes por dentro y cocinar del todo la carne. Una salchicha apenas templada, o rosada por dentro, no lo cumple.',
+      'La salchicha de un perrito suele ser de tipo Frankfurt, un producto cocido y envasado en el que la listeria puede crecer en la nevera. Servida bien caliente por dentro es un plato normal. AESAN recomienda en el embarazo calentar estos productos hasta que estén bien calientes por dentro y cocinar del todo la carne.',
     question: '¿La salchicha está bien hecha y caliente por dentro?',
-    alternative: 'Una salchicha fresca a la plancha, hecha del todo.',
+    alternative: null,
     source: 'AESAN',
+    ojo: ['Salchicha bien hecha y caliente por dentro.'],
     tags: ['gluten', 'carne', 'cerdo'],
   },
   {
@@ -1560,6 +1689,7 @@ export const FOODS = [
     question: null,
     alternative: null,
     source: 'AESAN',
+    ojo: ['Que llegue caliente.'],
     tags: ['gluten', 'carne', 'cerdo'],
   },
   {
@@ -1574,6 +1704,7 @@ export const FOODS = [
     question: null,
     alternative: null,
     source: 'AESAN',
+    ojo: ['Que esté hecha del todo.'],
     tags: ['carne', 'cerdo'],
   },
   {
@@ -1593,6 +1724,7 @@ export const FOODS = [
     question: '¿Están hechas del todo y calientes por dentro?',
     alternative: null,
     source: 'AESAN',
+    ojo: ['Que estén hechas del todo y calientes por dentro.'],
     tags: ['carne', 'cerdo'],
   },
   {
@@ -1610,6 +1742,7 @@ export const FOODS = [
     question: '¿Están bien hechas por dentro?',
     alternative: null,
     source: 'AESAN',
+    ojo: ['Que estén bien hechas por dentro.'],
     tags: ['gluten', 'soja'],
   },
   {
@@ -1624,6 +1757,7 @@ export const FOODS = [
     question: '¿Lleva brotes de soja crudos por encima? ¿Y cacahuete?',
     alternative: null,
     source: 'AESAN',
+    ojo: ['Sin brotes de soja crudos por encima.'],
     tags: ['huevo', 'frutos_secos', 'soja', 'pescado'],
   },
   {
@@ -1641,6 +1775,7 @@ export const FOODS = [
     question: '¿La carne va hecha del todo? ¿El queso es pasteurizado?',
     alternative: null,
     source: 'AESAN',
+    ojo: ['Carne hecha del todo y verdura bien lavada.'],
     tags: ['carne'],
   },
   {
@@ -1657,6 +1792,7 @@ export const FOODS = [
     question: '¿La carne va hecha del todo? ¿El queso es pasteurizado?',
     alternative: null,
     source: 'AESAN',
+    ojo: ['Carne hecha del todo y verdura bien lavada.'],
     tags: ['gluten', 'carne'],
   },
   {
@@ -1749,6 +1885,7 @@ export const FOODS = [
     question: '¿El relleno es crema cocida o nata, o una mousse casera?',
     alternative: null,
     source: 'AESAN',
+    ojo: ['Relleno de crema cocida o nata, no de mousse casera.'],
     tags: ['gluten', 'huevo', 'leche', 'lactosa'],
   },
   {
@@ -1818,13 +1955,14 @@ export const FOODS = [
     name: 'Tila',
     aliases: ['tila', 'infusión de tila', 'té de tila', 'tilo', 'flor de tilo'],
     groups: ['bebidas', 'supermercado'],
-    level: 'cuidado',
-    phrase: 'Con cuidado: de vez en cuando, no a diario ni como remedio para dormir.',
+    level: 'si',
+    phrase: 'Sí, de vez en cuando; no a diario ni como remedio para dormir.',
     detail:
       'La tila es una infusión de uso habitual con un efecto relajante, y en el embarazo no conviene tomarla a diario ni como remedio. AESAN recuerda que las plantas en infusión pueden tener efectos y que natural no quiere decir inocuo. Si te cuesta dormir, coméntalo con tu matrona.',
     question: null,
-    alternative: 'Una manzanilla o un rooibos.',
+    alternative: null,
     source: 'AESAN',
+    ojo: ['De vez en cuando, no a diario.'],
     tags: [],
   },
   {
@@ -1839,6 +1977,7 @@ export const FOODS = [
     question: 'Si es una mezcla, mira qué otras plantas lleva.',
     alternative: null,
     source: 'AESAN',
+    ojo: ['Si es una mezcla, mira qué otras plantas lleva.'],
     tags: [],
   },
   {
@@ -1849,13 +1988,14 @@ export const FOODS = [
       'shot de jengibre', 'jengibre en infusión',
     ],
     groups: ['bebidas', 'supermercado'],
-    level: 'cuidado',
-    phrase: 'Con cuidado: de vez en cuando y sin pasarse.',
+    level: 'si',
+    phrase: 'Sí, de vez en cuando y sin pasarse.',
     detail:
       'El jengibre es habitual en infusión, pero en infusiones muy cargadas, shots o suplementos la cantidad sube mucho. AESAN recuerda que las plantas pueden tener efectos y que natural no quiere decir inocuo. Como condimento en la comida no preocupa; para tomarlo como remedio, coméntalo con tu matrona.',
     question: null,
-    alternative: 'Una manzanilla o un rooibos.',
+    alternative: null,
     source: 'AESAN',
+    ojo: ['De vez en cuando y sin pasarse.'],
     tags: [],
   },
   {
@@ -1863,13 +2003,14 @@ export const FOODS = [
     name: 'Tónica',
     aliases: ['tónica', 'agua tónica', 'tónica zero', 'tónica light', 'refresco de tónica'],
     groups: ['bebidas', 'supermercado'],
-    level: 'cuidado',
-    phrase: 'Con cuidado: lleva quinina; mejor de vez en cuando.',
+    level: 'si',
+    phrase: 'Sí, con moderación: lleva quinina.',
     detail:
       'La tónica lleva quinina, que es lo que le da el amargor. Por prudencia, en el embarazo mejor tomarla de vez en cuando y no como bebida de diario. AESAN recomienda el agua como bebida principal.',
     question: null,
-    alternative: 'Agua con gas con limón, o una cerveza 0,0.',
+    alternative: null,
     source: 'AESAN',
+    ojo: ['Con moderación: lleva quinina.'],
     tags: [],
   },
   {
@@ -2074,6 +2215,7 @@ export const FOODS = [
     question: null,
     alternative: null,
     source: 'AESAN',
+    ojo: ['La sal, con moderación.'],
     tags: [],
   },
   {
@@ -2106,6 +2248,7 @@ export const FOODS = [
     question: null,
     alternative: null,
     source: 'AESAN',
+    ojo: ['Un puñado, no más.'],
     tags: ['frutos_secos'],
   },
   {
@@ -2120,6 +2263,7 @@ export const FOODS = [
     question: null,
     alternative: null,
     source: 'AESAN',
+    ojo: ['Mejor con poca sal.'],
     tags: [],
   },
   {
@@ -2131,13 +2275,14 @@ export const FOODS = [
       'salchichas en lata',
     ],
     groups: ['supermercado', 'carne'],
-    level: 'cuidado',
-    phrase: 'Con cuidado: bien calientes, no frías del paquete, por la listeria.',
+    level: 'si',
+    phrase: 'Sí, bien calientes; frías del paquete, no.',
     detail:
-      'Las salchichas tipo Frankfurt vienen cocidas y envasadas, y en la nevera puede crecer la listeria, como en el fiambre loncheado. AESAN recomienda en el embarazo calentar estos productos hasta que estén bien calientes por dentro, humeantes, antes de comerlos. Frías, recién sacadas del paquete, mejor no.',
+      'Las salchichas tipo Frankfurt vienen cocidas y envasadas, y en la nevera puede crecer la listeria, como en el fiambre loncheado. AESAN recomienda en el embarazo calentarlas hasta que estén bien calientes por dentro, humeantes, antes de comerlas. Así son un alimento normal.',
     question: 'Caliéntalas hasta que estén bien calientes por dentro.',
-    alternative: 'Salchichas frescas a la plancha, hechas del todo.',
+    alternative: null,
     source: 'AESAN',
+    ojo: ['Bien calientes, no frías del paquete.'],
     tags: ['carne', 'cerdo', 'listeria'],
   },
   {
@@ -2155,6 +2300,7 @@ export const FOODS = [
     question: 'Mira la fecha y que la cáscara esté limpia y sin grietas.',
     alternative: null,
     source: 'AESAN',
+    ojo: ['Siempre bien hechos, con la yema cuajada.'],
     tags: ['huevo'],
   },
   {
@@ -2246,6 +2392,7 @@ export const FOODS = [
     question: null,
     alternative: null,
     source: 'AESAN',
+    ojo: ['Lleva mucha sal: con moderación.'],
     tags: ['soja', 'gluten'],
   },
   {
@@ -2260,6 +2407,7 @@ export const FOODS = [
     question: null,
     alternative: null,
     source: 'AESAN',
+    ojo: ['Con moderación.'],
     tags: [],
   },
   {
@@ -2277,6 +2425,7 @@ export const FOODS = [
     question: null,
     alternative: null,
     source: 'AESAN',
+    ojo: ['La masa cruda, mejor no probarla.'],
     tags: ['gluten'],
   },
   {
@@ -2325,6 +2474,7 @@ export const FOODS = [
     question: null,
     alternative: null,
     source: 'AESAN',
+    ojo: ['El sin azúcar lleva edulcorantes: con moderación.'],
     tags: [],
   },
   {
@@ -2342,6 +2492,7 @@ export const FOODS = [
     question: null,
     alternative: null,
     source: 'AESAN',
+    ojo: ['Con moderación.'],
     tags: ['miel'],
   },
 

@@ -17,6 +17,7 @@ import * as ajustes from './ui/ajustes.js';
 import * as instalar from './ui/instalar.js';
 import * as claves from './ui/claves.js';
 import { beginNavigation, endNavigation } from './ui/tone.js';
+import { installFeedback } from './ui/feedback.js';
 
 const SCREENS = {
   '': home,
@@ -39,11 +40,35 @@ const TAB_FOR = { '': 'inicio', buscar: 'inicio', fuera: 'fuera', super: 'super'
 const APP_NAME = '¿Puedo comerlo?';
 let current = null;
 let firstRender = true;
+// Pila de pantallas vistas, para saber si se avanza o se vuelve (movimiento direccional de la entrada).
+const visited = [];
+
+function directionFor(hash) {
+  const n = visited.length;
+  let dir = 'fwd';
+  if (n >= 2 && visited[n - 2] === hash) {
+    visited.pop();
+    dir = 'back';
+  } else if (visited[n - 1] !== hash) visited.push(hash);
+  else dir = 'none';
+  if (visited.length > 50) visited.shift();
+  return dir;
+}
 
 function setTab(tab) {
-  for (const a of document.querySelectorAll('#tabbar a[data-tab]')) {
-    if (a.dataset.tab === tab) a.setAttribute('aria-current', 'page');
-    else a.removeAttribute('aria-current');
+  const tabs = [...document.querySelectorAll('#tabbar a[data-tab]')];
+  let index = -1;
+  tabs.forEach((a, i) => {
+    if (a.dataset.tab === tab) {
+      a.setAttribute('aria-current', 'page');
+      index = i;
+    } else a.removeAttribute('aria-current');
+  });
+  // La marca de la pestaña se desliza hasta la columna activa (o se oculta si no hay ninguna).
+  const bar = document.getElementById('tabbar');
+  if (bar) {
+    if (index >= 0) bar.style.setProperty('--tab-i', String(index));
+    bar.classList.toggle('has-tab', index >= 0);
   }
 }
 
@@ -99,6 +124,8 @@ function render() {
   window.scrollTo(0, 0); // antes de pintar: la iluminación mide dónde queda la palabra
   // Entrada breve de cada pantalla (la anula prefers-reduced-motion).
   main.classList.remove('is-entering');
+  main.dataset.dir = firstRender ? 'none' : directionFor(window.location.hash || '#/');
+  if (firstRender) visited.push(window.location.hash || '#/');
   void main.offsetWidth;
   main.classList.add('is-entering');
   document.body.classList.toggle('is-onboarding', name === 'arranque');
@@ -155,6 +182,7 @@ function watchDock() {
   else window.addEventListener('resize', apply);
 }
 
+installFeedback();
 instalar.listenForInstall();
 window.addEventListener('hashchange', render);
 watchDock();

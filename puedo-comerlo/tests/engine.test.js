@@ -27,7 +27,7 @@ const ct = (text, over = {}, opts = {}) => classifyText(text, opts, profile(over
 
 const VERDICT_KEYS = [
   'title', 'level', 'label', 'phrase', 'detail', 'question', 'alternative', 'source', 'foodId', 'foodIds', 'notes',
-  'uncertain', 'ingredients', 'topics', 'missing',
+  'uncertain', 'ingredients', 'topics', 'missing', 'ojo',
 ].sort();
 
 function expectLevel(text, level, over = {}) {
@@ -106,15 +106,16 @@ describe('criterio de hecho y lista de la especificación', () => {
     assert.equal(expectLevel('cerveza sin alcohol', 'cuidado').foodId, 'cerveza-sin');
     expectLevel('cerveza sin gluten', 'no');
     expectLevel('copa de vino', 'no');
-    assert.equal(expectLevel('ternera estofada al vino', 'cuidado').foodId, 'salsa-vino');
+    assert.ok(expectLevel('ternera estofada al vino', 'si').foodIds.includes('guiso-vino'));
+    assert.equal(expectLevel('ternera en salsa de vino', 'cuidado').foodId, 'salsa-vino');
     expectLevel('sangría', 'no');
     expectLevel('tinto de verano', 'no');
   });
 
   test('café y té', () => {
     assert.equal(expectLevel('café descafeinado', 'si').foodId, 'descafeinado');
-    expectLevel('café con leche', 'cuidado');
-    expectLevel('té verde', 'cuidado');
+    expectLevel('café con leche', 'si');
+    expectLevel('té verde', 'si');
     assert.ok(!ct('tomate').foodIds.includes('te'));
     assert.ok(!ct('ensalada de tomate').foodIds.includes('te'));
   });
@@ -122,7 +123,7 @@ describe('criterio de hecho y lista de la especificación', () => {
   test('pescado y marisco', () => {
     expectLevel('atún rojo', 'no');
     expectLevel('pez espada', 'no');
-    assert.equal(expectLevel('atún a la plancha', 'cuidado').foodId, 'atun-plancha');
+    assert.equal(expectLevel('atún a la plancha', 'si').foodId, 'atun-plancha');
     expectLevel('salmón ahumado', 'no');
     assert.ok(!ct('salmón ahumado').foodIds.includes('salmon-hecho'));
     expectLevel('lubina a la plancha', 'si');
@@ -147,7 +148,9 @@ describe('criterio de hecho y lista de la especificación', () => {
     assert.ok(!ct('carpaccio de calabacín').foodIds.includes('carpaccio'));
     assert.equal(ct('alioli envasado').foodId, 'mayonesa-bote');
     assert.equal(ct('mayonesa de bote').level, 'si');
-    assert.equal(ct('alioli').foodId, 'mayonesa-casera');
+    assert.equal(ct('alioli').foodId, 'mayonesa-dudosa');
+    assert.equal(ct('alioli casero').foodId, 'mayonesa-casera');
+    assert.equal(ct('mayonesa casera').foodId, 'mayonesa-casera');
   });
 
   test('crudo: pescado → pescado crudo; verdura cruda no es carne', () => {
@@ -265,7 +268,7 @@ describe('alergias y «otra cosa»', () => {
     assert.ok(g.phrase.startsWith('Has marcado «Champiñones».'));
     assert.equal(ct('tortilla sin cebolla', { otra: 'cebolla' }).level, 'cuidado');
     // Trozos de menos de 3 letras se ignoran.
-    assert.equal(ct('té verde', { otra: 'te' }).level, 'cuidado');
+    assert.equal(ct('té verde', { otra: 'te' }).level, 'si');
   });
 });
 
@@ -521,9 +524,9 @@ describe('cocinado dentro del plato (decisión de la clienta)', () => {
     expectLevel('queso azul', 'no');
     expectLevel('queso rallado', 'no');
     expectLevel('solomillo al roquefort', 'no');
-    expectLevel('queso con tomate frito', 'cuidado');
+    expectLevel('queso con tomate frito', 'si');
     // La burrata en la pizza se suele poner al final.
-    expectLevel('pizza con burrata', 'cuidado');
+    expectLevel('pizza con burrata', 'si');
   });
 
   test('tarta de queso sin alergias sigue su nivel base', () => {
@@ -592,11 +595,11 @@ describe('cuestionario de la clienta (24-10-2026)', () => {
       'rooibos', 'leche de avena', 'bebida de soja', 'pan de molde', 'tostadas', 'muesli', 'mantequilla',
       'aceite de oliva', 'crema de cacahuete', 'huevos', 'tofu', 'seitán', 'aceitunas', 'aceitunas rellenas de anchoa',
       'kétchup', 'salsa de soja', 'vinagre', 'sal', 'harina', 'levadura de cerveza', 'gelatina', 'chicle', 'miel',
+      'perrito caliente', 'tila', 'infusión de jengibre', 'tónica', 'salchichas frankfurt', 'salchichas de paquete',
       'horchata de brick', 'chuletón muy hecho', 'huevo frito con la yema hecha', 'anchoas fritas',
     ],
     cuidado: [
-      'espaguetis a la carbonara', 'perrito caliente', 'coulant', 'tila', 'infusión de jengibre', 'tónica', 'horchata',
-      'salchichas frankfurt', 'salchichas de paquete',
+      'espaguetis a la carbonara', 'coulant', 'horchata',
     ],
     no: [
       'anchoas del cantábrico', 'surimi', 'poleo menta', 'chuletón', 'kombucha', 'horchata artesana', 'huevo frito',
@@ -656,8 +659,8 @@ describe('alergias y «otra cosa»: la frase no se contradice con la guía', () 
   });
 
   test('base «Con cuidado» y base desconocida', () => {
-    const c = ct('café con leche', { alergias: ['leche'] });
-    assert.equal(c.phrase, 'Has marcado leche.');
+    const c = ct('tortilla de patatas', { alergias: ['huevo'] });
+    assert.equal(c.phrase, 'Has marcado huevo.');
     assert.match(c.detail, /solo pida algo de cuidado/);
     assert.equal(c.question, null);
     const d = ct('plato misterioso con soja', { alergias: ['soja'] });
@@ -766,31 +769,34 @@ describe('temas: topics en el veredicto', () => {
   test('sushi → pescado-crudo (y listeria); tinto de verano → alcohol; café → cafeina; pez espada → mercurio', () => {
     assert.deepEqual(ct('sushi').topics, ['pescado-crudo', 'listeria']);
     assert.deepEqual(ct('tinto de verano').topics, ['alcohol']);
-    assert.deepEqual(ct('café').topics, ['cafeina']);
+    assert.deepEqual(ct('bebida energética').topics, ['cafeina']);
     assert.deepEqual(ct('pez espada a la plancha').topics, ['mercurio']);
-    assert.deepEqual(ct('atún en lata').topics, ['mercurio']);
+    // Café, atún en lata, té…: ahora son «Sí» con «Ojo con esto» y no llevan tema.
+    assert.deepEqual(ct('café').topics, []);
+    assert.deepEqual(ct('atún en lata').topics, []);
   });
 
   test('listeria, toxoplasmosis, huevo-crudo y hierbas', () => {
-    for (const t of ['queso azul', 'roquefort', 'brie', 'queso fresco', 'paté', 'salmón ahumado', 'jamón cocido', 'brotes de alfalfa', 'leche cruda']) {
+    for (const t of ['queso azul', 'roquefort', 'brie', 'queso de cabra', 'paté', 'salmón ahumado', 'jamón cocido', 'brotes de alfalfa', 'leche cruda']) {
       assert.ok(ct(t).topics.includes('listeria'), t);
     }
-    for (const t of ['jamón serrano', 'chorizo', 'carpaccio de ternera', 'steak tartar', 'hamburguesa', 'chuletón']) {
+    for (const t of ['jamón serrano', 'chorizo', 'carpaccio de ternera', 'steak tartar', 'carne poco hecha', 'chuletón']) {
       assert.ok(ct(t).topics.includes('toxoplasmosis'), t);
     }
-    for (const t of ['mayonesa casera', 'tiramisú', 'mousse casera', 'huevo frito', 'tortilla de patata', 'ensaladilla', 'steak tartar']) {
+    for (const t of ['mayonesa casera', 'mayonesa', 'tiramisú', 'mousse casera', 'huevo frito', 'tortilla de patata', 'ensaladilla', 'steak tartar']) {
       assert.ok(ct(t).topics.includes('huevo-crudo'), t);
     }
-    for (const t of ['poleo menta', 'infusión de regaliz', 'tila', 'infusión de jengibre']) {
+    for (const t of ['poleo menta', 'infusión de regaliz']) {
       assert.deepEqual(ct(t).topics, ['hierbas'], t);
     }
+    for (const t of ['tila', 'infusión de jengibre']) assert.deepEqual(ct(t).topics, [], t);
     for (const t of ['boquerones en vinagre', 'ostras', 'ceviche', 'anchoas']) {
       assert.ok(ct(t).topics.includes('pescado-crudo'), t);
     }
   });
 
   test('un «Sí» no lleva temas; los temas solo salen con «Con cuidado» o «Mejor no»', () => {
-    for (const t of ['merluza a la plancha', 'agua', 'pizza de jamón york', 'croquetas de jamón', 'pollo asado', 'fruta', 'queso gratinado', 'huevo duro', 'yogur', 'cerveza 0,0']) {
+    for (const t of ['merluza a la plancha', 'agua', 'pizza de jamón york', 'croquetas de jamón', 'pollo asado', 'fruta', 'queso gratinado', 'huevo duro', 'yogur', 'cerveza 0,0', 'café', 'hamburguesa', 'paella', 'ensalada mixta']) {
       const v = ct(t);
       assert.equal(v.level, 'si', t);
       assert.deepEqual(v.topics, [], t);
@@ -815,18 +821,23 @@ describe('temas: topics en el veredicto', () => {
 
   test('la alergia no añade ni quita temas; una alergia sobre un «Sí» no inventa ninguno', () => {
     assert.deepEqual(ct('merluza a la plancha', { alergias: ['pescado'] }).topics, []);
-    const v = ct('tarta de queso', { alergias: ['leche', 'huevo'] });
+    const v = ct('tarta de queso fría', { alergias: ['leche', 'gluten'] });
     assert.equal(v.level, 'no');
-    assert.ok(v.phrase.startsWith('Has marcado leche y huevo.'), v.phrase);
+    assert.ok(v.phrase.startsWith('Has marcado leche y gluten.'), v.phrase);
     assert.ok(!/Con cuidado/.test(v.phrase + v.detail), 'sin contradicciones con la alergia');
     assert.ok(isTopicList(v.topics));
-    assert.deepEqual(v.topics, ct('tarta de queso').topics);
+    assert.deepEqual(v.topics, ct('tarta de queso fría').topics);
+    assert.notDeepEqual(v.topics, []);
+    // Y la horneada, con alergia, tampoco se contradice: «Sí» de base, «Mejor no» por lo marcado.
+    const h = ct('tarta de queso', { alergias: ['leche'] });
+    assert.equal(h.level, 'no');
+    assert.ok(!/Con cuidado/.test(h.phrase + h.detail));
   });
 
   test('orden por relevancia: lo más grave primero', () => {
-    assert.deepEqual(ct('tinto de verano con café').topics, ['alcohol', 'cafeina']);
+    assert.deepEqual(ct('tinto de verano con bebida energética').topics, ['alcohol', 'cafeina']);
     const v = ct('pizza de jamón al final y café');
-    assert.deepEqual(v.topics, ['toxoplasmosis', 'cafeina']);
+    assert.deepEqual(v.topics, ['toxoplasmosis']);
   });
 
   test('topicsForFood: tabla y etiquetas', () => {
@@ -868,7 +879,7 @@ describe('temas: missing y producto sin ingredientes', () => {
   });
 
   test('sin ingredientes: «Con cuidado» y «Mejor no» se quedan, con missing', () => {
-    const fresco = classifyProduct({ name: 'Queso fresco' }, BASE);
+    const fresco = classifyProduct({ name: 'Queso de cabra' }, BASE);
     assert.equal(fresco.level, 'cuidado');
     assert.ok(fresco.phrase.startsWith('Con cuidado'));
     assert.ok(fresco.missing.includes('listeria'));
@@ -895,7 +906,7 @@ describe('temas: missing y producto sin ingredientes', () => {
     assert.equal(yogur.source, 'La propia app: datos de internet sin confirmar');
     // También con product.source === 'web'.
     assert.equal(classifyProduct(prod({ name: 'Yogur natural', source: 'web' }), BASE).phrase, DATOS_WEB);
-    const queso = classifyProduct(prod({ name: 'Queso fresco', ingredientsSource: 'web' }), BASE);
+    const queso = classifyProduct(prod({ name: 'Queso de cabra', ingredientsSource: 'web' }), BASE);
     assert.equal(queso.level, 'cuidado');
     assert.ok(queso.missing.includes('listeria'));
     const jamon = classifyProduct(prod({ name: 'Jamón serrano', ingredientsSource: 'web' }), BASE);
@@ -1243,7 +1254,7 @@ describe('producto: la frase de un «Sí» no la da un ingrediente', () => {
     assert.equal(azul.foodId, 'queso-azul');
     assert.match(azul.phrase, /queso azul/);
     assert.deepEqual(azul.topics, ['listeria']);
-    const fresco = classifyProduct({ name: 'Pasta fresca rellena', ingredientsText: 'harina, queso fresco, sal' }, BASE);
+    const fresco = classifyProduct({ name: 'Pasta fresca rellena', ingredientsText: 'harina, queso de cabra, sal' }, BASE);
     assert.equal(fresco.level, 'cuidado');
     assert.deepEqual(fresco.topics, ['listeria']);
   });
@@ -1254,5 +1265,312 @@ describe('producto: la frase de un «Sí» no la da un ingrediente', () => {
     assert.equal(classifyProduct({ ...p, traces: ['en:nuts'] }, profile({ alergias: ['frutos_secos'] })).level, 'cuidado');
     assert.equal(classifyProduct({ ...p, ingredientsSource: 'web' }, BASE).phrase, DATOS_WEB);
     assert.equal(classifyProduct({ name: 'Yogur natural', ingredientsText: ' ' }, BASE).phrase, SIN_INGREDIENTES);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// N4 · Recalibrado de niveles y «Ojo con esto»
+// ---------------------------------------------------------------------------
+
+// Carta y súper españoles realistas: [texto, nivel esperado] y [nombre, ingredientes, nivel esperado].
+const S = 'si', C = 'cuidado', N = 'no';
+const CARTA = [
+ // carnes
+ ['entrecot', S], ['solomillo de ternera', S], ['filete de ternera', S], ['pollo asado', S], ['pechuga de pollo a la plancha', S],
+ ['chuletillas de cordero', S], ['secreto ibérico', S], ['escalope de ternera', S], ['albóndigas en salsa', S], ['costillas a la barbacoa', S],
+ ['hamburguesa', S], ['hamburguesa de buey', S], ['cachopo', S], ['flamenquín', S], ['san jacobo', S], ['pollo al ajillo', S],
+ ['conejo al ajillo', S], ['cordero asado', S], ['cochinillo asado', S], ['lomo a la plancha', S], ['carrillera al vino tinto', S],
+ ['rabo de toro', S], ['estofado de ternera', S], ['pollo al vino', S], ['ternera guisada', S], ['pinchos morunos', S], ['codillo', S],
+ ['solomillo de cerdo', S], ['alitas de pollo', S], ['chuletón muy hecho', S],
+ // pescados y mariscos
+ ['lubina a la plancha', S], ['merluza a la romana', S], ['bacalao al pil pil', S], ['calamares a la romana', S], ['gambas al ajillo', S],
+ ['pulpo a la gallega', S], ['sardinas a la brasa', S], ['rape a la plancha', S], ['salmón a la plancha', S], ['dorada a la sal', S],
+ ['pescaíto frito', S], ['boquerones fritos', S], ['mejillones al vapor', S], ['almejas a la marinera', S], ['zamburiñas', S],
+ ['navajas a la plancha', S], ['chipirones', S], ['atún a la plancha', S], ['bacalao a la vizcaína', S], ['sopa de pescado', S],
+ // arroces y pasta
+ ['paella de marisco', S], ['arroz con verduras', S], ['fideuá', S], ['arroz negro', S], ['arroz a banda', S], ['risotto de setas', S],
+ ['arroz caldoso', S], ['espaguetis boloñesa', S], ['macarrones con tomate', S], ['lasaña de carne', S], ['canelones', S], ['ñoquis', S],
+ ['pizza margarita', S], ['pizza de jamón y queso', S], ['pizza cuatro quesos', S], ['pizza barbacoa', S], ['espaguetis a la carbonara', C],
+ // verduras, ensaladas, sopas, legumbres
+ ['ensalada mixta', S], ['ensalada de tomate', S], ['ensalada de pasta', S], ['ensalada de garbanzos', S], ['ensalada de aguacate', S],
+ ['gazpacho andaluz', S], ['salmorejo', S], ['crema de calabaza', S], ['caldo gallego', S], ['lentejas estofadas', S], ['fabada asturiana', S],
+ ['cocido madrileño', S], ['potaje de garbanzos', S], ['garbanzos con espinacas', S], ['judías verdes con jamón', S], ['pisto con huevo', S],
+ ['verduras a la plancha', S], ['parrillada de verduras', S], ['menestra de verduras', S], ['patatas bravas', S], ['pimientos de padrón', S],
+ ['berenjenas con miel', S], ['alcachofas a la plancha', S], ['espárragos trigueros', S], ['pan con tomate', S], ['sopa de ajo', S],
+ // huevos y tapas
+ ['croquetas de jamón', S], ['croquetas de pollo', S], ['revuelto de setas', S], ['huevos duros', S], ['huevos revueltos', S],
+ ['bocadillo de lomo', S], ['bocadillo de calamares', S], ['bocadillo de pollo', S], ['sándwich mixto', S], ['hummus', S], ['guacamole', S],
+ ['falafel', S], ['tacos de pollo', S], ['burrito', S], ['kebab', S], ['nachos con queso', S], ['empanada gallega', S], ['empanadillas', S],
+ // postres
+ ['flan de huevo', S], ['natillas', S], ['arroz con leche', S], ['crema catalana', S], ['torrijas', S], ['churros con chocolate', S],
+ ['fruta del tiempo', S], ['macedonia', S], ['yogur natural', S], ['brownie', S], ['tarta de queso', S], ['tarta de Santiago', S],
+ ['tarta de manzana', S], ['helado de vainilla', S], ['profiteroles', S], ['milhojas', S], ['pastel de nata', S], ['croissant', S],
+ ['magdalenas', S], ['cuajada', S], ['fresas con nata', S],
+ // bebidas
+ ['café con leche', S], ['café solo', S], ['té verde', S], ['cola', S], ['zumo de naranja', S], ['agua con gas', S], ['cerveza 0,0', S],
+ ['tila', S], ['manzanilla', S], ['rooibos', S], ['batido de chocolate', S], ['horchata de brick', S], ['infusión de jengibre', S],
+ // Con cuidado (reservado)
+ ['ensaladilla rusa', C], ['tortilla de patatas', C], ['bocadillo de tortilla', C], ['coulant de chocolate', C], ['ensalada césar', C],
+ ['tabla de quesos', C], ['ensalada de queso de cabra', C], ['brie', C], ['patatas alioli', C], ['mayonesa', C], ['helado casero', C],
+ ['tarta de queso fría', C], ['cerveza sin alcohol', C], ['horchata', C], ['solomillo en salsa de vino', C], ['pollo flambeado', C],
+ // Mejor no (riesgo real)
+ ['sushi variado', N], ['sashimi de salmón', N], ['jamón ibérico', N], ['jamón serrano', N], ['tabla de ibéricos', N], ['chorizo', N],
+ ['tiramisú', N], ['vino tinto', N], ['tinto de verano', N], ['copa de cava', N], ['carpaccio de ternera', N], ['steak tartar', N],
+ ['bocadillo de jamón serrano', N], ['bocadillo de jamón york', N], ['huevos fritos con patatas', N], ['huevos rotos con jamón', N],
+ ['pez espada a la plancha', N], ['atún rojo', N], ['paté', N], ['queso azul', N], ['salmón ahumado', N], ['tortilla poco cuajada', N],
+ ['mayonesa casera', N], ['boquerones en vinagre', N], ['ostras', N], ['ceviche', N], ['gin tonic', N], ['mojito', N],
+ ['entrecot poco hecho', N], ['chuletón al punto', N], ['hamburguesa poco hecha', N], ['mousse de chocolate casera', N], ['foie', N],
+ ['tataki de atún', N], ['anchoas', N], ['kombucha', N], ['bebida energética', N], ['queso de leche cruda', N],
+];
+const SUPER = [
+ // [nombre, ingredientes, esperado]
+ ['Yogur natural', 'Leche pasteurizada, fermentos lácticos', S],
+ ['Leche entera UHT', 'Leche entera de vaca', S],
+ ['Queso fresco batido', 'Leche pasteurizada, cuajo, sal', S],
+ ['Queso manchego curado', 'Leche pasteurizada de oveja, sal, cuajo, lisozima', S],
+ ['Queso en lonchas', 'Queso, leche pasteurizada, sal', N],
+ ['Jamón cocido extra', 'Jamón de cerdo, sal, dextrosa', N],
+ ['Pechuga de pavo en lonchas', 'Pechuga de pavo, sal, almidón', N],
+ ['Chorizo ibérico', 'Carne de cerdo, pimentón, sal, ajo', N],
+ ['Atún claro en aceite de oliva', 'Atún claro, aceite de oliva, sal', S],
+ ['Sardinillas en aceite', 'Sardinillas, aceite de oliva, sal', S],
+ ['Mejillones en escabeche', 'Mejillones, aceite, vinagre, pimentón, sal', S],
+ ['Salmón ahumado', 'Salmón, sal, humo', N],
+ ['Palitos de cangrejo', 'Pasta de pescado (surimi), almidón, clara de huevo', N],
+ ['Pan de molde', 'Harina de trigo, agua, levadura, sal, azúcar', S],
+ ['Galletas María', 'Harina de trigo, azúcar, aceite de girasol, huevo', S],
+ ['Cereales de desayuno', 'Trigo integral, azúcar, sal, malta', S],
+ ['Tomate frito', 'Tomate, aceite de girasol, azúcar, sal', S],
+ ['Mayonesa', 'Aceite de girasol, agua, yema de huevo pasteurizada, vinagre, sal', S],
+ ['Pizza congelada cuatro quesos', 'Harina, queso mozzarella, queso gouda, tomate, aceite', S],
+ ['Lasaña de carne congelada', 'Pasta, carne de vacuno, tomate, bechamel, queso', S],
+ ['Croquetas de jamón congeladas', 'Leche, harina, jamón, aceite, huevo', S],
+ ['Ensalada en bolsa', 'Lechuga, canónigos, rúcula', S],
+ ['Gazpacho de brick', 'Tomate, pepino, pimiento, aceite, vinagre, sal', S],
+ ['Zumo de naranja', 'Zumo de naranja exprimido', S],
+ ['Cola zero', 'Agua, dióxido de carbono, colorante, edulcorantes, cafeína', S],
+ ['Cerveza sin alcohol 0,0', 'Agua, malta de cebada, lúpulo', S],
+ ['Cerveza lager', 'Agua, malta de cebada, lúpulo', N],
+ ['Agua mineral natural', 'Agua mineral natural', S],
+ ['Hummus', 'Garbanzos, tahini, aceite de oliva, limón, sal', S],
+ ['Huevos camperos', 'Huevos', S],
+ ['Tortilla de patatas refrigerada', 'Patata, huevo pasteurizado, cebolla, aceite de girasol, sal', C],
+ ['Ensaladilla rusa refrigerada', 'Patata, zanahoria, atún, mayonesa (aceite, huevo pasteurizado), guisantes', C],
+ ['Paté de hígado de cerdo', 'Hígado de cerdo, grasa, sal, especias', N],
+ ['Sobrasada', 'Carne de cerdo, pimentón, sal', N],
+ ['Salchichas Frankfurt', 'Carne de cerdo, agua, sal, especias', S],
+ ['Flan de huevo', 'Leche, huevo, azúcar, caramelo', S],
+ ['Natillas', 'Leche, azúcar, yema de huevo, almidón', S],
+ ['Helado de vainilla', 'Leche, nata, azúcar, yema de huevo pasteurizada', S],
+ ['Café molido', 'Café', S],
+ ['Infusión de manzanilla', 'Manzanilla', S],
+ ['Chocolate negro 70%', 'Cacao, azúcar, manteca de cacao', S],
+ ['Aceitunas rellenas de anchoa', 'Aceitunas, anchoa, agua, sal', S],
+ ['Tofu', 'Soja, agua, coagulante', S],
+];
+
+describe('recalibrado: Sí con «Ojo con esto»', () => {
+  const sinOjo = (t, re, over = {}) => {
+    const v = ct(t, over);
+    assert.equal(v.level, 'si', `${t} → ${v.level} (${v.foodIds.join(', ')})`);
+    assert.ok(v.ojo.some((o) => re.test(o)), `${t}: ${JSON.stringify(v.ojo)}`);
+    assert.deepEqual(v.topics, [], t);
+    return v;
+  };
+
+  test('carnes hechas: Sí y ojo de cocción', () => {
+    for (const t of ['entrecot', 'filete de ternera', 'solomillo de ternera', 'pollo asado', 'escalope de ternera', 'albóndigas', 'chuletillas de cordero', 'cordero asado']) {
+      sinOjo(t, /hecha del todo/);
+    }
+    sinOjo('hamburguesa', /rosadas/);
+    sinOjo('hamburguesa de buey', /rosadas/);
+  });
+
+  test('arroces y paella: Sí y ojo del marisco', () => {
+    for (const t of ['paella', 'paella de marisco', 'fideuá', 'arroz negro', 'arroz a banda']) sinOjo(t, /marisco/);
+  });
+
+  test('ensaladas, gazpacho y salmorejo: Sí y verdura lavada', () => {
+    for (const t of ['ensalada mixta', 'ensalada de tomate', 'gazpacho', 'gazpacho andaluz', 'salmorejo']) sinOjo(t, /lavada/);
+    sinOjo('salmorejo', /jamón/);
+  });
+
+  test('helado y quesos de súper: Sí y pasteurizado', () => {
+    sinOjo('helado de vainilla', /pasteurizado/);
+    for (const t of ['queso fresco', 'mozzarella', 'burrata', 'queso manchego', 'queso curado', 'requesón']) sinOjo(t, /pasteurizad/);
+  });
+
+  test('cafeína, azúcar y mercurio: Sí con moderación', () => {
+    for (const t of ['café con leche', 'té verde', 'cola']) sinOjo(t, /cafeína/);
+    sinOjo('zumo de naranja', /fruta entera/);
+    sinOjo('edulcorante', /moderación/);
+    sinOjo('atún en lata', /mercurio/);
+    sinOjo('atún a la plancha', /mercurio/);
+    sinOjo('tónica', /quinina/);
+    sinOjo('tila', /vez en cuando/);
+  });
+
+  test('tarta de queso horneada y revuelto: Sí; la fría, Con cuidado', () => {
+    sinOjo('tarta de queso', /pasteurizado/);
+    sinOjo('tarta de queso al horno', /cuajado/);
+    sinOjo('revuelto de setas', /cuajado/);
+    for (const t of ['tarta de queso fría', 'tarta de queso sin hornear', 'cheesecake sin hornear']) {
+      const v = expectLevel(t, 'cuidado');
+      assert.equal(v.foodId, 'tarta-queso-fria', t);
+      assert.ok(v.question);
+      assert.deepEqual(v.topics, ['listeria', 'huevo-crudo']);
+    }
+  });
+
+  test('guisos con vino que hierve de verdad: Sí; salsa o flambé: Con cuidado', () => {
+    for (const t of ['carrillera al vino tinto', 'rabo de toro', 'ternera al vino', 'ternera estofada al vino', 'pollo a la sidra', 'almejas a la marinera', 'estofado con vino']) {
+      const v = ct(t);
+      assert.equal(v.level, 'si', `${t} → ${v.level} (${v.foodIds.join(', ')})`);
+      assert.ok(v.ojo.some((o) => /vino/.test(o)), t);
+    }
+    for (const t of ['solomillo en salsa de vino', 'pollo flambeado', 'gambas flambeadas con brandy', 'reducción de vino', 'salsa al oporto']) {
+      const v = expectLevel(t, 'cuidado');
+      assert.ok(v.foodIds.includes('salsa-vino'), t);
+      assert.deepEqual(v.topics, ['alcohol'], t);
+    }
+    // Vino de verdad en la mesa, siempre «Mejor no».
+    expectLevel('carrillera con una copa de vino', 'no');
+  });
+
+  test('salchichas y perrito: Sí si van calientes', () => {
+    sinOjo('perrito caliente', /caliente/);
+    sinOjo('salchichas frankfurt', /calientes/);
+  });
+
+  test('«ojo» en la ficha y en el veredicto de una ficha', () => {
+    assert.deepEqual(verdictForFood('hamburguesa', BASE).ojo, ['Que esté hecha del todo, sin partes rosadas.']);
+    assert.deepEqual(verdictForFood('agua', BASE).ojo, []);
+    assert.deepEqual(verdictForFood('pescado-crudo', BASE).ojo, []);
+    assert.equal(verdictForFood('hamburguesa', BASE).level, 'si');
+  });
+
+  test('varias fichas suman sus avisos, sin repetir y como mucho 3', () => {
+    const v = ct('hamburguesa con ensalada mixta y café con leche y tarta de queso');
+    assert.equal(v.level, 'si');
+    assert.equal(v.ojo.length, 3);
+    assert.equal(new Set(v.ojo).size, 3);
+    assert.deepEqual(ct('ensalada mixta y gazpacho').ojo, ['Verdura bien lavada.', 'Sin jamón curado por encima.']);
+  });
+
+  test('con queso pasteurizado dicho, ya no hace falta el aviso', () => {
+    const v = ct('queso fresco pasteurizado');
+    assert.equal(v.level, 'si');
+    assert.deepEqual(v.ojo, []);
+  });
+
+  test('un «Con cuidado» puede llevar los avisos de lo demás; «Mejor no» y «No estoy segura», ninguno', () => {
+    const c = ct('tortilla de patatas con ensalada mixta');
+    assert.equal(c.level, 'cuidado');
+    assert.deepEqual(c.ojo, ['Verdura bien lavada.']);
+    for (const t of ['sushi', 'tiramisú', 'jamón serrano', 'plato misterioso del chef', 'ensalada con jamón serrano']) {
+      assert.deepEqual(ct(t).ojo, [], t);
+    }
+    // Una alergia que lo vuelve «Mejor no» quita los avisos.
+    assert.deepEqual(ct('pizza', { alergias: ['gluten'] }).ojo, []);
+    assert.equal(ct('pizza', { alergias: ['gluten'] }).level, 'no');
+  });
+
+  test('productos: el «ojo» viene del nombre, no de los ingredientes; la rebaja a duda no lo lleva', () => {
+    const h = classifyProduct({ name: 'Hamburguesa de ternera', ingredientsText: 'carne de ternera, sal, especias' }, BASE);
+    assert.equal(h.level, 'si');
+    assert.deepEqual(h.ojo, ['Que esté hecha del todo, sin partes rosadas.']);
+    assert.deepEqual(classifyProduct({ name: 'Producto del obrador', ingredientsText: 'leche pasteurizada, sal' }, BASE).ojo, []);
+    assert.deepEqual(classifyProduct({ name: 'Hamburguesa de ternera' }, BASE).ojo, []);
+    assert.deepEqual(classifyProduct({ name: 'Queso fresco' }, BASE).level, 'duda');
+  });
+
+  test('«ojo» siempre presente: array, máx. 3, sin repetir, cada aviso ≤ 70 caracteres, sin «evitar» ni «seguro»', () => {
+    const check = (v, t) => {
+      assert.ok(Array.isArray(v.ojo), t);
+      assert.ok(v.ojo.length <= 3, t);
+      assert.equal(new Set(v.ojo).size, v.ojo.length, t);
+      for (const o of v.ojo) {
+        assert.ok(o.length <= 70, `${t}: «${o}» (${o.length})`);
+        assert.doesNotMatch(o, /evitar|seguro|segura/i, t);
+        assert.doesNotMatch(o, /[0-9]/.test(o) && !/0,0|200 mg/.test(o) ? /[0-9]/ : /^$/, t);
+      }
+      if (v.level === 'no' || v.level === 'duda') assert.deepEqual(v.ojo, [], t);
+      if (v.level === 'si' || v.level === 'duda') assert.deepEqual(v.topics, [], t);
+    };
+    for (const f of FOODS) {
+      assert.ok(!f.ojo || (Array.isArray(f.ojo) && f.ojo.length <= 3), f.id);
+      check(verdictForFood(f.id, BASE), f.id);
+    }
+    for (const [t] of CARTA) check(ct(t), t);
+    for (const [n, i] of SUPER) check(classifyProduct({ name: n, ingredientsText: i }, BASE), n);
+    check(classifyProduct({ name: 'Yogur', ingredientsSource: 'web' }, BASE), 'web');
+  });
+});
+
+describe('recalibrado: Con cuidado reservado y Mejor no intactos', () => {
+  test('Con cuidado: el riesgo depende de un dato que no se ve, y hay pregunta', () => {
+    for (const t of [
+      'tortilla de patatas', 'bocadillo de tortilla', 'ensaladilla rusa', 'espaguetis a la carbonara', 'coulant de chocolate',
+      'helado casero', 'tarta de queso fría', 'queso de cabra', 'brie', 'camembert', 'tabla de quesos', 'mayonesa', 'alioli',
+      'patatas alioli', 'ensalada césar', 'salsa al vino', 'cerveza sin alcohol', 'horchata',
+    ]) {
+      const v = expectLevel(t, 'cuidado');
+      assert.ok(v.question, `${t} sin pregunta`);
+      assert.ok(v.topics.length > 0, `${t} sin tema`);
+    }
+    assert.equal(ct('alioli').foodId, 'mayonesa-dudosa');
+    assert.equal(ct('mayonesa casera').foodId, 'mayonesa-casera');
+  });
+
+  test('Mejor no intacto: ningún riesgo real pasa a verde ni a naranja', () => {
+    for (const t of [
+      'sushi', 'sashimi', 'nigiri', 'ceviche', 'tartar de salmón', 'steak tartar', 'carpaccio de ternera', 'entrecot poco hecho',
+      'solomillo al punto', 'chuletón', 'hamburguesa poco hecha', 'tiramisú', 'mousse casera', 'jamón serrano', 'jamón ibérico',
+      'chorizo', 'tabla de ibéricos', 'bocadillo de jamón york', 'bocadillo de jamón serrano', 'mayonesa casera', 'alioli casero',
+      'salmón ahumado', 'huevos fritos', 'huevos rotos con jamón', 'huevo poché', 'tortilla poco cuajada', 'pez espada',
+      'atún rojo', 'tiburón', 'paté', 'foie', 'queso azul', 'roquefort', 'cabrales', 'queso rallado', 'leche cruda',
+      'boquerones en vinagre', 'ostras', 'anchoas', 'surimi', 'brotes de alfalfa', 'vino tinto', 'cerveza', 'tinto de verano',
+      'gin tonic', 'mojito', 'cava', 'kombucha', 'bebida energética', 'poleo menta', 'regaliz', 'hígado', 'caza',
+      'ensalada con jamón serrano', 'ensalada con salmón ahumado', 'ensalada con queso azul', 'salmorejo con jamón serrano',
+    ]) {
+      expectLevel(t, 'no');
+    }
+  });
+
+  test('alergias, dietas y trazas no cambian con el recalibrado', () => {
+    assert.equal(ct('pizza', { alergias: ['gluten'] }).level, 'no');
+    assert.ok(ct('pizza', { alergias: ['gluten'] }).phrase.startsWith('Has marcado gluten.'));
+    assert.equal(ct('café con leche', { alergias: ['leche'] }).level, 'no');
+    assert.ok(ct('paella', { dieta: ['vegetariana'] }).notes.length === 0);
+    assert.ok(ct('hamburguesa', { dieta: ['vegetariana'] }).notes.includes('No encaja con vegetariana'));
+    const tr = classifyProduct({ name: 'Yogur natural', ingredientsText: 'leche pasteurizada', traces: ['en:nuts'] }, profile({ alergias: ['frutos_secos'] }));
+    assert.equal(tr.level, 'cuidado');
+  });
+});
+
+describe('recalibrado: corpus de carta y súper españoles', () => {
+  test('cada plato sale en el nivel esperado y ninguno en «No estoy segura»', () => {
+    const fallos = [];
+    for (const [t, e] of CARTA) {
+      const v = ct(t);
+      if (v.level !== e) fallos.push(`${t}: ${v.level} (esperado ${e}; ${v.foodIds.join(',')})`);
+    }
+    for (const [n, i, e] of SUPER) {
+      const v = classifyProduct({ name: n, ingredientsText: i }, BASE);
+      if (v.level !== e) fallos.push(`[producto] ${n}: ${v.level} (esperado ${e}; ${v.foodIds.join(',')})`);
+    }
+    assert.deepEqual(fallos, []);
+  });
+
+  test('reparto: ≥ 80 % «Sí» sin contar los de riesgo real, «Con cuidado» ≤ 10 %', () => {
+    const niveles = CARTA.map(([t]) => ct(t).level);
+    const total = CARTA.length;
+    const riesgo = CARTA.filter(([, e]) => e === 'no').length;
+    const cuenta = (l) => niveles.filter((x) => x === l).length;
+    assert.ok(total >= 150, String(total));
+    assert.ok(cuenta('si') / (total - riesgo) >= 0.8, `Sí ${cuenta('si')} de ${total - riesgo}`);
+    assert.ok(cuenta('cuidado') / total <= 0.1, `Con cuidado ${cuenta('cuidado')} de ${total}`);
+    assert.equal(cuenta('duda'), 0);
+    assert.equal(cuenta('no'), riesgo);
   });
 });

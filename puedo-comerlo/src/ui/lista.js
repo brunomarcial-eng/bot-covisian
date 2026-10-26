@@ -6,7 +6,7 @@ import { verdictForFood, FOOD_BY_ID } from '../engine/index.js';
 import { LEVEL_LABEL } from '../engine/levels.js';
 import { getList, removeFromList, getFavorites, setListDone, clearListDone } from '../store.js';
 import { h, icon, announce, fill } from './dom.js';
-import { entryLink, entries, sectionHead, verdictMore, phraseOf } from './components.js';
+import { entryLink, entries, sectionHead, verdictMore, phraseOf, ojoLine } from './components.js';
 import { refreshEntry } from './recalc.js';
 import { emptyState } from './art-ui.js';
 
@@ -33,6 +33,7 @@ export function render({ main, profile }) {
   main.append(h1, lead, toolbar, listHost, favHost);
 
   let carroOpen = true;
+  let arrivingId = null; // la fila que acaba de pasar al carro (o de volver) llega deslizándose
   const shareMsg = h('p', { class: 'share-msg', role: 'status', 'aria-live': 'polite' });
 
   // ---- datos ----
@@ -49,11 +50,13 @@ export function render({ main, profile }) {
     const { entry, fresh, level } = item;
     const done = !!entry.done;
     const verdict = fresh.verdict || { level: fresh.level, phrase: fresh.phrase };
-    const { button, panel } = verdictMore(verdict, { level: 2, fichaLink: !!fresh.verdict });
+    const { button, panel } = verdictMore(verdict, { level: 2, fichaLink: !!fresh.verdict, ojoRest: Array.isArray(verdict.ojo) ? verdict.ojo.slice(1) : null });
     const title = capFirst(entry.title) || 'Sin nombre';
     const phrase = phraseOf(verdict);
     const topics = Array.isArray(verdict.topics) ? verdict.topics : [];
 
+    const tick = h('span', { class: 'buy-tick', 'aria-hidden': 'true' }, icon('check', 28, 3));
+    tick.querySelector('path').setAttribute('pathLength', '1'); // para dibujar el check al marcarlo
     const box = h('input', {
       type: 'checkbox',
       class: 'buy-box',
@@ -65,7 +68,9 @@ export function render({ main, profile }) {
     box.addEventListener('change', () => {
       setListDone(entry.id, box.checked);
       announce(box.checked ? `${entry.title}: en el carro.` : `${entry.title}: otra vez pendiente.`);
+      arrivingId = entry.id;
       focusAfter(entry.id);
+      arrivingId = null;
     });
 
     const quitar = h('button', { type: 'button', class: 'quiet-btn', 'aria-label': `Quitar ${entry.title}`, dataset: { id: entry.id } }, 'Quitar');
@@ -81,14 +86,15 @@ export function render({ main, profile }) {
 
     return h(
       'li',
-      { class: `entry entry--shop lv-${level}${done ? ' is-done' : ''}`, dataset: { level, done: String(done) } },
-      h('label', { class: 'buy' }, box, h('span', { class: 'buy-text' }, 'Comprado')),
+      { class: `entry entry--shop lv-${level}${done ? ' is-done' : ''}${arrivingId === entry.id ? ' is-arriving' : ''}`, dataset: { level, done: String(done) } },
+      h('label', { class: 'buy' }, h('span', { class: 'buy-wrap' }, box, tick), h('span', { class: 'buy-text' }, 'Comprado')),
       h(
         'div',
         { class: 'entry-body' },
         h('span', { class: 'lvl' }, LEVEL_LABEL[level]),
         h('h3', { class: 'entry-name' }, title),
         phrase ? h('p', { class: 'entry-phrase' }, phrase) : null,
+        ojoLine(verdict.ojo),
         note,
         h('div', { class: 'more-bar' }, button, quitar),
         panel,

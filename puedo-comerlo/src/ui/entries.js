@@ -22,6 +22,7 @@ export function entryRow(entry, profile, { withTime = false, headingLevel = null
     phrase: fresh.phrase,
     meta,
     headingLevel,
+    ojo: fresh.verdict ? fresh.verdict.ojo : null,
     onClick: target && target.reopen ? () => reopenResult(entry, profile) : null,
   });
 }

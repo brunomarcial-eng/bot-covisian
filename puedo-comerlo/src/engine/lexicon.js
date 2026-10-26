@@ -396,6 +396,18 @@ export const CTX = {
       'tercios?', 'gin tonic', 'gintonic', 'calimocho', 'rebujito', 'borrach[oa]s?'),
     '',
   ),
+  // Vino o licor que se añade al final o se flamea: queda alcohol («Con cuidado»).
+  flambe: wordRe(alt('flambead[oa]s?', 'flamead[oa]s?', 'flambe', 'al final', 'en crudo'), ''),
+  // Guiso largo (el vino hierve de verdad): «Sí».
+  guisoLargo: wordRe(
+    alt(
+      'guisad[oa]s?', 'guisos?', 'estofad[oa]s?', 'brasead[oa]s?', 'carrilleras?', 'carrilladas?', 'rabo de toro',
+      'bourguignon', 'caldereta', 'civet', 'cocido', 'a la sidra', 'a la marinera', 'marinera', 'risotto',
+      'a la riojana', 'hornead[oa]s?', 'al horno', 'cocinad[oa]s? (?:con|en|al)',
+    ),
+    '',
+  ),
+  salsaVino: wordRe(alt('salsas?', 'reduccion(?:es)?', 'reducid[oa]s?'), ''),
   sinAlcohol: wordRe(alt('sin alcohol', 'desalcoholizad[oa]s?', '00 alcohol', 'alcohol 00', 'cero alcohol'), ''),
   pasteurizado: wordRe('(?<!(?:sin|no) )pasteurizad[oa]s?', ''),
   noPasteurizado: wordRe(alt('sin pasteurizar', 'no pasteurizad[oa]s?', 'leches? crudas?', 'de leche cruda'), ''),
@@ -525,9 +537,11 @@ const RULE_DEFS = [
     'mayonesa-bote',
     '(?:mayonesas?|mahonesas?|alioli|allioli)(?: [a-z]+)? (?:de bote|de tarro|industrial(?:es)?|envasad[oa]s?|comercial(?:es)?|pasteurizad[oa]s?|del super|light)',
   ),
-  rule('mayonesa-casera', 'mayonesas? caseras?|mahonesas? caseras?|alioli|allioli|ali oli|all i oli|aioli|ajoaceites?|mayonesa de la casa'),
-  // En la carta, «mayonesa» a secas puede ser casera: se pregunta. En un producto envasado es de bote (arriba).
-  rule('mayonesa-casera', 'mayonesas?|mahonesas?', { context: 'text' }),
+  // Casera dicho expresamente → «Mejor no».
+  rule('mayonesa-casera', '(?:mayonesas?|mahonesas?|alioli|allioli|aioli|ajoaceites?) (?:caser[oa]s?|de la casa|artesan[oa]s?)|mayonesa de la casa'),
+  // En la carta, «mayonesa» o «alioli» a secas pueden ser caseros: se pregunta («Con cuidado»). En un producto
+  // envasado es de bote (arriba).
+  rule('mayonesa-dudosa', 'alioli|allioli|ali oli|all i oli|aioli|ajoaceites?|mayonesas?|mahonesas?', { context: 'text' }),
   // 8. Tiramisú / mousse
   rule(any('tiramisu'), 'tiramisus?'),
   rule(any('mousse-casera', 'tiramisu'), 'mousses?(?: [a-z]+){0,3} (?:casera|de la casa)|semifrios?'),
@@ -555,6 +569,8 @@ const RULE_DEFS = [
     'queso-azul',
     'quesos? azul(?:es)?|roquefort|cabrales|gorgonzola|valdeon|picon|tresviso|stilton|danablu|gamoneu|gamonedo|bleu d[a-z]+',
   ),
+  // Tabla o surtido de quesos: suele llevar azul, de cabra o blandos; se pregunta («Con cuidado»).
+  rule('queso-blando-corteza', '(?:tablas?|surtido|plato|plato variado|tabla variada|tabla de) (?:de )?quesos(?: variados)?|quesos variados'),
   rule(
     'queso-blando-corteza',
     'brie|camembert|rulos?(?: de cabra)?|quesos? de cabra|coulommiers|reblochon|chevre|crottin|queso de rulo|quesos? blandos?|queso de corteza (?:blanca|enmohecida|florida)',
@@ -660,6 +676,11 @@ const RULE_DEFS = [
   // 21. Restaurante
   rule('ensalada-cesar', 'ensaladas? (?:cesar|caesar)|caesar salad|cesar salad|salsa cesar'),
   rule('ensaladilla', 'ensaladillas?(?: rusas?)?|ensalada rusa'),
+  // Tarta de queso fría o sin hornear: nada la cocina («Con cuidado»); la horneada es «Sí».
+  rule(
+    'tarta-queso-fria',
+    'tartas? de quesos?(?: [a-z]+){0,2} (?:fria|sin hornear|sin horno)|tartas? (?:fria|sin hornear|sin horno)(?: de quesos?)?|cheese ?cakes? (?:fria|frio|sin hornear)|tarta fria de queso',
+  ),
   rule('tarta-queso', 'tartas? de quesos?|cheese ?cakes?|pastel(?:es)? de queso|tarta new york|tarta de la vina'),
   rule(
     'germinados',
@@ -754,6 +775,7 @@ const RULE_DEFS = [
   ),
   rule('pan-tomate', 'pan con tomate|pa amb tomaquet|pan tumaca|tumaca|tostadas? con tomate|tostadas? de tomate'),
   rule('gazpacho', 'gazpachos?|salmorejos?|porra antequerana|ajoblanco|ajo blanco'),
+  rule('helado-casero', '(?:helados?|gelatos?|sorbetes?) (?:caser[oa]s?|hechos? en casa|de la casa)'),
   rule('helado', 'helados?|sorbetes?|granizados?'),
   rule('pizza', 'pizzas?|pizzetas?|calzone'),
   rule(

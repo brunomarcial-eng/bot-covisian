@@ -50,6 +50,9 @@ const TOPICS_BY_FOOD = {
   'huevo-poco-hecho': ['huevo-crudo'],
   'tortilla-poco-cuajada': ['huevo-crudo'],
   'mayonesa-casera': ['huevo-crudo'],
+  'mayonesa-dudosa': ['huevo-crudo'],
+  'tarta-queso-fria': ['listeria', 'huevo-crudo'],
+  'helado-casero': ['huevo-crudo', 'listeria'],
   'tortilla-patata': ['huevo-crudo'],
   revuelto: ['huevo-crudo'],
   tiramisu: ['huevo-crudo', 'cafeina'],
@@ -99,9 +102,8 @@ const TOPICS_BY_FOOD = {
   'infusion-jengibre': ['hierbas'],
 };
 
-// Alimentos que no son «Sí» y a propósito no llevan tema: el motivo es otro (vitamina A, plomo de la munición,
-// quinina, azúcar…) y no es uno de los temas que se repiten durante el embarazo.
-export const NO_TOPIC_FOODS = Object.freeze(['higado', 'caza', 'tonica', 'edulcorantes', 'zumo']);
+// Alimentos que no son «Sí» y a propósito no llevan tema: el motivo es otro (vitamina A, plomo de la munición) y no es uno de los temas que se repiten durante el embarazo.
+export const NO_TOPIC_FOODS = Object.freeze(['higado', 'caza']);
 
 // Etiquetas libres de la guía → tema, para alimentos nuevos que aún no estén en la tabla.
 function topicsFromTags(food) {
@@ -142,6 +144,9 @@ const MISSING_BY_FOOD = {
   'bebida-almendras': [],
   'bebida-vegetal': [],
   'cerveza-00': ['alcohol'],
+  'guiso-vino': ['alcohol'],
+  'tarta-queso-fria': ['huevo-crudo', 'listeria'],
+  'helado-casero': ['huevo-crudo', 'listeria'],
   descafeinado: ['cafeina'],
   cafe: ['cafeina'],
   te: ['cafeina'],
