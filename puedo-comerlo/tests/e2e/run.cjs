@@ -2256,6 +2256,7 @@ async function s14body(tv, browser, vp) {
   await heads.nth(2).click();
   await tv.check(JSON.stringify(await openIds()) === '["mercurio"]', 'Abrir otra cierra la anterior: una sola abierta a la vez', JSON.stringify(await openIds()));
   await tv.check(/#\/claves\/mercurio$/.test(await getHash(page)), 'La URL sigue a la abierta sin repintar', await getHash(page));
+  await page.waitForTimeout(800);
   await tv.shot('clave-abierta');
   await heads.nth(2).click();
   await tv.check((await openIds()).length === 0 && /#\/claves$/.test(await getHash(page)), 'Cerrar la abierta: ninguna abierta y URL #/claves', JSON.stringify({ o: await openIds(), h: await getHash(page) }));
