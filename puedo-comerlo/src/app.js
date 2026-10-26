@@ -18,6 +18,11 @@ import * as instalar from './ui/instalar.js';
 import * as claves from './ui/claves.js';
 import { beginNavigation, endNavigation } from './ui/tone.js';
 import { installFeedback } from './ui/feedback.js';
+import * as aviso from './ui/aviso.js';
+import { aplicarFirma } from './ui/firma.js';
+
+// Versión de la aplicación (se enseña en Ajustes).
+export const APP_VERSION = '0.9';
 
 const SCREENS = {
   '': home,
@@ -32,6 +37,7 @@ const SCREENS = {
   ajustes,
   instalar,
   claves,
+  aviso,
 };
 
 // Pestaña de la navegación inferior que se marca en cada ruta.
@@ -93,7 +99,7 @@ function render() {
 
   // Sin arranque hecho → siempre al arranque. Con arranque hecho, el arranque no vuelve.
   if (!isOnboarded()) {
-    if (name !== 'arranque') {
+    if (name !== 'arranque' && name !== 'aviso') {
       navigate('#/arranque/1', { replace: true });
       return;
     }
@@ -128,7 +134,7 @@ function render() {
   if (firstRender) visited.push(window.location.hash || '#/');
   void main.offsetWidth;
   main.classList.add('is-entering');
-  document.body.classList.toggle('is-onboarding', name === 'arranque');
+  document.body.classList.toggle('is-onboarding', name === 'arranque' || (name === 'aviso' && !isOnboarded()));
   document.body.dataset.screen = name || 'inicio';
   setTab(TAB_FOR[name] || null);
   setSettingsCurrent(name === 'ajustes');
@@ -182,6 +188,7 @@ function watchDock() {
   else window.addEventListener('resize', apply);
 }
 
+aplicarFirma();
 installFeedback();
 instalar.listenForInstall();
 window.addEventListener('hashchange', render);

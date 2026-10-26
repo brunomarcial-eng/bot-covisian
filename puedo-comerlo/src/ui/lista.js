@@ -9,6 +9,7 @@ import { h, icon, announce, fill } from './dom.js';
 import { entryLink, entries, sectionHead, verdictMore, phraseOf, ojoLine, ojoLines } from './components.js';
 import { refreshEntry } from './recalc.js';
 import { emptyState, categoryFor, thumbArt } from './art-ui.js';
+import { lineaCompartir, hayFirma, URL_APP } from './firma.js';
 
 const RANK = { si: 0, cuidado: 1, duda: 2, no: 3 };
 const KNOWN = ['si', 'cuidado', 'no', 'duda'];
@@ -21,7 +22,10 @@ export const SHARE_TITLE = 'Mi lista de la compra';
 
 // Texto plano de lo pendiente: sin semáforo, sin frases y sin mención al embarazo.
 export function shareText(titles) {
-  return [SHARE_TITLE, ...titles.map((t) => `- ${capFirst(t)}`)].join('\n');
+  const out = [SHARE_TITLE, ...titles.map((t) => `- ${capFirst(t)}`)];
+  // Al final, de dónde viene la lista (la firma y el enlace). Nada más: ni semáforo ni embarazo.
+  if (hayFirma()) out.push('', lineaCompartir(), URL_APP);
+  return out.join('\n');
 }
 
 export function render({ main, profile }) {

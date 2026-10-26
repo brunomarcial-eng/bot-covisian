@@ -5,6 +5,8 @@ import { h, announce, fill } from './dom.js';
 import { confirmBox } from './components.js';
 import { navigate } from './router.js';
 import { isStandalone } from './instalar.js';
+import { hayFirma, hechoPorAnio } from './firma.js';
+import { APP_VERSION } from '../app.js';
 import { alergiasFieldset, otraField, dietaFieldset, checkedValues } from './profile-fields.js';
 
 export function render({ main }) {
@@ -93,10 +95,24 @@ export function render({ main }) {
     ),
     h(
       'section',
+      { class: 'section section--settings', 'aria-labelledby': 'aj-aviso' },
+      h('h2', { id: 'aj-aviso' }, 'Privacidad y aviso legal'),
+      h('p', null, 'Qué se guarda, qué sale de tu móvil y qué no hacemos.'),
+      h('a', { class: 'btn btn--secondary', href: '#/aviso' }, 'Privacidad y aviso legal'),
+    ),
+    h(
+      'section',
       { class: 'section section--settings', 'aria-labelledby': 'aj-datos' },
       h('h2', { id: 'aj-datos' }, 'Tus datos'),
       h('p', null, 'Todo está guardado solo en este móvil. No hay cuenta y no lo vemos.'),
       dangerArea,
+    ),
+    // Firma permanente: se quita vaciando AUTOR en firma.js
+    h(
+      'footer',
+      { class: 'firma' },
+      hayFirma() ? h('p', { class: 'firma-autor' }, hechoPorAnio()) : null,
+      h('p', { class: 'firma-version' }, `¿Puedo comerlo? · versión ${APP_VERSION}`),
     ),
   );
 }

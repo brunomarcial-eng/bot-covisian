@@ -5,6 +5,7 @@ import { getProfile, saveProfile, setOnboarded } from '../store.js';
 import { h, icon } from './dom.js';
 import { navigate } from './router.js';
 import { coverArt } from './art-ui.js';
+import { hechoPor } from './firma.js';
 import { alergiasFieldset, otraField, dietaFieldset, checkedValues } from './profile-fields.js';
 
 const TOTAL = 4;
@@ -22,7 +23,7 @@ function header(n) {
           icon('arrow-left', 18, 1.5),
           'Atrás',
         )
-      : h('span');
+      : h('span', { class: 'steps-by' }, hechoPor());
   const bar = h(
     'div',
     { class: 'steps-bar', 'aria-hidden': 'true' },
@@ -122,7 +123,11 @@ function step4() {
       setOnboarded(true);
       navigate('#/', { replace: true });
     },
-    [h('h1', null, 'Tu privacidad'), h('ul', { class: 'privacy-list' }, items.map((text) => h('li', null, text)))],
+    [
+      h('h1', null, 'Tu privacidad'),
+      h('ul', { class: 'privacy-list' }, items.map((text) => h('li', null, text))),
+      h('p', { class: 'privacy-more' }, h('a', { class: 'text-link', href: '#/aviso' }, 'Más detalle', icon('arrow-right', 18, 1.5))),
+    ],
     { label: 'Empezar' },
   );
   return [form];

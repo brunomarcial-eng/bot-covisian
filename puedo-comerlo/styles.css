@@ -175,10 +175,25 @@ h1[tabindex="-1"]:focus-visible,
   min-height: 3.25rem;
   gap: var(--s4);
 }
+.brand-block { position: relative; display: flex; flex-direction: column; justify-content: center; }
+.byline {
+  position: absolute;
+  left: 0; bottom: 0.3rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  color: var(--muted);
+  pointer-events: none;
+  transition: color 0.2s ease;
+}
+.byline[hidden] { display: none; }
 .brand {
   display: inline-flex;
   align-items: center;
   min-height: 3rem;
+  padding-bottom: 0.95rem;
   font-family: var(--font-title);
   font-weight: 600;
   font-size: 1.125rem;
@@ -1246,6 +1261,7 @@ body[data-verdict] .tabbar-list::after { height: 3px; }
 body.is-igniting { transition: background-color 0s linear 0.42s; }
 body.is-igniting .dock { transition: background-color 0.2s ease 0.04s, border-color 0.2s ease 0.04s; }
 body.is-igniting .brand,
+body.is-igniting .byline,
 body.is-igniting .icon-btn,
 body.is-igniting .tab,
 body.is-igniting .disclaimer { transition: color 0.2s ease 0.04s; }
@@ -1792,6 +1808,25 @@ body[data-screen="inicio"] .search-form { animation: rise 0.45s var(--ease) 0.2s
   pointer-events: none;
 }
 @keyframes glint { 0%, 72% { transform: translateX(-170%) skewX(-18deg); } 90%, 100% { transform: translateX(440%) skewX(-18deg); } }
+
+/* ---------- Firma, aviso legal ---------- */
+
+.steps-by { color: var(--muted); font-size: 0.875rem; font-weight: 600; letter-spacing: 0.04em; }
+.privacy-more { margin: var(--s4) 0 0; }
+
+.legal-top { margin-top: var(--s2); }
+.legal-sec { margin-top: var(--s6); }
+.legal-sec h2 { margin: 0 0 var(--s3); }
+.legal-sec p { margin: 0 0 var(--s3); }
+.legal-list { list-style: none; margin: 0 0 var(--s3); padding: 0; }
+.legal-list li { position: relative; padding-left: 1.15rem; margin-top: var(--s3); line-height: 1.5; }
+.legal-list li::before { content: ''; position: absolute; left: 0.1rem; top: 0.72em; width: 0.4rem; height: 0.4rem; border-radius: 50%; background: var(--salvia); }
+.legal-date { color: var(--muted); font-size: 1rem; }
+
+.firma { margin-top: var(--s7); padding-top: var(--s4); border-top: 1px solid var(--line); text-align: center; color: var(--muted); }
+.firma p { margin: 0; }
+.firma-autor { font-family: var(--font-title); font-weight: 540; font-size: 1.25rem; color: var(--ink); letter-spacing: -0.01em; }
+.firma-version { font-size: 1rem; margin-top: var(--s1) !important; }
 
 @media (prefers-reduced-motion: reduce) {
   *,

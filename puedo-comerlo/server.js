@@ -107,7 +107,7 @@ async function serveStatic(req, res, pathname, root) {
     ...SECURITY_HEADERS,
     'Content-Type': MIME[path.extname(real).toLowerCase()] ?? 'application/octet-stream',
     'Content-Length': info.size,
-    // Las fuentes no cambian (su nombre lleva la versión): caché larga. Lo demás, siempre revalidado.
+    // Las fuentes no cambian: caché larga (si se sustituye una, hay que cambiarle el nombre). Lo demás, revalidado.
     'Cache-Control': path.extname(real).toLowerCase() === '.woff2' ? 'public, max-age=31536000, immutable' : 'no-cache',
   });
   if (req.method === 'HEAD') {
