@@ -1,0 +1,1036 @@
+// Motor de reglas: puro y determinista (sin DOM, sin red, sin fecha, sin aleatoriedad).
+// Mismo texto + mismo perfil → mismo resultado.
+
+import { FOODS, GROUPS, FOOD_BY_ID } from './foods.js';
+import { LEVEL_LABEL, levelRank } from './levels.js';
+import { normalize } from './normalize.js';
+import { checkLabel } from './etiqueta.js';
+import { topicsForFood, missingForFood, mergeTopics, MISSING_UNKNOWN, MISSING_MAX } from './temas.js';
+import {
+  KEYWORD_RULES,
+  ruleOrderIndex,
+  CTX,
+  EMBUTIDO_TYPE_RES,
+  ALLERGEN_LEXICON,
+  DIET_LEXICON,
+  ALLERGY_IDS,
+  ALLERGY_LABEL,
+  DIET_NOTES,
+  NEGATION_RES,
+  NEGATION_EXTRA,
+  OFF_ALLERGEN_MAP,
+  OFF_CATEGORY_MAP,
+  OFF_LABEL_NEGATIONS,
+} from './lexicon.js';
+
+// ---------------------------------------------------------------------------
+// Textos fijos
+// ---------------------------------------------------------------------------
+
+export const UNKNOWN = Object.freeze({
+  phrase: 'No lo tengo claro. No lo doy por seguro.',
+  detail:
+    'La app no reconoce este plato en su guía y no se inventa lo que lleva: no te da un «sí» por defecto. ' +
+    'Pregunta cómo está hecho o mira la etiqueta antes de decidir.',
+  question: '¿Lleva huevo crudo, embutido, queso sin pasteurizar, alcohol o pescado sin hacer?',
+  source: 'La propia app: no reconozco este plato',
+});
+
+export const PHRASES = Object.freeze({
+  embutidoNo: 'Has decidido no comer embutidos.',
+  embutidoNoMarcado: 'No está entre los embutidos que has marcado.',
+  embutidoCrudoCocinados: 'En crudo, mejor no. Cocinado dentro del plato, sí.',
+  embutidoCrudoLosComo: 'Va sin cocinar: AESAN lo señala por toxoplasmosis y, loncheado, por listeria. La decisión es tuya.',
+  embutidoCocinado: 'Sí: cocinado dentro del plato, el calor elimina el riesgo. Que llegue bien caliente.',
+  quesoPasteurizado: 'Leche pasteurizada. Quita la corteza si la tiene.',
+  lecturaIncierta: 'No estoy segura de la lectura.',
+});
+
+// Producto sin lista de ingredientes, o con ingredientes de internet sin confirmar: no es un «Sí».
+export const INCOMPLETE = Object.freeze({
+  sinIngredientes: {
+    phrase: 'No tengo los ingredientes de este producto. Fotografíalos y lo compruebo.',
+    detail:
+      'Sin la lista de ingredientes no puedo descartar lo que importa en el embarazo ni tus alergias. ' +
+      'Fotografía la etiqueta, por donde pone «Ingredientes», y lo compruebo.',
+    source: 'La propia app: faltan los ingredientes',
+  },
+  web: {
+    phrase: 'Datos encontrados en internet, sin confirmar con la etiqueta.',
+    detail:
+      'Estos ingredientes no vienen de la etiqueta del producto sino de internet, y pueden estar mal o desactualizados. ' +
+      'Fotografía la lista de ingredientes de la etiqueta y lo compruebo.',
+    source: 'La propia app: datos de internet sin confirmar',
+  },
+});
+
+// Pasta rellena: además del huevo, el relleno puede llevar queso.
+const RELLENO_RE = /(?<![a-z0-9])(?:rellen[oa]s?|ravioli(?:s|es)?|tortellini(?:s)?|capeletis?|agnolotti|canelones|lasanas?)(?![a-z0-9])/;
+
+const PASTEURIZABLE_CHEESE = new Set(['queso-fresco', 'queso-curado', 'queso-blando-corteza']);
+// Quesos cuyo riesgo (listeria) anula el calor: cocinados pasan a «queso cocinado».
+const CHEESE_IDS = new Set(['queso-fresco', 'queso-curado', 'queso-blando-corteza', 'queso-azul', 'queso-loncheado-rallado']);
+// Lo que el calor NO arregla (mercurio, alcohol, cafeína, huevo o pescado crudos…) no se toca: solo se
+// convierten embutido curado, fiambre, queso, pescado ahumado y germinados.
+// En la lista de ingredientes estas coincidencias no dicen nada del producto («agua», «zumo de limón»).
+// Lo mismo con los básicos de despensa del cuestionario (aceite, sal, harina, pan…): un producto desconocido no
+// pasa a «Sí» porque su lista de ingredientes lleve harina y sal. Y el surimi como ingrediente de unas gulas no
+// las convierte en «Mejor no».
+const NAME_ONLY_IDS = new Set([
+  'agua', 'zumo', 'aceite-vinagre-sal', 'azucar', 'harina', 'levadura', 'pan', 'mantequilla-nata', 'margarina',
+  'salsas-bote', 'salsa-soja', 'encurtidos', 'gelatina', 'miel', 'mermelada', 'frutos-secos', 'pipas', 'cereales',
+  'muesli', 'pasta', 'tofu', 'seitan', 'surimi', 'chicle', 'huevos-frescos', 'bebida-avena', 'bebida-soja',
+  'bebida-almendras', 'bebida-vegetal', 'rooibos',
+]);
+
+// ---------------------------------------------------------------------------
+// Índices precalculados
+// ---------------------------------------------------------------------------
+
+const RULE_ORDER = ruleOrderIndex();
+const FOOD_INDEX = new Map(FOODS.map((f, i) => [f.id, i]));
+
+function idOrder(id) {
+  return RULE_ORDER.has(id) ? RULE_ORDER.get(id) : KEYWORD_RULES.length + (FOOD_INDEX.get(id) ?? 0);
+}
+
+const ALIAS_INDEX = FOODS.map((f) => ({
+  id: f.id,
+  terms: [...new Set([f.name, ...(f.aliases || [])].map(normalize).filter(Boolean))].sort(
+    (a, b) => b.length - a.length || (a < b ? -1 : a > b ? 1 : 0),
+  ),
+}));
+
+function resolveSlot(slot) {
+  const options = Array.isArray(slot) ? slot : [slot];
+  return options.find((id) => FOOD_BY_ID[id]) || null;
+}
+
+function isCurado(food) {
+  if (!food || ['embutido-cocinado', 'fiambre-loncheado', 'fiambre-cocinado'].includes(food.id)) return false;
+  return !!food.embutido || (Array.isArray(food.tags) && food.tags.includes('embutido'));
+}
+
+// ---------------------------------------------------------------------------
+// Utilidades de texto
+// ---------------------------------------------------------------------------
+
+const isWordChar = (c) => (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9');
+
+// Todas las apariciones de `needle` como palabra(s) completa(s) en `hay`.
+function wordOccurrences(hay, needle) {
+  const out = [];
+  if (!needle) return out;
+  let from = 0;
+  for (;;) {
+    const i = hay.indexOf(needle, from);
+    if (i < 0) break;
+    const before = i === 0 ? ' ' : hay[i - 1];
+    const after = i + needle.length >= hay.length ? ' ' : hay[i + needle.length];
+    if (!isWordChar(before) && !isWordChar(after)) out.push(i);
+    from = i + 1;
+  }
+  return out;
+}
+
+function escapeRe(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function joinList(items) {
+  if (items.length <= 1) return items.join('');
+  return `${items.slice(0, -1).join(', ')} y ${items[items.length - 1]}`;
+}
+
+// Documento: segmentos normalizados unidos por « | » (ninguna regla cruza un separador).
+function buildDoc(parts) {
+  const segs = [];
+  let text = '';
+  for (const p of parts) {
+    const norm = normalize(p.text);
+    if (!norm) continue;
+    if (text) text += ' | ';
+    segs.push({ start: text.length, end: text.length + norm.length, kind: p.kind, norm });
+    text += norm;
+  }
+  return { text, segs };
+}
+
+function segAt(doc, pos) {
+  return doc.segs.find((s) => pos >= s.start && pos < s.end) || doc.segs[0];
+}
+
+// ---------------------------------------------------------------------------
+// Emparejamiento
+// ---------------------------------------------------------------------------
+
+// Puntuación de un alias contra un segmento (ambos normalizados).
+// 100 = igualdad. Alias contenido como palabra(s) completas: 50–99 según la parte del texto que cubre.
+export function aliasScore(alias, text) {
+  if (!alias || !text) return { score: 0, at: -1, len: 0 };
+  if (alias === text) return { score: 100, at: 0, len: text.length };
+  const occ = wordOccurrences(text, alias);
+  if (occ.length) return { score: 50 + Math.round((49 * alias.length) / text.length), at: occ[0], len: alias.length, occ };
+  // Un texto contenido en un alias más largo NO cuenta: lo que falta puede ser lo decisivo
+  // («cerveza sin alcohol» dentro de «cerveza sin alcohol 0,0»).
+  return { score: 0, at: -1, len: 0 };
+}
+
+// Texto escrito a medias: «sushi» a medio escribir. Solo una palabra de ≥ 5 letras que no sea ya una
+// palabra completa conocida («miel» no es «mielga» a medias), y solo si nada más encaja.
+function prefixScore(alias, text) {
+  if (text.length < 5 || text.includes(' ')) return 0;
+  const first = alias.split(' ')[0];
+  if (first === text || !first.startsWith(text)) return 0;
+  return 50 + Math.round((30 * text.length) / alias.length);
+}
+
+function strictlyInside(spans, start, end, id) {
+  return spans.some(
+    (c) => c.start <= start && end <= c.end && c.end - c.start > end - start && !c.ids.includes(id),
+  );
+}
+
+// Un alias que corta por la mitad una palabra clave de otro alimento no cuenta: «bocadillo de jamón»
+// dentro de «bocadillo de jamón york» partiría «jamón york» (fiambre) y lo leería como jamón curado.
+function cutsSpan(spans, start, end, id) {
+  return spans.some(
+    (c) =>
+      c.start < end && start < c.end && // se solapan
+      !(start <= c.start && c.end <= end) && // el alias no la contiene entera
+      !(c.start <= start && end <= c.end) && // ni queda dentro
+      !c.ids.includes(id),
+  );
+}
+
+const PREFIX_EXCLUDED = new Set(['pescado-mercurio']);
+// Vocabulario de la propia guía (nombres, alias y textos) y algunas palabras de carta que no están en ella.
+const KNOWN_WORDS = new Set([
+  ...FOODS.flatMap((f) =>
+    [f.name, ...(f.aliases || []), f.phrase, f.detail, f.question || '', f.alternative || '']
+      .flatMap((t) => normalize(t).split(' ')),
+  ),
+  'lengua', 'lenguas', 'cabra', 'cabras', 'tarta', 'tartas', 'entre', 'cocina', 'parrilla', 'menu', 'plato', 'platos',
+  'postre', 'postres', 'entrante', 'entrantes', 'racion', 'media', 'tapa', 'tapas',
+]);
+// Palabra completa que la app ya conoce (guía o léxico): no es algo a medio escribir.
+function isKnownWord(word) {
+  if (KNOWN_WORDS.has(word)) return true;
+  const all = [...Object.values(ALLERGEN_LEXICON), ...Object.values(DIET_LEXICON), CTX.vegetal, CTX.fish, CTX.marisco, CTX.carne];
+  return all.some((re) => {
+    re.lastIndex = 0;
+    const m = re.exec(word);
+    return !!m && m.index === 0 && m[0].length === word.length;
+  });
+}
+
+function findMatches(doc, context) {
+  const consumed = [];
+  const matches = [];
+  // 1) Palabras clave, de más específica a más general.
+  for (const rule of KEYWORD_RULES) {
+    if (rule.context && rule.context !== context) continue;
+    const re = rule.re;
+    re.lastIndex = 0;
+    let m;
+    while ((m = re.exec(doc.text))) {
+      if (!m[0].length) {
+        re.lastIndex++;
+        continue;
+      }
+      const start = m.index;
+      const end = start + m[0].length;
+      const seg = segAt(doc, start);
+      if (rule.nameOnly && seg.kind === 'ingredient') continue;
+      if (consumed.some((c) => c.start <= start && end <= c.end)) continue;
+      const ids = rule.ids.map(resolveSlot).filter(Boolean);
+      consumed.push({ start, end, ids });
+      for (const id of ids) matches.push({ id, order: rule.index, start, end, where: seg.kind, via: 'kw' });
+    }
+  }
+  // 2) Alias de la guía (palabras completas, puntuación ≥ 50).
+  for (const seg of doc.segs) {
+    for (const entry of ALIAS_INDEX) {
+      if (seg.kind === 'ingredient' && NAME_ONLY_IDS.has(entry.id)) continue;
+      let found = null;
+      for (const term of entry.terms) {
+        const r = aliasScore(term, seg.norm);
+        if (r.score < 50) continue;
+        const positions = r.occ || [r.at];
+        for (const at of positions) {
+          const start = seg.start + at;
+          const end = start + r.len;
+          if (strictlyInside(consumed, start, end, entry.id) || cutsSpan(consumed, start, end, entry.id)) continue;
+          if (!found || r.score > found.score) found = { score: r.score, start, end };
+          break;
+        }
+        if (found && found.score === 100) break;
+      }
+      if (found) {
+        matches.push({
+          id: entry.id,
+          order: idOrder(entry.id),
+          start: found.start,
+          end: found.end,
+          where: seg.kind,
+          via: 'alias',
+        });
+      }
+    }
+  }
+  // Un alias corto dentro de otro más largo de otro alimento no cuenta
+  // («ostras» dentro de «ostras gratinadas»).
+  const aliasSpans = matches.filter((m) => m.via === 'alias').map((m) => ({ start: m.start, end: m.end, ids: [m.id] }));
+  for (let i = matches.length - 1; i >= 0; i--) {
+    const m = matches[i];
+    if (m.via === 'alias' && strictlyInside(aliasSpans, m.start, m.end, m.id)) matches.splice(i, 1);
+  }
+  // 3) Escrito a medias (solo texto libre y solo si no hay nada más). Nunca hacia el pescado con mercurio:
+  // un «Mejor no» por una palabra a medias asusta sin motivo.
+  if (!matches.length && context === 'text') {
+    const seg = doc.segs.find((s) => s.kind === 'name');
+    if (seg && !isKnownWord(seg.norm)) {
+      for (const entry of ALIAS_INDEX) {
+        if (PREFIX_EXCLUDED.has(entry.id)) continue;
+        if (entry.terms.some((t) => prefixScore(t, seg.norm) >= 50)) {
+          matches.push({ id: entry.id, order: idOrder(entry.id), start: seg.start, end: seg.end, where: 'name', via: 'prefix' });
+        }
+      }
+    }
+  }
+  return matches;
+}
+
+// ---------------------------------------------------------------------------
+// Reglas de contexto y anulaciones
+// ---------------------------------------------------------------------------
+
+function applyContext(matches, doc, context) {
+  const text = doc.text;
+  let list = matches.slice();
+  const has = (id) => list.some((m) => m.id === id);
+  const add = (id, extra = {}) => {
+    if (FOOD_BY_ID[id] && !list.some((m) => m.id === id && !m.K)) {
+      list.push({ id, order: idOrder(id), start: -1, end: -1, where: 'name', via: 'ctx', ...extra });
+    }
+  };
+  const remove = (...ids) => {
+    list = list.filter((m) => !ids.includes(m.id));
+  };
+  const fish = CTX.fish.test(text);
+  const marisco = CTX.marisco.test(text);
+
+  // Crudo: pescado o marisco → crudo; embutido, huevo o lácteo ya tienen su regla; verdura cruda no es carne.
+  if (CTX.crudo.test(text)) {
+    if (fish) add('pescado-crudo');
+    else if (marisco) add('marisco-crudo');
+    else if (CTX.embutido.test(text) || CTX.huevo.test(text) || CTX.lacteo.test(text)) {
+      // «jamón crudo» es embutido curado; «huevo crudo» y «leche cruda» tienen su propia regla.
+    } else if (CTX.vegetal.test(text) && !CTX.carne.test(text)) {
+      // Verdura o fruta cruda: no es carne poco hecha.
+    } else add('carne-poco-hecha');
+  }
+  // «Atún al punto», «pescado poco hecho» → pescado sin hacer, no carne.
+  if (has('carne-poco-hecha') && (fish || marisco) && !CTX.carne.test(text) && CTX.pocoHecho.test(text)) {
+    remove('carne-poco-hecha');
+    add(fish ? 'pescado-crudo' : 'marisco-crudo');
+  }
+  if (fish && CTX.ahumado.test(text)) add('pescado-ahumado');
+  if (fish && CTX.vinagre.test(text)) add('boquerones-vinagre');
+  if (fish && CTX.marinado.test(text) && !has('boquerones-vinagre')) add('pescado-crudo');
+
+  // Alcohol solo en salsa o guiso (sin bebida en la mesa) → salsa o guiso con vino.
+  if (has('alcohol')) {
+    const cooking = CTX.alcoholCooking.test(text) && !CTX.alcoholDrink.test(text);
+    const onlyIngredient =
+      context === 'product' && list.filter((m) => m.id === 'alcohol').every((m) => m.where === 'ingredient');
+    if (cooking || onlyIngredient) {
+      remove('alcohol');
+      // Vino que hierve de verdad en un guiso → «Sí»; salsa, flambé o vino al final → «Con cuidado».
+      const guiso =
+        cooking && !CTX.flambe.test(text) && (CTX.guisoLargo.test(text) || !CTX.salsaVino.test(text));
+      add(guiso ? 'guiso-vino' : 'salsa-vino');
+    }
+  }
+
+  // Anulaciones.
+  if (has('cerveza-00')) remove('alcohol', 'cerveza-sin');
+  if (CTX.sinAlcohol.test(text)) remove('alcohol');
+  // «cerveza sin gluten» no es «cerveza sin» (alcohol): sigue llevando alcohol.
+  if (/(?<![a-z0-9])cervezas? sin (?:gluten|lactosa)(?![a-z0-9])/.test(text) && !CTX.sinAlcohol.test(text)) {
+    remove('cerveza-sin');
+  }
+  if (has('descafeinado')) remove('cafe', 'te');
+  if (has('mayonesa-bote')) remove('mayonesa-casera', 'mayonesa-dudosa');
+  if (has('mayonesa-casera')) remove('mayonesa-dudosa');
+  if (has('pescado-mercurio')) remove('atun-plancha', 'atun-lata', 'pescado-blanco-plancha', 'pescado-azul-pequeno', 'salmon-hecho');
+  if (has('pescado-ahumado') || has('pescado-crudo') || has('boquerones-vinagre')) {
+    remove('pescado-blanco-plancha', 'pescado-azul-pequeno', 'salmon-hecho', 'atun-plancha');
+  }
+  if (has('marisco-crudo')) remove('marisco-cocido');
+  if (has('tortilla-poco-cuajada')) remove('tortilla-patata');
+  if (has('huevo-poco-hecho')) remove('huevo-bien-hecho', 'revuelto');
+  if (has('carne-poco-hecha') || has('tartar') || has('carpaccio')) remove('carne-bien-hecha');
+  if (has('leche-cruda')) remove('leche-pasteurizada');
+
+  // --- Cocinado de verdad (decisión de la clienta): lo que se cocina hasta estar bien caliente por dentro
+  // ya no tiene el riesgo de listeria o toxoplasma. Lo que va «al final», «en crudo», «en frío»… no cuenta.
+  const raw = CTX.rawMarker.test(text);
+  const cold = CTX.coldDish.test(text);
+  const convert = (fromIds, toId) => {
+    if (!FOOD_BY_ID[toId]) return;
+    list = list.map((m) => (fromIds.includes(m.id) ? { ...m, id: toId, order: idOrder(toId), from: m.id } : m));
+  };
+
+  // Fiambre de bandeja cocinado dentro del plato (pizza, sándwich mixto, croqueta…) → fiambre cocinado.
+  if (raw) convert(['fiambre-cocinado'], 'fiambre-loncheado');
+  else if (has('fiambre-loncheado') && (has('fiambre-cocinado') || CTX.fiambreNext.test(text) || (CTX.fiambreHeat.test(text) && !cold))) {
+    convert(['fiambre-loncheado'], 'fiambre-cocinado');
+  }
+
+  // Queso cocinado (al horno, gratinado, fundido, frito, en pizza o croqueta…) → queso cocinado.
+  // En un plato (pizza) la burrata no cuenta: se suele poner al final, en frío. En un producto envasado solo
+  // cuenta el plato («pizza cuatro quesos»), no «queso fundido» (lonchas o porciones de nevera).
+  const cheeseNext = context === 'text' && CTX.cheeseCooked.test(text);
+  const cheeseDish = CTX.cheeseDish.test(text) && !raw && !cold;
+  if (cheeseNext || cheeseDish) {
+    const hasCheese = list.some((m) => CHEESE_IDS.has(m.id));
+    list = list.map((m) => {
+      const isCheese = CHEESE_IDS.has(m.id) || (m.id === 'leche-cruda' && (hasCheese || cheeseNext));
+      if (!isCheese) return m;
+      const burrata = m.start >= 0 && text.slice(m.start, m.end).includes('burrata');
+      if (!cheeseNext && burrata) return m;
+      return { ...m, id: 'queso-cocinado', order: idOrder('queso-cocinado'), from: m.id };
+    });
+  }
+
+  // Pescado ahumado cocinado en un plato caliente (pasta, quiche, revuelto, al horno).
+  if (has('pescado-ahumado') && CTX.smokedHeat.test(text) && !cold && !raw) convert(['pescado-ahumado'], 'ahumado-cocinado');
+  if (raw) convert(['ahumado-cocinado'], 'pescado-ahumado');
+  // Brotes y germinados cocinados (salteado, wok, sopa).
+  if (has('germinados') && CTX.sproutHeat.test(text) && !cold && !raw) convert(['germinados'], 'germinados-cocinados');
+  if (raw) convert(['germinados-cocinados'], 'germinados');
+
+  // Embutido curado cocinado de verdad dentro del plato → embutido cocinado, conservando el tipo.
+  // «Al final», «en crudo», «sin hornear», «después del horno»: ese embutido cuenta como crudo.
+  const cooked =
+    CTX.cookedNextToEmbutido.test(text) || (!raw && ((CTX.cookedDish.test(text) && !cold) || has('embutido-cocinado')));
+  if (cooked && FOOD_BY_ID['embutido-cocinado']) {
+    list = list.map((m) => {
+      const food = FOOD_BY_ID[m.id];
+      if (!isCurado(food)) return m;
+      return { ...m, id: 'embutido-cocinado', order: idOrder('embutido-cocinado'), K: food.embutido || null, from: m.id };
+    });
+  }
+  // Tipo de embutido para «embutido cocinado» que llega sin tipo (alias «fabada», «croquetas de jamón»…).
+  const typed = list.filter((m) => m.id === 'embutido-cocinado' && m.K);
+  if (list.some((m) => m.id === 'embutido-cocinado' && !m.K) && !typed.length) {
+    const kinds = Object.keys(EMBUTIDO_TYPE_RES).filter((k) => EMBUTIDO_TYPE_RES[k].test(text));
+    if (kinds.length) {
+      const base = list.find((m) => m.id === 'embutido-cocinado');
+      list = list.filter((m) => m.id !== 'embutido-cocinado');
+      for (const K of kinds) list.push({ ...base, K });
+    }
+  } else if (typed.length) {
+    list = list.filter((m) => !(m.id === 'embutido-cocinado' && !m.K && !m.from));
+  }
+
+  // Sin duplicados (id + tipo de embutido); se queda la de menor orden.
+  const seen = new Map();
+  for (const m of list) {
+    const key = `${m.id}|${m.K || ''}`;
+    const prev = seen.get(key);
+    if (!prev || m.order < prev.order) seen.set(key, m);
+  }
+  return [...seen.values()].sort((a, b) => a.order - b.order || (a.K || '').localeCompare(b.K || ''));
+}
+
+// ---------------------------------------------------------------------------
+// Piezas de veredicto, perfil y fusión
+// ---------------------------------------------------------------------------
+
+function sanitizeProfile(profile) {
+  const p = profile && typeof profile === 'object' ? profile : {};
+  const arr = (x) => (Array.isArray(x) ? x.filter((v) => typeof v === 'string') : []);
+  return {
+    embutido: ['no', 'cocinados', 'los_como'].includes(p.embutido) ? p.embutido : null,
+    embutidos: arr(p.embutidos),
+    alergias: arr(p.alergias),
+    otra: typeof p.otra === 'string' ? p.otra.slice(0, 200) : '',
+    dieta: arr(p.dieta),
+  };
+}
+
+function pieceFromFood(food, extra = {}) {
+  return {
+    id: food.id,
+    order: extra.order ?? idOrder(food.id),
+    level: food.level,
+    phrase: food.phrase,
+    detail: food.detail,
+    question: food.question ?? null,
+    alternative: food.alternative ?? null,
+    source: food.source,
+    K: extra.K ?? null,
+  };
+}
+
+// Perfil de embutido, por coincidencia (antes de fusionar).
+function applyEmbutidoProfile(piece, food, profile) {
+  const cocinado = food.id === 'embutido-cocinado';
+  if (!cocinado && !isCurado(food)) return piece;
+  const K = piece.K || food.embutido || null;
+  const out = { ...piece };
+  if (profile.embutido === 'no') {
+    out.level = 'no';
+    out.phrase = PHRASES.embutidoNo;
+  } else if (profile.embutidos.length && K && !profile.embutidos.includes(K)) {
+    out.level = 'no';
+    out.phrase = PHRASES.embutidoNoMarcado;
+  } else if (profile.embutido === 'cocinados') {
+    out.level = cocinado ? 'si' : 'no';
+    out.phrase = cocinado ? PHRASES.embutidoCocinado : PHRASES.embutidoCrudoCocinados;
+  } else if (profile.embutido === 'los_como') {
+    out.level = cocinado ? 'si' : 'no';
+    out.phrase = cocinado ? PHRASES.embutidoCocinado : PHRASES.embutidoCrudoLosComo;
+  }
+  return out;
+}
+
+function applyPasteurized(piece, text) {
+  if (!PASTEURIZABLE_CHEESE.has(piece.id) || piece.level === 'no') return piece;
+  if (!CTX.pasteurizado.test(text) || CTX.noPasteurizado.test(text)) return piece;
+  return { ...piece, level: 'si', phrase: PHRASES.quesoPasteurizado, pasteurized: true };
+}
+
+function mergePieces(pieces) {
+  let best = null;
+  for (const p of pieces) {
+    if (!best || levelRank(p.level) > levelRank(best.level) || (levelRank(p.level) === levelRank(best.level) && p.order < best.order)) {
+      best = p;
+    }
+  }
+  return best;
+}
+
+function unknownPiece() {
+  return {
+    id: null,
+    level: 'duda',
+    phrase: UNKNOWN.phrase,
+    detail: UNKNOWN.detail,
+    question: UNKNOWN.question,
+    alternative: null,
+    source: UNKNOWN.source,
+  };
+}
+
+// «Sí» de un producto por sus ingredientes: la propia app, no una ficha de la guía.
+function neutralPiece() {
+  return {
+    id: null,
+    level: 'si',
+    phrase: 'He mirado los ingredientes y no veo nada que haya que vigilar.',
+    detail:
+      'He comparado los ingredientes con los temas que se repiten en el embarazo (listeria, toxoplasmosis, huevo crudo, alcohol…) ' +
+      'y no aparece nada que pida cuidado. Fuente: la propia app, a partir de la lista de ingredientes.',
+    question: null,
+    alternative: null,
+    source: 'La propia app: a partir de los ingredientes',
+  };
+}
+
+// Producto con ingredientes fiables y sin ficha que lo describa: lo que dice la lista de ingredientes.
+// `hits` son los temas que `checkLabel` encuentra («aparece», con o sin matiz; lo pasteurizado ya no cuenta).
+//  - «Con cuidado»: queso fresco sin «pasteurizada», fiambre, ahumado, paté, jamón, alcohol, pescado crudo…
+//  - «Sí» con aviso: cafeína, cacao, atún, hinojo o tila, huevo, carne picada (se vigilan, no cambian el plato).
+//  - Nada que aparezca: «Sí» con la frase neutra.
+const LABEL_ORDER = ['listeria', 'toxoplasmosis', 'mercurio', 'huevo-crudo', 'pescado-crudo', 'alcohol', 'cafeina', 'hierbas'];
+const LABEL_MILK = /\b(?:queso|quesos|leche|nata|requeson|burrata|mozzarella|mozarella|ricotta|feta|mascarpone|brie|camembert|rulo)\b/i;
+
+function quoted(ev) {
+  const t = String(ev || '').replace(/\s+/g, ' ').trim();
+  const cut = t.length > 60 ? `${t.slice(0, 59).trimEnd()}…` : t;
+  return /^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]/.test(cut) ? cut[0].toLowerCase() + cut.slice(1) : cut;
+}
+
+function labelFinding(h) {
+  const ev = quoted(h.evidence[0]);
+  const soft = h.matiz === 'poca' || h.matiz === 'duda';
+  switch (h.topic) {
+    case 'listeria':
+      return LABEL_MILK.test(normalize(h.evidence[0] || ''))
+        ? { level: 'cuidado', phrase: `Lleva ${ev}: mira que sea de leche pasteurizada.`, question: '¿Es de leche pasteurizada? En la etiqueta suele decirlo.' }
+        : { level: 'cuidado', phrase: `Lleva ${ev}: puede llevar listeria.`, question: '¿Se come frío o va cocinado dentro del plato?' };
+    case 'toxoplasmosis':
+      return h.matiz === 'duda'
+        ? { level: 'si', phrase: `Sí: lleva ${ev}; que esté bien cocinado.`, ojo: 'Que la carne esté bien cocinada.' }
+        : { level: 'cuidado', phrase: `Lleva ${ev}: mira que vaya bien cocinado.`, question: '¿Va cocinado del todo o se come curado?' };
+    case 'mercurio':
+      return h.matiz === 'duda'
+        ? { level: 'si', phrase: `Sí, con moderación: lleva ${ev}.`, ojo: 'Con moderación: el atún acumula algo de mercurio.' }
+        : { level: 'cuidado', phrase: `Lleva ${ev}: pescado con mucho mercurio.`, question: '¿Qué pescado es exactamente?' };
+    case 'huevo-crudo':
+      return { level: 'si', phrase: `Sí: lleva ${ev}, que en un envasado va cocinado o pasteurizado.`, ojo: 'Si es de nevera, que el huevo vaya pasteurizado.' };
+    case 'pescado-crudo':
+      return { level: 'cuidado', phrase: `Lleva ${ev}: mira que no vaya crudo.`, question: '¿Va crudo, curado o cocinado?' };
+    case 'alcohol':
+      return { level: 'cuidado', phrase: `Lleva ${ev}: mira si queda alcohol.`, question: '¿Queda alcohol en el producto o se ha cocido del todo?' };
+    case 'cafeina':
+      return {
+        level: 'si',
+        phrase: `Sí, con moderación: lleva ${ev}.`,
+        ojo: h.matiz === 'poca' ? 'Con moderación: el cacao lleva algo de cafeína.' : 'Con moderación: lleva cafeína.',
+      };
+    case 'hierbas':
+      return soft
+        ? { level: 'si', phrase: `Sí, con moderación: lleva ${ev}.`, ojo: 'No a diario ni en cantidad.' }
+        : { level: 'cuidado', phrase: `Lleva ${ev}: planta que no conviene en el embarazo.`, question: '¿Cuánta lleva y para qué se usa?' };
+    default:
+      return { level: 'cuidado', phrase: `Lleva ${ev}.`, question: null };
+  }
+}
+
+function labelPiece(hits) {
+  const source = 'La propia app: a partir de los ingredientes';
+  if (!hits.length) return { ...neutralPiece(), topics: [], ojo: [] };
+  const found = LABEL_ORDER.map((t) => hits.find((h) => h.topic === t))
+    .filter(Boolean)
+    .map((h) => ({ h, f: labelFinding(h) }));
+  const cuidado = found.filter((x) => x.f.level === 'cuidado');
+  const lead = cuidado[0] || found[0];
+  const level = cuidado.length ? 'cuidado' : 'si';
+  const listed = joinList([...new Set(found.map((x) => quoted(x.h.evidence[0])))]);
+  return {
+    id: null,
+    level,
+    phrase: lead.f.phrase,
+    detail:
+      `He comparado los ingredientes con los temas que se repiten en el embarazo y aparece: ${listed}. ` +
+      'Fuente: la propia app, a partir de la lista de ingredientes.',
+    question: level === 'cuidado' ? lead.f.question || null : null,
+    alternative: null,
+    source,
+    topics: level === 'cuidado' ? cuidado.map((x) => x.h.topic) : [],
+    ojo: level === 'si' ? [...new Set(found.map((x) => x.f.ojo).filter(Boolean))].slice(0, 3) : [],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Alergias, «otra cosa», forma de comer
+// ---------------------------------------------------------------------------
+
+function negatedSet(text, labels = []) {
+  const neg = new Set();
+  for (const [k, re] of Object.entries(NEGATION_RES)) if (re.test(text)) neg.add(k);
+  for (const { re, negates } of NEGATION_EXTRA) if (re.test(text)) negates.forEach((k) => neg.add(k));
+  for (const l of labels) (OFF_LABEL_NEGATIONS[l] || []).forEach((k) => neg.add(k));
+  return neg;
+}
+
+function lexiconHits(lexicon, text) {
+  return Object.keys(lexicon).filter((k) => lexicon[k].test(text));
+}
+
+// Trozos del texto libre «otra cosa»: por comas, punto y coma, « y », saltos de línea; ≥ 3 letras.
+function otraChunks(otra) {
+  if (!otra) return [];
+  return String(otra)
+    .slice(0, 200)
+    .split(/[,;\n\r]+|\s+y\s+|\s+e\s+|\s+o\s+/i)
+    .map((raw) => raw.trim())
+    .filter((raw) => (normalize(raw).match(/[a-z]/g) || []).length >= 3);
+}
+
+function otraRegex(norm) {
+  const variants = new Set([norm]);
+  if (norm.length > 4 && norm.endsWith('es')) variants.add(norm.slice(0, -2));
+  if (norm.length > 3 && norm.endsWith('s')) variants.add(norm.slice(0, -1));
+  const body = [...variants].map(escapeRe).join('|');
+  return new RegExp(`(?<![a-z0-9])(?<!(?:sin|ni) )(?:${body})(?:es|s)?(?![a-z0-9])`);
+}
+
+function otraHits(otra, texts) {
+  const hits = [];
+  for (const raw of otraChunks(otra)) {
+    const re = otraRegex(normalize(raw));
+    if (texts.some((t) => re.test(t))) hits.push(raw);
+  }
+  return hits;
+}
+
+function dietNotes(profile, categories, lactosaNegated) {
+  const notes = [];
+  for (const d of ['vegetariana', 'vegana', 'sin_cerdo', 'sin_lactosa']) {
+    if (!profile.dieta.includes(d)) continue;
+    if (d === 'sin_lactosa' && lactosaNegated) continue;
+    if (DIET_NOTES[d].tags.some((t) => categories.has(t))) notes.push(DIET_NOTES[d].note);
+  }
+  return notes;
+}
+
+// Si el nivel final ya no es el del alimento, su frase no puede empezar con el veredicto
+// antiguo («Con cuidado: …» en una ficha «Mejor no»): se quita esa entrada.
+const LEVEL_LEAD = /^(?:sí|con cuidado|mejor no|no estoy segura)(?=[\s,:;.—-]|$)\s*[,:;.—-]?\s*/iu;
+
+function phraseFor(basePhrase, baseLevel, level) {
+  const phrase = String(basePhrase || '');
+  if (level === baseLevel || !LEVEL_LEAD.test(phrase)) return phrase;
+  const rest = phrase.replace(LEVEL_LEAD, '').trim();
+  return rest ? rest[0].toUpperCase() + rest.slice(1) : '';
+}
+
+// Aplica alergias, «otra cosa», trazas y lectura incierta sobre el veredicto fusionado.
+function finish(
+  base,
+  {
+    title, foodIds, profile, allergyFound, otraFound, traces = [], uncertain = false, notes, ingredients,
+    topics = [], missingList = [], forceMissing = false, downgrade = null, ojo = [],
+  },
+) {
+  let level = base.level;
+  const prefixes = [];
+  const allergyHits = ALLERGY_IDS.filter((a) => profile.alergias.includes(a) && allergyFound.has(a));
+  const allergyLabels = allergyHits.map((a) => ALLERGY_LABEL[a]);
+  const otraLabels = otraFound.map((x) => `«${x}»`);
+  if (allergyHits.length) {
+    level = 'no';
+    prefixes.push(`Has marcado ${joinList(allergyLabels)}.`);
+  }
+  if (otraFound.length) {
+    level = 'no';
+    prefixes.push(`Has marcado ${joinList(otraLabels)}.`);
+  }
+  // El nivel «Mejor no» lo pone solo lo que la persona ha marcado: la frase de la guía (y su pregunta y
+  // alternativa) hablaban de otro riesgo y se contradirían.
+  const byProfileOnly = level === 'no' && base.level !== 'no';
+  const traceHits = ALLERGY_IDS.filter((a) => profile.alergias.includes(a) && traces.includes(a) && !allergyFound.has(a));
+  if (traceHits.length && level === 'si') {
+    level = 'cuidado';
+    prefixes.push(`Puede llevar trazas de ${joinList(traceHits.map((a) => ALLERGY_LABEL[a]))}.`);
+  }
+  if (uncertain && level === 'si') {
+    level = 'duda';
+    prefixes.push(PHRASES.lecturaIncierta);
+  }
+  // Producto sin ingredientes o con datos de internet sin confirmar: un «Sí» pasa a «No estoy segura».
+  // «Con cuidado» y «Mejor no» se quedan (el riesgo ya está identificado).
+  const downgraded = !!downgrade && level === 'si';
+  if (downgraded) level = 'duda';
+  let phrase = [...prefixes, phraseFor(base.phrase, base.level, level)].filter(Boolean).join(' ');
+  let { detail, question, alternative } = base;
+  let source = base.source;
+  if (downgraded) {
+    phrase = downgrade.phrase;
+    detail = downgrade.detail;
+    question = null;
+    alternative = null;
+    source = downgrade.source;
+  }
+  if (byProfileOnly) {
+    phrase = prefixes.join(' ');
+    const marked = [];
+    if (allergyLabels.length) marked.push(`Lleva ${joinList(allergyLabels)}, que has marcado en tus ajustes.`);
+    if (otraLabels.length) marked.push(`Has marcado ${joinList(otraLabels)} entre lo que no quieres comer en tus ajustes.`);
+    const tail =
+      base.level === 'si'
+        ? 'aunque en general este alimento no tenga un riesgo especial en el embarazo'
+        : base.level === 'cuidado'
+          ? 'aunque en general este alimento solo pida algo de cuidado en el embarazo'
+          : 'aunque la app no reconoce del todo este plato';
+    detail = `${marked.join(' ')} Por eso sale «Mejor no», ${tail}.`;
+    question = null;
+    alternative = null;
+  }
+  return {
+    title,
+    level,
+    label: LEVEL_LABEL[level],
+    phrase,
+    detail,
+    question,
+    alternative,
+    source,
+    foodId: base.id || null,
+    foodIds,
+    notes,
+    uncertain: !!uncertain,
+    ingredients,
+    // Temas conflictivos por los que sale «Con cuidado» o «Mejor no» (ids de claves.js). «Sí» y «No estoy segura»: [].
+    topics: level === 'cuidado' || level === 'no' ? topics : [],
+    // Temas que no se pueden descartar sin ver la etiqueta: «No estoy segura», o producto sin ingredientes fiables.
+    missing: level === 'duda' || forceMissing ? missingList : [],
+    // «Ojo con esto»: avisos cortos de lo que conviene vigilar en un «Sí» (o junto a un «Con cuidado»). En
+    // «Mejor no» y «No estoy segura»: [].
+    ojo: level === 'si' || level === 'cuidado' ? ojo : [],
+  };
+}
+
+// Núcleo común de classifyText y classifyProduct.
+function classifyDoc(
+  doc,
+  {
+    title, profile, context, extraMatches = [], declared = [], traces = [], labels = [], uncertain = false,
+    ingredients = [], forceMissing = false, downgrade = null, labelHits = null,
+  },
+) {
+  const p = sanitizeProfile(profile);
+  const text = doc.text;
+  const matches = applyContext([...findMatches(doc, context), ...extraMatches], doc, context);
+
+  const entries = matches.map((m) => {
+    const food = FOOD_BY_ID[m.id];
+    let piece = pieceFromFood(food, { order: m.order, K: m.K });
+    piece = applyEmbutidoProfile(piece, food, p);
+    piece = applyPasteurized(piece, text);
+    return { food, piece, m };
+  });
+  const pieces = entries.map((e) => e.piece);
+  // Temas: por relevancia (lo más grave primero) y solo de lo que de verdad pide cuidado o es «Mejor no».
+  const byRelevance = entries
+    .slice()
+    .sort((a, b) => levelRank(b.piece.level) - levelRank(a.piece.level) || a.piece.order - b.piece.order);
+  let topics = mergeTopics(
+    byRelevance.filter((e) => e.piece.level === 'cuidado' || e.piece.level === 'no').map((e) => topicsForFood(e.food)),
+  );
+  const missingList = missingFor(byRelevance, text);
+  let ojo = ojoFrom(
+    byRelevance.filter(
+      (e) =>
+        (e.piece.level === 'si' || e.piece.level === 'cuidado') &&
+        !e.piece.pasteurized &&
+        (context !== 'product' || e.m.where !== 'ingredient'),
+    ),
+  );
+  let base = pieces.length ? mergePieces(pieces) : unknownPiece();
+  // Producto: un «Sí» solo puede hablar con la voz de un alimento emparejado por el nombre (o la categoría) del
+  // producto. Si lo único que lo decide son ingredientes («leche pasteurizada» en unos ñoquis), la frase de esa
+  // ficha describiría el ingrediente y no el producto: frase de la propia app. «Con cuidado» y «Mejor no» sí se quedan.
+  // Con ingredientes fiables (`labelHits` ≠ null) la propia app los lee: nada que vigilar → «Sí»; algo que aparece
+  // → «Con cuidado» (o «Sí» con aviso si solo hay que moderar). Así nunca contradice «Lo que he mirado en la etiqueta».
+  let labelBase = null;
+  if (context === 'product') {
+    const byName = entries.filter((e) => e.m.where !== 'ingredient').map((e) => e.piece);
+    if (pieces.length && base.level === 'si') {
+      if (byName.length) base = mergePieces(byName);
+      else base = labelHits ? (labelBase = labelPiece(labelHits)) : neutralPiece();
+    } else if (!pieces.length && labelHits) {
+      base = labelBase = labelPiece(labelHits);
+    }
+  }
+  if (labelBase) {
+    topics = labelBase.topics;
+    ojo = labelBase.ojo;
+  }
+  const foodIds = [...new Set(matches.map((m) => m.id))];
+
+  // Alergias y forma de comer: etiquetas de los alimentos + léxico del texto, menos negaciones;
+  // los alérgenos declarados (Open Food Facts) cuentan siempre.
+  const neg = negatedSet(text, labels);
+  const tags = new Set(foodIds.flatMap((id) => FOOD_BY_ID[id].tags || []));
+  const allergyFound = new Set();
+  for (const a of ALLERGY_IDS) {
+    if (neg.has(a)) continue;
+    if (tags.has(a) || ALLERGEN_LEXICON[a].test(text)) allergyFound.add(a);
+  }
+  // «sin lactosa» no quita la leche: el léxico de leche incluye «lactosa».
+  declared.forEach((a) => allergyFound.add(a));
+
+  const categories = new Set();
+  for (const t of tags) if (!neg.has(t)) categories.add(t);
+  for (const k of lexiconHits(DIET_LEXICON, text)) if (!neg.has(k)) categories.add(k);
+  for (const a of declared) if (['leche', 'huevo', 'pescado', 'marisco'].includes(a)) categories.add(a);
+  const lactosaNegated = neg.has('lactosa') || CTX.sinLactosa.test(text);
+
+  const otraFound = otraHits(p.otra, [text]);
+  return finish(base, {
+    title,
+    foodIds,
+    profile: p,
+    allergyFound,
+    otraFound,
+    traces,
+    uncertain,
+    notes: dietNotes(p, categories, lactosaNegated),
+    ingredients,
+    topics,
+    missingList,
+    forceMissing,
+    downgrade,
+    ojo,
+  });
+}
+
+// Avisos de «Ojo con esto» de los alimentos emparejados: sin repetir, los más importantes primero, máximo 3.
+export const OJO_MAX = 3;
+function ojoFrom(entries) {
+  const out = [];
+  for (const e of entries) {
+    for (const o of e.food.ojo || []) if (!out.includes(o)) out.push(o);
+  }
+  return out.slice(0, OJO_MAX);
+}
+
+// Qué no se puede descartar sin ver la etiqueta, según lo que se reconoce. Nada reconocido: la regla 7.
+function missingFor(byRelevance, text) {
+  if (!byRelevance.length) return MISSING_UNKNOWN.slice();
+  const list = mergeTopics(byRelevance.map((e) => missingForFood(e.food)));
+  if (byRelevance.some((e) => e.food.id === 'pasta') && RELLENO_RE.test(text) && !list.includes('listeria')) {
+    list.push('listeria');
+  }
+  return list.slice(0, MISSING_MAX);
+}
+
+// ---------------------------------------------------------------------------
+// API pública
+// ---------------------------------------------------------------------------
+
+// `source: 'web'` (o `ingredientsSource: 'web'`): los datos vienen de internet, sin confirmar con la etiqueta.
+export function classifyText(name, { ingredients = [], uncertain = false, source, ingredientsSource } = {}, profile) {
+  const web = source === 'web' || ingredientsSource === 'web';
+  const ingr = (Array.isArray(ingredients) ? ingredients : [ingredients]).filter((x) => typeof x === 'string' && x.trim());
+  const title = String(name ?? '').trim();
+  const doc = buildDoc([{ text: title, kind: 'name' }, ...ingr.map((t) => ({ text: t, kind: 'ingredient' }))]);
+  return classifyDoc(doc, {
+    title: title || (ingr.length ? ingr.join(', ') : ''),
+    profile,
+    context: 'text',
+    uncertain: !!uncertain,
+    ingredients: ingr.slice(),
+    forceMissing: web,
+    downgrade: web ? INCOMPLETE.web : null,
+  });
+}
+
+function splitTopLevel(text) {
+  const out = [];
+  let depth = 0;
+  let cur = '';
+  for (const ch of String(text || '')) {
+    if (ch === '(' || ch === '[') depth++;
+    if (ch === ')' || ch === ']') depth = Math.max(0, depth - 1);
+    if ((ch === ',' || ch === ';') && depth === 0) {
+      if (cur.trim()) out.push(cur.trim());
+      cur = '';
+    } else cur += ch;
+  }
+  if (cur.trim()) out.push(cur.trim().replace(/\.$/, ''));
+  return out;
+}
+
+const stripLang = (tag) => String(tag || '').replace(/^[a-z]{2,3}:/, '');
+
+export function classifyProduct(product, profile) {
+  const pr = product && typeof product === 'object' ? product : {};
+  const name = typeof pr.name === 'string' ? pr.name.trim() : '';
+  const ingredientsText = typeof pr.ingredientsText === 'string' ? pr.ingredientsText : '';
+  const list = (x) => (Array.isArray(x) ? x.filter((t) => typeof t === 'string') : []);
+  const categories = list(pr.categories);
+  const labels = list(pr.labels);
+
+  const ingrSegments = ingredientsText
+    .split(/[,;:()[\]{}·•\n\r]+|\.(?!\d)/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  // Categorías en español (es:quesos-frescos) pasan por el mismo léxico; el resto, por el mapa.
+  const esCategories = categories.filter((c) => c.startsWith('es:')).map((c) => stripLang(c).replace(/-/g, ' '));
+  const doc = buildDoc([
+    { text: name, kind: 'name' },
+    ...esCategories.map((t) => ({ text: t, kind: 'category' })),
+    ...ingrSegments.map((t) => ({ text: t, kind: 'ingredient' })),
+  ]);
+
+  const extraMatches = [];
+  for (const c of categories) {
+    const id = OFF_CATEGORY_MAP[stripLang(c)];
+    if (id && FOOD_BY_ID[id]) extraMatches.push({ id, order: idOrder(id), start: -1, end: -1, where: 'category', via: 'cat' });
+  }
+  const mapAllergens = (tags) => [...new Set(list(tags).map((t) => OFF_ALLERGEN_MAP[t]).filter(Boolean))];
+  // Sin ingredientes, o ingredientes de internet sin confirmar: no se puede dar un «Sí».
+  const sinIngredientes = !ingredientsText.trim();
+  const web = pr.ingredientsSource === 'web' || pr.source === 'web';
+  const incomplete = sinIngredientes ? INCOMPLETE.sinIngredientes : web ? INCOMPLETE.web : null;
+  // Ingredientes fiables (de OFF o de la etiqueta): la propia app los lee con el mismo léxico que «checkLabel».
+  // Lo pasteurizado es tranquilizador, no un hallazgo.
+  const labelHits = incomplete
+    ? null
+    : checkLabel(ingredientsText).filter((r) => r.status === 'aparece' && r.matiz !== 'pasteurizado');
+
+  return classifyDoc(doc, {
+    title: name || 'Producto sin nombre',
+    profile,
+    context: 'product',
+    extraMatches,
+    declared: mapAllergens(pr.allergens),
+    traces: mapAllergens(pr.traces),
+    labels,
+    ingredients: splitTopLevel(ingredientsText),
+    forceMissing: !!incomplete,
+    downgrade: incomplete,
+    labelHits,
+  });
+}
+
+export function verdictForFood(foodId, profile) {
+  const food = FOOD_BY_ID[foodId];
+  if (!food) throw new Error(`Alimento desconocido: ${foodId}`);
+  const p = sanitizeProfile(profile);
+  const piece = applyEmbutidoProfile(pieceFromFood(food), food, p);
+  const nameNorm = normalize(food.name);
+  const aliasNorms = (food.aliases || []).map(normalize).filter(Boolean);
+  const tags = new Set(food.tags || []);
+
+  // Alergias: etiquetas y nombre (las etiquetas recogen lo que el alimento lleva siempre o casi siempre;
+  // los alias son variantes, no ingredientes fijos).
+  const neg = negatedSet(nameNorm);
+  const allergyFound = new Set();
+  for (const a of ALLERGY_IDS) {
+    if (tags.has(a) || (!neg.has(a) && ALLERGEN_LEXICON[a].test(nameNorm))) allergyFound.add(a);
+  }
+  const categories = new Set(tags);
+  for (const k of lexiconHits(DIET_LEXICON, nameNorm)) if (!neg.has(k)) categories.add(k);
+
+  const risky = piece.level === 'cuidado' || piece.level === 'no';
+  return finish(piece, {
+    title: food.name,
+    foodIds: [food.id],
+    profile: p,
+    allergyFound,
+    otraFound: otraHits(p.otra, [nameNorm, ...aliasNorms]),
+    notes: dietNotes(p, categories, false),
+    ingredients: [],
+    topics: risky ? topicsForFood(food) : [],
+    missingList: missingForFood(food).slice(0, MISSING_MAX),
+    ojo: (food.ojo || []).slice(0, OJO_MAX),
+  });
+}
+
+const GROUP_ORDER = new Map(GROUPS.map((g, i) => [g.id, i]));
+const byName = (a, b) => a.name.localeCompare(b.name, 'es') || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+
+export function searchFoods(query, groupId = 'todo') {
+  const g = groupId || 'todo';
+  const pool = g === 'todo' ? FOODS : FOODS.filter((f) => (f.groups || []).includes(g));
+  const q = normalize(query);
+  if (!q) {
+    return pool
+      .slice()
+      .sort((a, b) => (GROUP_ORDER.get(a.groups?.[0]) ?? 99) - (GROUP_ORDER.get(b.groups?.[0]) ?? 99) || byName(a, b));
+  }
+  const tokens = q.split(' ');
+  const ranked = [];
+  for (const f of pool) {
+    const name = normalize(f.name);
+    const aliases = (f.aliases || []).map(normalize);
+    const tier = (s) => (s === q ? 0 : s.startsWith(q) ? 1 : s.includes(q) ? 2 : tokens.every((t) => s.includes(t)) ? 3 : null);
+    let best = null;
+    const nt = tier(name);
+    if (nt !== null) best = nt * 2;
+    for (const a of aliases) {
+      const at = tier(a);
+      if (at !== null && (best === null || at * 2 + 1 < best)) best = at * 2 + 1;
+    }
+    if (best !== null) ranked.push({ f, rank: best });
+  }
+  return ranked.sort((a, b) => a.rank - b.rank || byName(a.f, b.f)).map((r) => r.f);
+}
